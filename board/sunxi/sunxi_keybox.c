@@ -278,7 +278,6 @@ int sunxi_keybox_burn_key(const char *name, char *buf, int key_len, int encrypt,
 
 #ifdef CONFIG_SUNXI_ANDROID_BOOT
 /* android keybox keys */
-SUNXI_KEYBOX_KEY(widevine, NULL, NULL);
 
 const static char *android_trust_chain_map[8] = { "ec_key",    "ec_cert1",
 						  "ec_cert2",  "ec_cert3",
@@ -331,6 +330,18 @@ SUNXI_KEYBOX_KEY(rsa_key, NULL, android_trust_chain_load_cb);
 SUNXI_KEYBOX_KEY(rsa_cert1, NULL, android_trust_chain_load_cb);
 SUNXI_KEYBOX_KEY(rsa_cert2, NULL, android_trust_chain_load_cb);
 SUNXI_KEYBOX_KEY(rsa_cert3, NULL, android_trust_chain_load_cb);
+
+int android_drmkey_load_cb(const char *name)
+{
+	if (default_keybox_installation(name) != 0) {
+		return -1;
+	} else {
+		pr_msg("set android_drmkey to true\n");
+		env_set("android_drmkey", "true");
+	}
+	return 0;
+}
+SUNXI_KEYBOX_KEY(widevine, NULL, android_drmkey_load_cb);
 #endif
 
 #if defined (CONFIG_SUNXI_SDMMC) && defined (CONFIG_SUPPORT_EMMC_RPMB)

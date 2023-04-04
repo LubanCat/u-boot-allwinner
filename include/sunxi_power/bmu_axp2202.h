@@ -27,6 +27,7 @@
 #define   AXP2202_MODE_CHGSTATUS      	(0x01)
 #define   AXP2202_CHIP_ID         	 	(0x03)
 #define   AXP2202_VERSION					(0x04)
+#define   AXP2202_COMM_FAULT					(0x08)
 #define   AXP2202_CURVE_CHECK            (0x0c)
 #define   AXP2202_CHIP_ID_EXT				(0x0e)
 
@@ -39,13 +40,19 @@
 #define   AXP2202_VOFF_THLD            	(0x24)
 #define   AXP2202_OFF_CTL             	(0x27)
 #define   AXP2202_TS_CFG             	(0x50)
+#define   AXP2202_TS_CFG_DATA_H      	(0x5c)
+#define   AXP2202_TS_CFG_DATA_L       	(0x5d)
 #define   AXP2202_CHARGE1             	(0x62)
+#define   AXP2202_BAT_DET             	(0x68)
 
 #define   AXP2202_CHGLED_SET             	(0x70)
 
 #define   AXP2202_ADC_CH_EN0             	(0xc0)
 #define   AXP2202_BAT_AVERVOL_H6          (0xc4)
 #define   AXP2202_BAT_AVERVOL_L8          (0xc5)
+#define   AXP2202_ADC_DATA_SEL            (0xcd)
+#define   AXP2202_ADC_DATA_H              (0xce)
+#define   AXP2202_ADC_DATA_L              (0xcf)
 
 #define   AXP2202_FUEL_GAUGE_CTL       	(0x0B)
 #define   AXP2202_BAT_PERCEN_CAL			(0xA4)

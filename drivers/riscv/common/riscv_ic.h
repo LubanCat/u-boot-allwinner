@@ -30,5 +30,12 @@
 #include "../sun50iw11/platform.h"
 #define ADDR_TPYE	u32
 #define RISCV_UART_STR	"allwinner,sun50iw11-riscv-uart"
+#elif defined(CONFIG_MACH_SUN55IW3)
+#include "../sun55iw3/platform.h"
+#define ADDR_TPYE	u32
+#define RISCV_STATUS_STR	"allwinner,sun55iw3-riscv"
+#define RISCV_GPIO_INT_STR	"allwinner,sun55iw3-riscv-gpio-int"
+#define RISCV_UART_STR		"allwinner,sun55iw3-riscv-uart"
+#define RISCV_SHARE_SPACE	"allwinner,sun55iw3-riscv-share-space"
 #endif
 #endif

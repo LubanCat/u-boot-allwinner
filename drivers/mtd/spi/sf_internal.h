@@ -67,6 +67,13 @@ struct flash_info {
 #define USE_CLSR		BIT(14)	/* use CLSR command */
 #define SPI_NOR_INDIVIDUAL_LOCK BIT(16) /* individual block/sector lock mode */
 #define SPI_NOR_HAS_LOCK_HANDLE BIT(17) /* OP/ERASE for lock operation */
+#define SPI_NOR_OCTAL_READ	BIT(18) /* flash supports OCTAL read */
+#define USE_IO_MODE		BIT(19) /* Address and data line width */
+#define USE_RX_DTR              BIT(20) /* flash supports RX DTR mode */
+#define USE_TX_DTR              BIT(21) /* flash supports TX DTR mode */
+#define USE_DQS                 BIT(22) /* flash supports DQS mode */
+#define OCTAL_SPINOR		BIT(23) /* flash supports OCTAL SPINOR */
+#define SPI_NOR_STACK_DIE		BIT(24) /* flash supports to use multi dies */
 };
 
 extern const struct flash_info spi_nor_ids[];
@@ -103,18 +110,21 @@ void spi_flash_mtd_unregister(void);
 
 #define SPINOR_BOOT_PARAM_MAGIC	"NORPARAM"
 typedef struct {
-	u8	magic[8];
-	__s32	readcmd;
-	__s32	read_mode;
-	__s32	write_mode;
-	__s32	flash_size;
-	__s32	addr4b_opcodes;
-	__s32	erase_size;
-	__s32	delay_cycle;/*When the frequency is greater than 60MHZ configured as 1;less than 24MHZ configured as 2;greater 24MHZ and less 60HZ as 3*/
-	__s32	lock_flag;
-	__s32	frequency;
-	unsigned int sample_delay;
-	unsigned int sample_mode;
+	u8			magic[8];
+	__s32			readcmd;
+	__s32			read_mode;
+	__s32			write_mode;
+	__s32			flash_size;
+	__s32			addr4b_opcodes;
+	__s32			erase_size;
+	__s32			delay_cycle;/*When the frequency is greater than 60MHZ configured as 1;less than 24MHZ configured as 2;greater 24MHZ and less 60HZ as 3*/
+	__s32			lock_flag;
+	__s32			frequency;
+	unsigned int		sample_delay;
+	unsigned int		sample_mode;
+	enum spi_nor_protocol	read_proto;
+	enum spi_nor_protocol	write_proto;
+	u8			read_dummy;
 } boot_spinor_info_t;
 
 #endif /* _SF_INTERNAL_H_ */

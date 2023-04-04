@@ -50,9 +50,9 @@ static void __clk_disable(struct clk *clk)
 
 	if (clk->ops->disable)
 		clk->ops->disable(clk->hw);
-#ifndef CONFIG_EINK200_SUNXI
-	__clk_disable(clk->parent);
-#endif
+
+	/* if disable clk parent, it may cause uboot work failed */
+	/* __clk_disable(clk->parent); */
 }
 
 unsigned long __clk_get_rate(struct clk *clk)
@@ -573,7 +573,7 @@ int of_pll_clk_config_setup(struct clk *child_clk, u32 parent_handle)
 int of_periph_clk_config_setup(int node_offset)
 {
 	int handle_num = 0;
-	u32 handle[10] = { 0 };
+	u32 handle[32] = { 0 };
 	u32 parent_handle = 0;
 	int i = 0;
 	int ret = 0;
@@ -588,6 +588,8 @@ int of_periph_clk_config_setup(int node_offset)
 
 	handle_num =
 	    fdt_getprop_u32(working_fdt, node_offset, "clocks", handle);
+	printk("handle_num : %d \n", handle_num);
+
 	if (handle_num < 0) {
 		printf("%s:%d:error:get property handle %s error:%s\n",
 		       __func__, __LINE__, "clocks", fdt_strerror(handle_num));
@@ -604,6 +606,10 @@ int of_periph_clk_config_setup(int node_offset)
 	for (i = 0; i < handle_num; i++) {
 		u32 rate = 0;
 
+		if (32 <= handle_num) {
+			printk("out of index \n");
+			goto err;
+		}
 		node_offset =
 		    fdt_node_offset_by_phandle(working_fdt, handle[i]);
 		if (node_offset < 0) {
@@ -656,7 +662,7 @@ int of_periph_clk_config_setup(int node_offset)
 struct clk *of_clk_get(int node_offset, int index)
 {
 	int handle_num = 0;
-	u32 handle[10] = { 0 };
+	u32 handle[32] = { 0 };
 	int ret;
 	char *clk_name = NULL;
 	struct clk *clk;

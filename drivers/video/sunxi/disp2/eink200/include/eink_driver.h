@@ -303,7 +303,6 @@ struct eink_manager {
 	struct mutex			enable_lock;
 	struct clk			*ee_clk;
 	struct clk			*panel_clk;
-	struct clk			*panel_clk_parent;
 	unsigned int			clk_enable_flag;
 	struct eink_panel_info		panel_info;
 	struct timing_info		timing_info;

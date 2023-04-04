@@ -26,6 +26,7 @@
 #define SNOR_MFR_SPANSION	CFI_MFR_AMD
 #define SNOR_MFR_SST		CFI_MFR_SST
 #define SNOR_MFR_ESMT		CFI_MFR_EON
+#define SNOR_MFR_GFX		CFI_MFR_EON
 #define SNOR_MFR_WINBOND	0xef /* Also used by some Spansion */
 #define SNOR_MFR_PUYA		0x85
 #define SNOR_MFR_XMC		0x20
@@ -36,6 +37,15 @@
 #define SNOR_MFR_FM		0xa1
 #define SNOR_MFR_EON		0x1c
 #define SNOR_MFR_MXIC	 0xc2
+
+/*
+ * GFX Device IDs
+ *
+ * Manufacturer ID is equal to EON,so define Device id to distinguish.
+ */
+#define GM_64A_ID  	0x4017
+#define GM_128A_ID	 0x4018
+
 
 /*
  * Note on opcode nomenclature: some opcodes have a format like
@@ -58,9 +68,12 @@
 #define SPINOR_OP_READ_1_1_2	0x3b	/* Read data bytes (Dual Output SPI) */
 #define SPINOR_OP_READ_1_2_2	0xbb	/* Read data bytes (Dual I/O SPI) */
 #define SPINOR_OP_READ_1_1_4	0x6b	/* Read data bytes (Quad Output SPI) */
+#define SPINOR_OP_READ_1_1_8    0x8b    /* Read data bytes (OCTAL Output SPI) */
 #define SPINOR_OP_READ_1_4_4	0xeb	/* Read data bytes (Quad I/O SPI) */
+#define SPINOR_OP_READ_1_8_8    0xcb    /* Read data bytes (OCTAL I/O SPI) */
 #define SPINOR_OP_PP		0x02	/* Page program (up to 256 bytes) */
 #define SPINOR_OP_PP_1_1_4	0x32	/* Quad page program */
+#define SPINOR_OP_PP_1_1_8      0x82    /* OCTAL page program */
 #define SPINOR_OP_PP_1_4_4	0x38	/* Quad page program */
 #define SPINOR_OP_BE_4K		0x20	/* Erase 4KiB block */
 #define SPINOR_OP_BE_4K_PMC	0xd7	/* Erase 4KiB block on PMC chips */
@@ -76,20 +89,29 @@
 #define SPINOR_OP_WREAR		0xc5	/* Write Extended Address Register */
 #define SPINOR_OP_RESTEN	0x66	/* Reset enable*/
 #define SPINOR_OP_RESET		0x99	/* Reset device*/
+#define SPINOR_OP_RD_VOL_CFG    0x85    /* Read Volatile Configuration Register */
+#define SPINOR_OP_WR_VOL_CFG    0x81    /* Write Volatile Configuration Register */
+#define SPINOR_OP_RD_NONVOL_CFG 0xb5    /* Read Nonvolatile Configuration Register */
+#define SPINOR_OP_WR_NONVOL_CFG 0xb1    /* Write Nonvolatile Configuration Register */
 
 /* 4-byte address opcodes - used on Spansion and some Macronix flashes. */
-#define SPINOR_OP_READ_4B	0x13	/* Read data bytes (low frequency) */
-#define SPINOR_OP_READ_FAST_4B	0x0c	/* Read data bytes (high frequency) */
-#define SPINOR_OP_READ_1_1_2_4B	0x3c	/* Read data bytes (Dual Output SPI) */
-#define SPINOR_OP_READ_1_2_2_4B	0xbc	/* Read data bytes (Dual I/O SPI) */
-#define SPINOR_OP_READ_1_1_4_4B	0x6c	/* Read data bytes (Quad Output SPI) */
-#define SPINOR_OP_READ_1_4_4_4B	0xec	/* Read data bytes (Quad I/O SPI) */
-#define SPINOR_OP_PP_4B		0x12	/* Page program (up to 256 bytes) */
-#define SPINOR_OP_PP_1_1_4_4B	0x34	/* Quad page program */
-#define SPINOR_OP_PP_1_4_4_4B	0x3e	/* Quad page program */
-#define SPINOR_OP_BE_4K_4B	0x21	/* Erase 4KiB block */
-#define SPINOR_OP_BE_32K_4B	0x5c	/* Erase 32KiB block */
-#define SPINOR_OP_SE_4B		0xdc	/* Sector erase (usually 64KiB) */
+#define SPINOR_OP_READ_4B		0x13	/* Read data bytes (low frequency) */
+#define SPINOR_OP_READ_FAST_4B		0x0c	/* Read data bytes (high frequency) */
+#define SPINOR_OP_READ_1_1_2_4B		0x3c	/* Read data bytes (Dual Output SPI) */
+#define SPINOR_OP_READ_1_2_2_4B		0xbc	/* Read data bytes (Dual I/O SPI) */
+#define SPINOR_OP_READ_1_1_4_4B		0x6c	/* Read data bytes (Quad Output SPI) */
+#define SPINOR_OP_READ_1_4_4_4B		0xec	/* Read data bytes (Quad I/O SPI) */
+#define SPINOR_OP_READ_1_1_8_4B         0x7c    /* Read data bytes (OCTAL Output SPI) */
+#define SPINOR_OP_READ_1_8_8_4B         0xcc    /* Read data bytes (OCTAL I/O SPI) */
+#define SPINOR_OP_DTR_READ_1_8_8_4B     0xfd    /* Read data bytes (DTR OCTAL I/O SPI) */
+#define SPINOR_OP_PP_4B			0x12	/* Page program (up to 256 bytes) */
+#define SPINOR_OP_PP_1_1_4_4B		0x34	/* Quad page program */
+#define SPINOR_OP_PP_1_1_8_4B		0x84    /* Quad page program */
+#define SPINOR_OP_PP_1_4_4_4B		0x3e	/* Quad page program */
+#define SPINOR_OP_PP_1_8_8_4B		0x8e    /* Quad page program */
+#define SPINOR_OP_BE_4K_4B		0x21	/* Erase 4KiB block */
+#define SPINOR_OP_BE_32K_4B		0x5c	/* Erase 32KiB block */
+#define SPINOR_OP_SE_4B			0xdc	/* Sector erase (usually 64KiB) */
 
 /* Double Transfer Rate opcodes - defined in JEDEC JESD216B. */
 #define SPINOR_OP_READ_1_1_1_DTR	0x0d
@@ -99,6 +121,16 @@
 #define SPINOR_OP_READ_1_1_1_DTR_4B	0x0e
 #define SPINOR_OP_READ_1_2_2_DTR_4B	0xbe
 #define SPINOR_OP_READ_1_4_4_DTR_4B	0xee
+
+/* work mode */
+#define SPINOR_WITH_DQS			0xff
+#define SPINOR_WITHOUT_DQS		0xdf
+#define SPINOR_OCTAL_DTR_WITH_DQS       0xe7
+#define SPINOR_OCTAL_DTR_WITHOUT_DQS    0xc7
+#define SPINOR_OCTAL_WIT_DQS            0xb7
+#define SPINOR_OCTAL_WITHOUT_DQS        0x97
+
+#define SPINOR_4WIDTH_MODE              0xfe
 
 /* Used for SST flashes only. */
 #define SPINOR_OP_BP		0x02	/* Byte program */
@@ -144,11 +176,19 @@
 #define SPINOR_OP_MXICWBLK	  0xe1    /* Lock MXIC DPB individual block */
 #define SPINOR_OP_MXICRBLK		  0xe0    /* Unlock MXIC DPB individual block */
 
-
 /* Used for MXIC nor flash*/
 #define SPINOR_OP_USPB		 0xe4    /* Unused SPB lock */
 #define SPINOR_OP_RDSCUR		 0x2b    /* read security register */
 #define SR_WPSEL		BIT(7)    /* WPSEL locked mask */
+
+/* Used for Winbond nor flash */
+#define SPINOR_OP_SDS		0xc2	/* Select Die in the Software way */
+
+/* Used for secutity rigister */
+#define SR_OP_PROGRAM		 0x42    /* common sr write op */
+#define SR_OP_ERASE		 0x44    /* common sr erase op */
+#define SR_OP_READ		 0x48    /* common sr read op */
+#define LB_OFS		 2      /* LB bit offset */
 
 #define SR_WPS_EN_WINBOND	BIT(2)
 #define SR_WPS_EN_FM		BIT(3)
@@ -164,7 +204,10 @@
 #define SR_BP3			BIT(5)	/* Block protect 3 */
 #define SR_BP4			BIT(6)	/* Block protect 4 */
 #define SR_TB			BIT(5)	/* Top/Bottom protect */
-#define SR_SRWD			BIT(7)	/* SR write protect */
+#define SR_SEC			BIT(6)     /* 4K/Sector protect */
+#define GENERAL_CMP		BIT(6)     /* general CMP bit */
+#define SR_CMP			BIT(7)     /* dummy CMP bit */
+#define SR_SRWD			BIT(7)     /* SR write protect */
 /* Spansion/Cypress specific status bits */
 #define SR_E_ERR		BIT(5)
 #define SR_P_ERR		BIT(6)
@@ -189,6 +232,8 @@
 #define CR_QUAD_EN_PUYA		BIT(1)	/* Puya Quad I/O */
 #define CR_QUAD_EN_GD			BIT(1)	/* Gd Quad I/O */
 #define CR_QUAD_EN_EON		BIT(1)	/* EON Quad I/O */
+#define SR3_EN_DC1		BIT(1)	/* Dummy Configuration Bit */
+#define SR3_EN_DC0		BIT(0)	/* Dummy Configuration Bit */
 
 /* Status Register 2 bits. */
 #define SR2_QUAD_EN_BIT7	BIT(7)
@@ -349,6 +394,7 @@ struct spi_nor {
 	u8			erase_opcode;
 	u8			read_opcode;
 	u8			read_dummy;
+	u8			mode;
 	u8			program_opcode;
 #ifdef CONFIG_SPI_FLASH_BAR
 	u8			bank_read_cmd;
@@ -385,6 +431,8 @@ struct spi_nor {
 	u32 size;
 	u32 sector_size;
 	u32 erase_size;
+/* Compatibility for multi_die flash */
+	u8 active_stack_die;
 };
 
 static inline void spi_nor_set_flash_node(struct spi_nor *nor,

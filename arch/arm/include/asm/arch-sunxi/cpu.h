@@ -14,6 +14,8 @@
 #include <asm/arch/cpu_version1.h>
 #elif defined(CONFIG_MACH_SUN55IW3)
 #include <asm/arch/plat-sun55iw3p1/cpu_sun55iw3.h>
+#elif defined(CONFIG_MACH_SUN60IW1)
+#include <asm/arch/plat-sun60iw1p1/cpu_sun60iw1.h>
 #else
 #include <asm/arch/cpu_sun4i.h>
 #endif

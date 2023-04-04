@@ -55,6 +55,21 @@ int bmu_axp2101_set_power_off(void)
 	return 0;
 }
 
+
+int bmu_axp2101_get_battery_probe(void)
+{
+	u8 reg_value;
+
+	if (pmic_bus_read(AXP2101_RUNTIME_ADDR, AXP2101_COMM_STATUS0, &reg_value)) {
+		return -1;
+	}
+
+	if (reg_value & 0x08)
+		return 1;
+
+	return -1;
+}
+
 /*
 	boot_source	0x20		help			return
 
@@ -73,7 +88,11 @@ int bmu_axp2101_get_poweron_source(void)
 	switch (reg_value) {
 	case (1 << AXP_BOOT_SOURCE_BUTTON): return AXP_BOOT_SOURCE_BUTTON;
 	case (1 << AXP_BOOT_SOURCE_IRQ_LOW): return AXP_BOOT_SOURCE_IRQ_LOW;
-	case (1 << AXP_BOOT_SOURCE_VBUS_USB): return AXP_BOOT_SOURCE_VBUS_USB;
+	case (1 << AXP_BOOT_SOURCE_VBUS_USB):
+					     if (bmu_axp2101_get_battery_probe() > -1)
+						     return AXP_BOOT_SOURCE_CHARGER;
+					     else
+						     return AXP_BOOT_SOURCE_VBUS_USB;
 	case (1 << AXP_BOOT_SOURCE_CHARGER): return AXP_BOOT_SOURCE_CHARGER;
 	case (1 << AXP_BOOT_SOURCE_BATTERY): return AXP_BOOT_SOURCE_BATTERY;
 	default: return -1;
@@ -160,19 +179,6 @@ int bmu_axp2101_get_battery_capacity(void)
 	return reg_value;
 }
 
-int bmu_axp2101_get_battery_probe(void)
-{
-	u8 reg_value;
-
-	if (pmic_bus_read(AXP2101_RUNTIME_ADDR, AXP2101_COMM_STATUS0, &reg_value)) {
-		return -1;
-	}
-
-	if (reg_value & 0x08)
-		return 1;
-
-	return -1;
-}
 
 int bmu_axp2101_set_vbus_current_limit(int current)
 {
@@ -286,6 +292,154 @@ unsigned char bmu_axp2101_set_reg_value(unsigned char reg_addr, unsigned char re
 	return reg;
 }
 
+int bmu_axp2101_reset_capacity(void)
+{
+	if (pmic_bus_clrbits(AXP2101_RUNTIME_ADDR, AXP210X_REG_CONFIG, BIT(4)))
+		return -1;
+
+	return 1;
+}
+
+
+int bmu_axp2101_set_ntc_cur(int ntc_cur)
+{
+	unsigned char reg_value;
+	if (pmic_bus_read(AXP2101_RUNTIME_ADDR, AXP2101_TS_CFG, &reg_value)) {
+			return -1;
+	}
+	reg_value &= 0xFC;
+
+	if (ntc_cur < 40)
+		reg_value |= 0x00;
+	else if (ntc_cur < 50)
+		reg_value |= 0x01;
+	else if (ntc_cur < 60)
+		reg_value |= 0x02;
+	else
+		reg_value |= 0x03;
+
+	if (pmic_bus_write(AXP2101_RUNTIME_ADDR, AXP2101_TS_CFG, reg_value)) {
+			return -1;
+	}
+
+	return reg_value;
+}
+
+int bmu_axp2101_set_ntc_onff(int onoff, int ntc_cur)
+{
+	unsigned char reg_value;
+	if (!onoff) {
+		/* disable ts cfg*/
+		pmic_bus_clrbits(AXP2101_RUNTIME_ADDR, AXP2101_ADC_CH_EN0, BIT(1));
+		pmic_bus_setbits(AXP2101_RUNTIME_ADDR, AXP2101_TS_CFG, BIT(4));
+		pmic_bus_clrbits(AXP2101_RUNTIME_ADDR, AXP2101_TS_CFG, BIT(3));
+
+		/* set disable dbg */
+		if (pmic_bus_read(AXP2101_RUNTIME_ADDR, AXP2101_BAT_AVERVOL_H6, &reg_value))
+			return -1;
+
+		reg_value &= ~(1 << 7);
+		reg_value &= ~(1 << 6);
+		if (pmic_bus_write(AXP2101_RUNTIME_ADDR, AXP2101_BAT_AVERVOL_H6, reg_value))
+			return -1;
+		pmic_bus_clrbits(AXP2101_RUNTIME_ADDR, AXP2101_TS_H, BIT(6));
+	} else {
+		/* set disable dbg */
+		if (pmic_bus_read(AXP2101_RUNTIME_ADDR, AXP2101_BAT_AVERVOL_H6, &reg_value))
+			return -1;
+
+		reg_value &= ~(1 << 7);
+		reg_value &= ~(1 << 6);
+		if (pmic_bus_write(AXP2101_RUNTIME_ADDR, AXP2101_BAT_AVERVOL_H6, reg_value))
+			return -1;
+
+		pmic_bus_clrbits(AXP2101_RUNTIME_ADDR, AXP2101_TS_H, BIT(6));
+
+		/* enable ts cfg*/
+		pmic_bus_setbits(AXP2101_RUNTIME_ADDR, AXP2101_ADC_CH_EN0, BIT(1));
+		pmic_bus_clrbits(AXP2101_RUNTIME_ADDR, AXP2101_TS_CFG, BIT(4));
+		pmic_bus_setbits(AXP2101_RUNTIME_ADDR, AXP2101_TS_CFG, BIT(3));
+
+		bmu_axp2101_set_ntc_cur(ntc_cur);
+	}
+
+	return 0;
+}
+
+int axp_vts_to_temp(int data, int param[16])
+{
+	int temp;
+
+	if (data < param[15])
+		return 800;
+	else if (data <= param[14]) {
+		temp = 700 + (param[14]-data)*100/
+		(param[14]-param[15]);
+	} else if (data <= param[13]) {
+		temp = 600 + (param[13]-data)*100/
+		(param[13]-param[14]);
+	} else if (data <= param[12]) {
+		temp = 550 + (param[12]-data)*50/
+		(param[12]-param[13]);
+	} else if (data <= param[11]) {
+		temp = 500 + (param[11]-data)*50/
+		(param[11]-param[12]);
+	} else if (data <= param[10]) {
+		temp = 450 + (param[10]-data)*50/
+		(param[10]-param[11]);
+	} else if (data <= param[9]) {
+		temp = 400 + (param[9]-data)*50/
+		(param[9]-param[10]);
+	} else if (data <= param[8]) {
+		temp = 300 + (param[8]-data)*100/
+		(param[8]-param[9]);
+	} else if (data <= param[7]) {
+		temp = 200 + (param[7]-data)*100/
+		(param[7]-param[8]);
+	} else if (data <= param[6]) {
+		temp = 100 + (param[6]-data)*100/
+		(param[6]-param[7]);
+	} else if (data <= param[5]) {
+		temp = 50 + (param[5]-data)*50/
+		(param[5]-param[6]);
+	} else if (data <= param[4]) {
+		temp = 0 + (param[4]-data)*50/
+		(param[4]-param[5]);
+	} else if (data <= param[3]) {
+		temp = -50 + (param[3]-data)*50/
+		(param[3] - param[4]);
+	} else if (data <= param[2]) {
+		temp = -100 + (param[2]-data)*50/
+		(param[2] - param[3]);
+	} else if (data <= param[1]) {
+		temp = -150 + (param[1]-data)*50/
+		(param[1] - param[2]);
+	} else if (data <= param[0]) {
+		temp = -250 + (param[0]-data)*100/
+		(param[0] - param[1]);
+	} else
+		temp = -250;
+	return temp;
+}
+
+int bmu_axp2101_get_ntc_temp(int param[16])
+{
+	unsigned char reg_value[2];
+	int temp, tmp;
+
+	if (pmic_bus_read(AXP2101_RUNTIME_ADDR, AXP2101_TS_H, &reg_value[0])) {
+			return -1;
+		}
+	if (pmic_bus_read(AXP2101_RUNTIME_ADDR, AXP2101_TS_L, &reg_value[1])) {
+			return -1;
+	}
+
+	temp = (((reg_value[0] & GENMASK(5, 0)) << 0x08) | (reg_value[1]));
+	tmp = temp * 500 / 1000;
+	temp = axp_vts_to_temp(tmp, (int *)param);
+
+	return temp;
+}
 
 U_BOOT_AXP_BMU_INIT(bmu_axp2101) = {
 	.bmu_name		  = "bmu_axp2101",
@@ -302,4 +456,7 @@ U_BOOT_AXP_BMU_INIT(bmu_axp2101) = {
 	.set_charge_current_limit = bmu_axp2101_set_charge_current_limit,
 	.get_reg_value	   = bmu_axp2101_get_reg_value,
 	.set_reg_value	   = bmu_axp2101_set_reg_value,
+	.reset_capacity    = bmu_axp2101_reset_capacity,
+	.set_ntc_onoff     = bmu_axp2101_set_ntc_onff,
+	.get_ntc_temp      = bmu_axp2101_get_ntc_temp,
 };

@@ -117,6 +117,20 @@ static int pmu_axp2202_ap_reset_enable(void)
 	return 0;
 }
 
+static int pmu_axp2202_enable_vbus_irq(void)
+{
+	u8 reg_value;
+
+	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_INTEN1, &reg_value))
+		return -1;
+
+	reg_value |= 1 << 7;
+	if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_INTEN1, reg_value))
+		return -1;
+
+	return 0;
+}
+
 static int pmu_axp2202_probe(void)
 {
 	u8 pmu_chip_id;
@@ -133,6 +147,7 @@ static int pmu_axp2202_probe(void)
 	if (pmu_chip_id == 0x01) {
 		/*pmu type AXP21*/
 		pmu_axp2202_ap_reset_enable();
+		pmu_axp2202_enable_vbus_irq();
 		tick_printf("PMU: AXP2202\n");
 
 		if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_VERSION, &pmu_chip_id)) {
@@ -156,6 +171,7 @@ static int pmu_axp2202_probe(void)
 
 	if (pmu_chip_id == 0x02) {
 		pmu_axp2202_ap_reset_enable();
+		pmu_axp2202_enable_vbus_irq();
 		tick_printf("PMU: AXP2202\n");
 		return 0;
 	}
@@ -404,6 +420,13 @@ int pmu_axp2202_set_bc12_mode(const char *name, int mode)
 	if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_CLK_EN, reg_value))
 		return -1;
 
+	pmic_bus_setbits(AXP2202_RUNTIME_ADDR, AXP2202_BC_CFG3, BIT(7));
+
+	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_IIN_LIM, &reg_value))
+		return -1;
+
+	printf("AXP2202_IIN_LIM:%d\n", reg_value);
+
 	return 0;
 }
 
@@ -455,6 +478,26 @@ unsigned char pmu_axp2202_set_reg_value(unsigned char reg_addr, unsigned char re
 	return reg;
 }
 
+int pmu_axp2202_reg_debug(void)
+{
+	u8 reg_value[2];
+	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_COMM_STATUS0, &reg_value[0])) {
+		return -1;
+	}
+	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_MODE_CHGSTATUS, &reg_value[1])) {
+		return -1;
+	}
+	tick_printf("[AXP2202] comm status : 0x%x = 0x%x, 0x%x = 0x%x\n", AXP2202_COMM_STATUS0, reg_value[0], AXP2202_MODE_CHGSTATUS, reg_value[1]);
+	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_PWRON_STATUS, &reg_value[0])) {
+		return -1;
+	}
+	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_PWROFF_STATUS, &reg_value[1])) {
+		return -1;
+	}
+	tick_printf("[AXP2202] onoff status: 0x%x = 0x%x, 0x%x = 0x%x\n", AXP2202_PWRON_STATUS, reg_value[0], AXP2202_PWROFF_STATUS, reg_value[1]);
+	return 0;
+}
+
 U_BOOT_AXP_PMU_INIT(pmu_axp2202) = {
 	.pmu_name	  = "pmu_axp2202",
 	.probe		   = pmu_axp2202_probe,
@@ -468,4 +511,5 @@ U_BOOT_AXP_PMU_INIT(pmu_axp2202) = {
 	.set_dcdc_mode     = pmu_axp2202_set_dcdc_mode,
 	.get_reg_value	   = pmu_axp2202_get_reg_value,
 	.set_reg_value	   = pmu_axp2202_set_reg_value,
+	.reg_debug             = pmu_axp2202_reg_debug,
 };

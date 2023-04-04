@@ -64,13 +64,15 @@ void arch_lmb_reserve(struct lmb *lmb)
 	/* adjust sp by 4K to be safe */
 	sp -= 4096;
 	for (bank = 0; bank < CONFIG_NR_DRAM_BANKS; bank++) {
-		if (sp < gd->bd->bi_dram[bank].start)
+		if (!gd->bd->bi_dram[bank].size ||
+		    sp < gd->bd->bi_dram[bank].start)
 			continue;
+		/* Watch out for RAM at end of address space! */
 		bank_end = gd->bd->bi_dram[bank].start +
-			gd->bd->bi_dram[bank].size;
-		if (sp >= bank_end)
+			gd->bd->bi_dram[bank].size - 1;
+		if (sp > bank_end)
 			continue;
-		lmb_reserve(lmb, sp, bank_end - sp);
+		lmb_reserve(lmb, sp, bank_end - sp + 1);
 		break;
 	}
 }
@@ -89,6 +91,8 @@ static void announce_and_cleanup(int fake)
 	pr_emerg("Starting kernel ...%s\n\n", fake ?
 		"(fake run for tracing)" : "");
 	bootstage_mark_name(BOOTSTAGE_ID_BOOTM_HANDOFF, "start_kernel");
+	if (fake)
+		return;
 #ifdef CONFIG_BOOTSTAGE_FDT
 	bootstage_fdt_add_report();
 #endif
@@ -374,6 +378,12 @@ static void boot_jump_linux(bootm_headers_t *images, int flag)
 
 	if (!fake) {
 
+#ifdef CONFIG_ARISC_DEASSERT_BEFORE_KERNEL
+		u32 ARM_SVC_ARISC_STARTUP = 0x8000ff10;
+
+		/* load and de-assert cpus before kernel*/
+		sunxi_smc_call_atf(ARM_SVC_ARISC_STARTUP, (ulong)r2, 0, 0);
+#endif
 		/*we could run 32bit os on 64bit platform, which have monitor*/
 		if (sunxi_probe_secure_monitor() && (sunxi_get_force_32bit_os() == 0))
 			sunxi_smc_call_atf(ARM_SVC_RUNNSOS,(ulong)kernel_entry, (ulong)r2,  1);
@@ -506,7 +516,7 @@ void boot_prep_vxworks(bootm_headers_t *images)
 
 	if (images->ft_addr) {
 		off = fdt_path_offset(images->ft_addr, "/memory");
-		if (off < 0) {
+		if (off > 0) {
 			if (arch_fixup_fdt(images->ft_addr))
 				puts("## WARNING: fixup memory failed!\n");
 		}

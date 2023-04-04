@@ -85,11 +85,8 @@ config SUNXI_INITRD_ROUTINE
 		in boot.img head, instead of original one, whitch will copy ramdisk
 		to dynamically malloced addr.
 
-config SUNXI_REBOOT_SCRIPT
-	bool "Sunxi reboot script"
-	default n
-	help
-		Used to count the number of reboot or efex
+config SUNXI_A64_TIMER_ERRATUM
+	bool
 
 # Note only one of these may be selected at a time! But hidden choices are
 # not supported by Kconfig
@@ -141,7 +138,7 @@ config MACH_SUN50I
 config MACH_SUN50IW3
 	bool "sun50i(Allwinner sun50iw3)"
 	select SUNXI_ARM64
-	select CPU_V7
+	select CPU_V7A
 	select SUN8I_RSB
 	select SUNXI_NCAT
 	select SUNXI_SECURE
@@ -149,7 +146,15 @@ config MACH_SUN50IW3
 config MACH_SUN50IW5
 	bool "sun50i(Allwinner sun50iw5)"
 	select SUNXI_ARM64
-	select CPU_V7
+	select CPU_V7A
+	select SUN8I_RSB
+	select SUNXI_NCAT
+	select SUNXI_SECURE
+
+config MACH_SUN50IW5
+	bool "sun50i(Allwinner sun50iw5)"
+	select SUNXI_ARM64
+	select CPU_V7A
 	select SUN8I_RSB
 	select SUNXI_NCAT
 	select SUNXI_SECURE
@@ -157,7 +162,7 @@ config MACH_SUN50IW5
 config MACH_SUN50IW9
 	bool "sun50i(Allwinner sun50iw9)"
 	select SUNXI_ARM64
-	select CPU_V7
+	select CPU_V7A
 	select SUN8I_RSB
 	select SUNXI_NCAT
 	select SUNXI_SECURE
@@ -165,22 +170,29 @@ config MACH_SUN50IW9
 config MACH_SUN50IW10
 	bool "sun50i(Allwinner sun50iw10)"
 	select SUNXI_ARM64
-	select CPU_V7
+	select CPU_V7A
 	select SUN8I_RSB
 	select SUNXI_NCAT
 	select SUNXI_SECURE
 
+config MACH_SUN60IW1
+	bool "sun60i(Allwinner sun60iw1)"
+	select SUNXI_ARM64
+	select CPU_V7A
+	# select SUNXI_SECURE
+	select SUNXI_GIC_V3
+
 config MACH_SUN55IW3
 	bool "sun55i(Allwinner sun55iw3)"
 	select SUNXI_ARM64
-	select CPU_V7
+	select CPU_V7A
 	select SUNXI_SECURE
 	select SUNXI_GIC_V3
 
 config MACH_SUN50IW11
 	bool "sun50i(Allwinner sun50iw11)"
 	select SUNXI_ARM64
-	select CPU_V7
+	select CPU_V7A
 	select SUN8I_RSB
 	select SUNXI_NCAT
 	select SUNXI_SECURE
@@ -188,7 +200,7 @@ config MACH_SUN50IW11
 config MACH_SUN50IW12
 	bool "sun50i(Allwinner sun50iw12)"
 	select SUNXI_ARM64
-	select CPU_V7
+	select CPU_V7A
 	select SUN8I_RSB
 	select SUNXI_NCAT
 	select SUNXI_SECURE
@@ -197,43 +209,174 @@ config MACH_SUN50IW12
 config MACH_SUN8IW7
 
 	bool "sun8i(Allwinner sun8iw7)"
-	select CPU_V7
+	select CPU_V7A
 	select SUNXI_VERSION1
 	select SUNXI_SECURE
 
 config MACH_SUN8IW11
 
 	bool "sun8i(Allwinner sun8iw11)"
-	select CPU_V7
+	select CPU_V7A
 	select SUNXI_VERSION1
 
 config MACH_SUN8IW15
 	bool "sun8i(Allwinner sun8iw15)"
-	select CPU_V7
+	select CPU_V7A
 	select SUN8I_RSB
 	select SUNXI_NCAT
 	select SUNXI_SECURE
 
 config MACH_SUN8IW16
 	bool "sun8iw16(Allwinner sun8w16)"
-	select CPU_V7
+	select CPU_V7A
 	select SUNXI_NCAT
 
 config MACH_SUN8IW18
 	bool "sun8i(Allwinner sun8iw18)"
-	select CPU_V7
+	select CPU_V7A
 	select SUN8I_RSB
 	select SUNXI_NCAT
 	select SUNXI_SECURE
 
+config MACH_SUN4I
+	bool "sun4i (Allwinner A10)"
+	select CPU_V7A
+	select ARM_CORTEX_CPU_IS_UP
+	select DRAM_SUN4I
+	select SUNXI_GEN_SUN4I
+	select SUPPORT_SPL
+
+config MACH_SUN5I
+	bool "sun5i (Allwinner A13)"
+	select CPU_V7A
+	select ARM_CORTEX_CPU_IS_UP
+	select DRAM_SUN4I
+	select SUNXI_GEN_SUN4I
+	select SUPPORT_SPL
+	imply CONS_INDEX_2 if !DM_SERIAL
+
+config MACH_SUN6I
+	bool "sun6i (Allwinner A31)"
+	select CPU_V7A
+	select CPU_V7_HAS_NONSEC
+	select CPU_V7_HAS_VIRT
+	select ARCH_SUPPORT_PSCI
+	select DRAM_SUN6I
+	select SUN6I_P2WI
+	select SUN6I_PRCM
+	select SUNXI_GEN_SUN6I
+	select SUPPORT_SPL
+	select ARMV7_BOOT_SEC_DEFAULT if OLD_SUNXI_KERNEL_COMPAT
+
+config MACH_SUN7I
+	bool "sun7i (Allwinner A20)"
+	select CPU_V7A
+	select CPU_V7_HAS_NONSEC
+	select CPU_V7_HAS_VIRT
+	select ARCH_SUPPORT_PSCI
+	select DRAM_SUN4I
+	select SUNXI_GEN_SUN4I
+	select SUPPORT_SPL
+	select ARMV7_BOOT_SEC_DEFAULT if OLD_SUNXI_KERNEL_COMPAT
+
+config MACH_SUN8I_A23
+	bool "sun8i (Allwinner A23)"
+	select CPU_V7A
+	select CPU_V7_HAS_NONSEC
+	select CPU_V7_HAS_VIRT
+	select ARCH_SUPPORT_PSCI
+	select DRAM_SUN8I_A23
+	select SUNXI_GEN_SUN6I
+	select SUPPORT_SPL
+	select ARMV7_BOOT_SEC_DEFAULT if OLD_SUNXI_KERNEL_COMPAT
+	imply CONS_INDEX_5 if !DM_SERIAL
+
+config MACH_SUN8I_A33
+	bool "sun8i (Allwinner A33)"
+	select CPU_V7A
+	select CPU_V7_HAS_NONSEC
+	select CPU_V7_HAS_VIRT
+	select ARCH_SUPPORT_PSCI
+	select DRAM_SUN8I_A33
+	select SUNXI_GEN_SUN6I
+	select SUPPORT_SPL
+	select ARMV7_BOOT_SEC_DEFAULT if OLD_SUNXI_KERNEL_COMPAT
+	imply CONS_INDEX_5 if !DM_SERIAL
+
+config MACH_SUN8I_A83T
+	bool "sun8i (Allwinner A83T)"
+	select CPU_V7A
+	select DRAM_SUN8I_A83T
+	select SUNXI_GEN_SUN6I
+	select MMC_SUNXI_HAS_NEW_MODE
+	select SUPPORT_SPL
+
+config MACH_SUN8I_H3
+	bool "sun8i (Allwinner H3)"
+	select CPU_V7A
+	select CPU_V7_HAS_NONSEC
+	select CPU_V7_HAS_VIRT
+	select ARCH_SUPPORT_PSCI
+	select MACH_SUNXI_H3_H5
+	select ARMV7_BOOT_SEC_DEFAULT if OLD_SUNXI_KERNEL_COMPAT
+
+config MACH_SUN8I_R40
+	bool "sun8i (Allwinner R40)"
+	select CPU_V7A
+	select CPU_V7_HAS_NONSEC
+	select CPU_V7_HAS_VIRT
+	select ARCH_SUPPORT_PSCI
+	select SUNXI_GEN_SUN6I
+	select SUPPORT_SPL
+	select SUNXI_DRAM_DW
+	select SUNXI_DRAM_DW_32BIT
+
+config MACH_SUN8I_V3S
+	bool "sun8i (Allwinner V3s)"
+	select CPU_V7A
+	select CPU_V7_HAS_NONSEC
+	select CPU_V7_HAS_VIRT
+	select ARCH_SUPPORT_PSCI
+	select SUNXI_GEN_SUN6I
+	select SUNXI_DRAM_DW
+	select SUNXI_DRAM_DW_16BIT
+	select SUPPORT_SPL
+	select ARMV7_BOOT_SEC_DEFAULT if OLD_SUNXI_KERNEL_COMPAT
+
+config MACH_SUN9I
+	bool "sun9i (Allwinner A80)"
+	select CPU_V7A
+	select DRAM_SUN9I
+	select SUN6I_PRCM
+	select SUNXI_HIGH_SRAM
+	select SUNXI_GEN_SUN6I
+	select SUN8I_RSB
+	select SUNXI_NCAT
+	select SUNXI_SECURE
+
+config MACH_SUN50I
+	bool "sun50i (Allwinner A64)"
+	select ARM64
+	select DM_I2C
+	select PHY_SUN4I_USB
+	select SUNXI_DE2
+	select SUNXI_GEN_SUN6I
+	select SUNXI_HIGH_SRAM
+	select SUPPORT_SPL
+	select SUNXI_DRAM_DW
+	select SUNXI_DRAM_DW_32BIT
+	select FIT
+	select SPL_LOAD_FIT
+	select SUNXI_A64_TIMER_ERRATUM
+
 config MACH_SUN8IW19
 	bool "sun8iw19(Allwinner sun8w19)"
-	select CPU_V7
+	select CPU_V7A
 	select SUNXI_NCAT
 
 config MACH_SUN8IW20
 	bool "sun8i(Allwinner sun8iw20)"
-	select CPU_V7
+	select CPU_V7A
 	select SUN8I_RSB
 	select SUNXI_NCAT_V2
 	select SUNXI_WDT_V2
@@ -241,7 +384,7 @@ config MACH_SUN8IW20
 
 config MACH_SUN8IW21
 	bool "sun8i(Allwinner sun8iw21)"
-	select CPU_V7
+	select CPU_V7A
 	select SUN8I_RSB
 	select SUNXI_NCAT_V2
 	select SUNXI_WDT_V2
@@ -331,6 +474,7 @@ config SYS_CLK_FREQ
 	default 1008000000 if MACH_SUN8IW16
 	default 1008000000 if MACH_SUN8IW18
 	default 1008000000 if MACH_SUN8IW19
+	default 1008000000 if MACH_SUN60IW1
 	default 1008000000 if MACH_SUN55IW3
 	default 1008000000
 
@@ -350,10 +494,12 @@ config SYS_CONFIG_NAME
 	default "sun8iw20p1" if MACH_SUN8IW20
 	default "sun8iw21p1" if MACH_SUN8IW21
 	default "sun55iw3p1" if  MACH_SUN55IW3
+	default "sun60iw1p1" if  MACH_SUN60IW1
+
 
 config SUNXI_ARM64
 	bool "set SUNXI ARM64"
-	default y if MACH_SUN50IW3 || MACH_SUN50IW5 || MACH_SUN50IW9 || MACH_SUN50IW10 || MACH_SUN50IW11 || MACH_SUN55IW3
+	default y if (MACH_SUN50IW3 || MACH_SUN50IW5 || MACH_SUN50IW9 || MACH_SUN50IW10 || MACH_SUN50IW11 || MACH_SUN55IW3 || MACH_SUN60IW1)
 	---help---
 	set SUNXI_ARM64 when SUN50I
 

@@ -146,7 +146,7 @@ static inline void aw_spinand_req_init(struct aw_spinand *spinand,
 }
 
 static inline void aw_spinand_req_next(struct aw_spinand *spinand,
-		struct aw_spinand_chip_request *req)
+		loff_t offs, struct aw_spinand_chip_request *req)
 {
 	struct aw_spinand_chip *chip = spinand_to_chip(spinand);
 	struct aw_spinand_info *info = chip->info;
@@ -160,7 +160,7 @@ static inline void aw_spinand_req_next(struct aw_spinand *spinand,
 	 * while the other physical partitions do not.
 	 * Added judgment to enable MTD devices to access the entire Flash
 	 */
-	if (req->block * info->phy_block_size(chip) >= spinand_sys_part_offset())
+	if (offs >= spinand_sys_part_offset())
 		pages_per_blk = info->block_size(chip) >>
 			spinand->page_shift;
 	else
@@ -188,7 +188,7 @@ static inline void aw_spinand_req_next(struct aw_spinand *spinand,
 	req->oobleft -= req->ooblen;
 	req->oobbuf += req->ooblen;
 	req->pageoff = 0;
-	if (req->block * info->phy_block_size(chip) >= spinand_sys_part_offset())
+	if (offs >= spinand_sys_part_offset())
 		req->datalen = min(info->page_size(chip), req->dataleft);
 	else
 		req->datalen = min(info->phy_page_size(chip), req->dataleft);
@@ -222,7 +222,7 @@ static inline bool aw_spinand_req_end(struct aw_spinand *spinand,
 #define aw_spinand_for_each_req(spinand, start, mtd_ops, req)	\
 	for (aw_spinand_req_init(spinand, start, mtd_ops, req);	\
 		!aw_spinand_req_end(spinand, req);			\
-		aw_spinand_req_next(spinand, req))
+		aw_spinand_req_next(spinand, start, req))
 
 static int aw_spinand_read_oob(struct mtd_info *mtd, loff_t from,
 		struct mtd_oob_ops *ops)

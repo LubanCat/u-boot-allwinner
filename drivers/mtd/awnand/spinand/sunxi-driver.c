@@ -17,9 +17,12 @@
 #include <spi.h>
 #include <fdt_support.h>
 #include <linux/mtd/aw-spinand.h>
+#include <private_toc.h>
+#include "sprite_verify.h"
 
 #include <linux/mtd/aw-ubi.h>
 #include "sunxi-spinand.h"
+#include <spare_head.h>
 
 #define UBOOT_START_BLOCK_BIGNAND 4
 #define UBOOT_START_BLOCK_SMALLNAND 8
@@ -30,6 +33,9 @@
 #define VALID_PAGESIZE_FOR_BOOT0 2048
 
 static int enable_spinand = -1;
+
+extern int get_boot_storage_type_ext(void);
+extern int get_boot_work_mode(void);
 
 int spinand_init_mtd_info(struct ubi_mtd_info *mtd_info)
 {
@@ -55,14 +61,232 @@ int spinand_init_mtd_info(struct ubi_mtd_info *mtd_info)
 	return 0;
 }
 
-inline int spinand_mtd_read(unsigned int start, unsigned int sects, void *buf)
+inline int aw_spinand_mtd_read(unsigned int start, unsigned int sects, void *buf)
 {
-	return spinand_mtd_read_ubi(start, sects, buf);
+	struct aw_spinand *spinand = get_spinand();
+	struct mtd_info *mtd = spinand_to_mtd(spinand);
+	size_t block_offset, retlen, len = sects << 9, op_len;
+	struct aw_spinand_chip *chip = spinand_to_chip(spinand);
+	struct aw_spinand_chip_ops *ops = chip->ops;
+	struct aw_spinand_info *info = chip->info;
+	int block_size = info->phy_block_size(chip);
+	struct aw_spinand_chip_request req = {0};
+	int ret;
+	req.block = start / block_size;
+	req.page = 0;
+
+	do {
+		if (req.page == 0) {
+			/* must check bad and do erase for new block */
+			ret = ops->phy_is_bad(chip, &req);
+			if (ret == true) {
+				pr_info("skip bad blk %d for boot, try next blk %d\n",
+						req.block, req.block + 1);
+				req.block++;
+				start += block_size;
+				continue;
+			}
+			if (ret) {
+				pr_err("erase blk %d failed\n", req.block);
+				return ret;
+			}
+		}
+
+		block_offset = start & (block_size - 1);
+		op_len = min(len, block_size - block_offset);
+
+		ret = mtd_read(mtd, start, op_len, &retlen, buf);
+		if (ret) {
+			pr_err("** MTD read error\n");
+			return -1;
+		}
+
+		if (!((start + retlen) % block_size)) {
+			start += retlen;
+			req.block++;
+		}
+
+		buf += retlen;
+		len -= retlen;
+	} while (len);
+
+	return 0;
 }
 
-inline int spinand_mtd_write(unsigned int start, unsigned int sects, void *buf)
+inline int aw_spinand_mtd_write(unsigned int start, unsigned int sects, void *buf)
 {
-	return spinand_mtd_write_ubi(start, sects, buf);
+	struct aw_spinand *spinand = get_spinand();
+	struct mtd_info *mtd = spinand_to_mtd(spinand);
+	struct aw_spinand_chip *chip = spinand_to_chip(spinand);
+	struct aw_spinand_chip_ops *ops = chip->ops;
+	struct aw_spinand_info *info = chip->info;
+	unsigned int erase_size = info->phy_block_size(chip);
+	size_t retlen;
+	int ret = 0;
+	u32 erase_align_addr = 0;
+	u32 erase_align_ofs = 0;
+	u32 erase_align_size = 0;
+	u32 data_len = sects << 9;
+	unsigned char *align_buf = NULL;
+	struct erase_info einfo;
+	struct aw_spinand_chip_request req = {0};
+	req.block = start / erase_size;
+	req.page = 0;
+
+	align_buf = malloc_align(erase_size, 64);
+	if (!align_buf) {
+		printf("%s: malloc error\n", __func__);
+		return 0;
+	}
+
+	if (start % erase_size) {
+		if (req.page == 0) {
+retry:
+			/* must check bad and do erase for new block */
+			ret = ops->phy_is_bad(chip, &req);
+			if (ret == true) {
+				pr_info("skip bad blk %d for boot, try next blk %d\n",
+						req.block, req.block + 1);
+				req.block++;
+				start += erase_size;
+				goto retry;
+			}
+			if (ret) {
+				pr_err("erase blk %d failed\n", req.block);
+				return ret;
+			}
+		}
+
+		erase_align_addr = (start / erase_size) * erase_size;
+		/*
+		|-------|-------|---------|
+		     |<----data---->|
+		    offset          end
+		*/
+		erase_align_ofs = start % erase_size;
+		erase_align_size = erase_size - erase_align_ofs;
+		erase_align_size = erase_align_size > data_len ?
+						data_len : erase_align_size;
+		ret = mtd->_read(mtd, erase_align_addr, erase_size,
+				&retlen, align_buf);
+		if (ret)
+			goto exit;
+		if (retlen != erase_size) {
+			ret = -EIO;
+			goto exit;
+		}
+
+		/* Erase the entire sector */
+		einfo.addr = erase_align_addr;
+		einfo.len = erase_size;
+		ret = mtd->_erase(mtd, &einfo);
+		if (ret) {
+			printf("mtdblock: erase of region [0x%llx, 0x%llx] "
+				     "on \"%s\" failed\n",
+			einfo.addr, einfo.len, mtd->name);
+			goto exit;
+		}
+
+		/*fill data to write*/
+		memcpy(align_buf + erase_align_ofs, buf, erase_align_size);
+
+		ret = mtd->_write(mtd, erase_align_addr, erase_size,
+				&retlen, buf);
+		if (ret)
+			goto exit;
+		if (retlen != erase_size) {
+			ret = -EIO;
+			goto exit;
+		}
+
+		/* update info */
+		data_len -= erase_align_size;
+		start += erase_align_size;
+		buf += erase_align_size;
+		req.block++;
+	}
+
+	while (data_len) {
+		if (req.page == 0) {
+			/* must check bad and do erase for new block */
+			ret = ops->phy_is_bad(chip, &req);
+			if (ret == true) {
+				pr_info("skip bad blk %d for boot, try next blk %d\n",
+						req.block, req.block + 1);
+				req.block++;
+				start += erase_size;
+				continue;
+			}
+			if (ret) {
+				pr_err("erase blk %d failed\n", req.block);
+				return ret;
+			}
+		}
+
+		if (data_len < erase_size) {
+			ret = mtd->_read(mtd, start, erase_size,
+					&retlen, align_buf);
+			if (ret)
+				goto exit;
+			if (retlen != erase_size) {
+				ret = -EIO;
+				goto exit;
+			}
+
+			/* Erase the entire sector */
+			einfo.addr = start;
+			einfo.len = erase_size;
+			ret = mtd->_erase(mtd, &einfo);
+			if (ret) {
+				printf("mtdblock: erase of region "
+					"[0x%llx, 0x%llx] on \"%s\" failed\n",
+				einfo.addr, einfo.len, mtd->name);
+				goto exit;
+			}
+
+			/*fill data to write*/
+			memcpy(align_buf, buf, data_len);
+
+			ret = mtd->_write(mtd, start, erase_size,
+					&retlen, buf);
+			if (ret)
+				goto exit;
+			if (retlen != erase_size) {
+				ret = -EIO;
+				goto exit;
+			}
+
+			goto exit;
+		}
+
+		einfo.addr = start;
+		einfo.len = erase_size;
+		ret = mtd->_erase(mtd, &einfo);
+		if (ret) {
+			printf("mtdblock: erase of region [0x%llx, 0x%llx] "
+				     "on \"%s\" failed\n",
+			einfo.addr, einfo.len, mtd->name);
+			goto exit;
+		}
+
+		ret = mtd->_write(mtd, start, erase_size, &retlen, buf);
+		if (ret)
+			goto exit;
+		if (retlen != erase_size) {
+			ret = -EIO;
+			goto exit;
+		}
+
+		/* update info */
+		data_len -= erase_size;
+		start += erase_size;
+		buf += erase_size;
+		req.block++;
+	}
+
+exit:
+	free_align(align_buf);
+	return ret;
 }
 
 static int do_erase_block(int start_blk, int end_blk)
@@ -414,6 +638,54 @@ int spinand_mtd_download_uboot(unsigned int len, void *buf)
 	return 0;
 }
 
+int spinand_mtd_upload_uboot(void *buf, unsigned int len)
+{
+	struct aw_spinand *spinand = get_spinand();
+	struct aw_spinand_chip *chip = spinand_to_chip(spinand);
+	struct aw_spinand_info *info = chip->info;
+	sbrom_toc1_head_info_t *toc1;
+	int block_size = info->phy_block_size(chip);
+	unsigned int start, end, check_sum, blks_per_uboot;
+	int ret;
+
+	blks_per_uboot = (len + block_size - 1) / block_size;
+
+	spinand_uboot_blknum(&start, &end);	/* start and end of the bootpackage */
+
+	ret = aw_spinand_mtd_read(start * block_size, len/512, buf);	/* read bootpackage  */
+	if (ret) {
+		pr_err("fail to read first bootpackage, read backup bootpackage\n");
+	} else {
+		toc1 = (sbrom_toc1_head_info_t *)buf;
+		check_sum = sunxi_sprite_generate_checksum(buf,
+				toc1->valid_len, toc1->add_sum);
+		if (check_sum == toc1->add_sum) {
+			pr_info("read bootpackage finished\n");
+			return 0;
+		}
+	}
+
+	pr_info("first bootpackaeg is damaged, read backup bootpackage\n");
+	start += blks_per_uboot;
+	while (start + blks_per_uboot <= end) {	/* read backup bootpackage */
+		ret = aw_spinand_mtd_read(start * block_size, len/512, (void *)buf);
+		if (ret) {
+			start += blks_per_uboot;
+			continue;
+		}
+		toc1 = (sbrom_toc1_head_info_t *)buf;
+		check_sum = sunxi_sprite_generate_checksum(buf,
+				toc1->valid_len, toc1->add_sum);
+		if (check_sum == toc1->add_sum) {
+			pr_info("read backup bootpackage finished\n");
+			return 0;
+		}
+		start += blks_per_uboot;
+	}
+	pr_err("mtd_upload_uboot error\n");
+	return -1;
+}
+
 int spinand_mtd_flush(void)
 {
 	struct aw_spinand *spinand = get_spinand();
@@ -492,20 +764,41 @@ bool support_spinand(void)
 {
 	int spi_node = 0;
 
-	if (enable_spinand != -1)
-		return enable_spinand;
 
-	spi_node = fdt_path_offset(working_fdt, "spi0/spi-nand");
-	if (spi_node < 0) {
-		pr_err("get spi-nand node from fdt failed\n");
-		return false;
-	}
+	if (enable_spinand != -1)
+			return enable_spinand;
+
+	if (get_boot_work_mode() == WORK_MODE_BOOT &&
+			get_boot_storage_type_ext() == STORAGE_SPI_NAND) {
+		spi_node = fdt_path_offset(working_fdt, "spi0/spi-nand");
+		if (spi_node < 0) {
+			pr_err("get spi-nand node from fdt failed\n");
+			return false;
+		}
 #ifdef CONFIG_SUNXI_UBIFS
-	enable_spinand = true;
+		enable_spinand = true;
 #else
-	enable_spinand = false;
+		enable_spinand = false;
 #endif
+	} else if (get_boot_work_mode() != WORK_MODE_BOOT) {
+
+		spi_node = fdt_path_offset(working_fdt, "spi0/spi-nand");
+		if (spi_node < 0) {
+			pr_err("get spi-nand node from fdt failed\n");
+			return false;
+		}
+#ifdef CONFIG_SUNXI_UBIFS
+		enable_spinand = true;
+#else
+		enable_spinand = false;
+#endif
+	}
 	return enable_spinand;
+}
+
+void disable_spinand(void)
+{
+	enable_spinand = false;
 }
 
 unsigned spinand_mtd_size(void)

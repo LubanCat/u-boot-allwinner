@@ -116,7 +116,8 @@ typedef struct sbrom_toc0_config
 	unsigned char       rotpk_flag;
 	unsigned char       reserver[1];
 	unsigned int		card_work_mode;
-	unsigned int      	res[2];   			// 总共1024字节
+	unsigned int        dram_size; /*write back to spl to limit dram size*/
+	unsigned int      	res[1];   			// 总共1024字节
 
 }
 sbrom_toc0_config_t;

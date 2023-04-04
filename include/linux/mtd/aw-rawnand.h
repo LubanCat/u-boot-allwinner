@@ -12,6 +12,7 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/aw-ubi.h>
 #include <dm/device.h>
+#include <asm/arch/clock.h>
 
 /* aw rawnand warning messages */
 #define awrawnand_warn(fmt, ...) pr_warn("awrawnand(mtd):warning: %s: " fmt, \
@@ -236,6 +237,7 @@
 #define RAWNAND_MFR_JSC		0xad
 #define RAWNAND_MFR_DOSILICON	0xf8
 #define RAWNAND_MFR_FORESEE_1	0xcd
+#define RAWNAND_MFR_DOSILICON_1	0xe5
 
 /*
  * RAWNAND Flash Manufacture name
@@ -292,24 +294,6 @@
 #define PE_CYCLES_800K	(800000)
 #define PE_CYCLES_900K	(900000)
 #define PE_CYCLES_1000K	(1000000)
-
-
-#define BCH_NO	(-1)
-#define BCH_16	(0)
-#define BCH_24	(1)
-#define BCH_28	(2)
-#define BCH_32	(3)
-#define BCH_40	(4)
-#define BCH_44	(5)
-#define BCH_48	(6)
-#define BCH_52	(7)
-#define BCH_56	(8)
-#define BCH_60	(9)
-#define BCH_64	(10)
-#define BCH_68	(11)
-#define BCH_72	(12)
-#define BCH_76	(13)
-#define BCH_80	(14)
 
 #define B_TO_KB(x)	((x) >> 10)
 #define MOD(x, y)	((x) % (y))
@@ -387,6 +371,84 @@ extern struct aw_nand_sec_sto rawnand_sec_sto;
 extern struct aw_nand_host aw_host;
 extern struct udevice awnand_device;
 
+
+#ifdef CONFIG_MACH_SUN8IW11
+#define PHY_BLKS_FOR_SECURE_STORAGE AW_RAWNAND_RESERVED_PHY_BLK_FOR_SECURE_STORAGE
+#define PSTORE_SIZE_KB	512
+
+#define BCH_NO	(-1)
+#define BCH_16	(0)
+#define BCH_24	(1)
+#define BCH_28	(2)
+#define BCH_32	(3)
+#define BCH_40	(4)
+#define BCH_48	(5)
+#define BCH_56	(6)
+#define BCH_60	(7)
+#define BCH_64	(8)
+
+struct nfc_reg {
+	volatile unsigned int *ctl;			/*0x0000 NDFC Control Register*/
+	volatile unsigned int *sta;			/*0x0004 NDFC Status Register*/
+	volatile unsigned int *int_ctl;			/*0x0008 NDFC Interrupt and DMA Enable Register*/
+	volatile unsigned int *timing_ctl;		/*0x000C NDFC Timing Control Register*/
+	volatile unsigned int *timing_cfg;		/*0x0010 NDFC Timing Configure Register*/
+	volatile unsigned int *addr_low;		/*0x0014 NDFC Address Low Word Register*/
+	volatile unsigned int *addr_high;		/*0x0018 NDFC Address High Word Register*/
+	volatile unsigned int *data_sect_num;		/*0x001C NDFC Data Block Mask Register*/
+	volatile unsigned int *cnt;			/*0x0020 NDFC Data Block Mask Register*/
+	volatile unsigned int *cmd;			/*0x0024 NDFC Command IO Register*/
+	volatile unsigned int *read_cmd_set;		/*0x0028 NDFC Command Set Register 0*/
+	volatile unsigned int *write_cmd_set;		/*0x002C NDFC Command Set Register 1*/
+	volatile unsigned int *io_data;
+	volatile unsigned int *ecc_ctl;			/*0x0034 NDFC ECC Control Register*/
+	volatile unsigned int *ecc_sta;			/*0x0038 NDFC ECC Status Register*/
+//	volatile unsigned int *data_pattern_sta;	/*0x003C NDFC Data Pattern Status Register*/
+	volatile unsigned int *efr;			/*0x003C NDFC Enhanced Featur Register*/
+	volatile unsigned int *rdata_sta_ctl;		/*0x0044 NDFC Read Data Status Control Register*/
+	volatile unsigned int *rdata_sta_0;		/*0x0048 NDFC Read Data Status Register 0*/
+	volatile unsigned int *rdata_sta_1;		/*0x004C NDFC Read Data Status Register 1*/
+#define MAX_ERR_CNT (4U)
+	volatile unsigned int *err_cnt[MAX_ERR_CNT];	/*0x0050 NDFC Error Counter Register 0*/
+#define MAX_USER_DATA_LEN (4U)
+	volatile unsigned int *user_data_len_base;	/*0x0070 NDFC User Data Length Register X*/
+#define MAX_USER_DATA (32U)
+	volatile unsigned int *user_data_base;		/*0x0080 NDFC User Data Register X*/
+	volatile unsigned int *efnand_sta;		/*0x0110 NDFC EFNAND STATUS Register*/
+	volatile unsigned int *spare_area;		/*0x0114 NDFC Spare Aera Register*/
+	volatile unsigned int *pat_id;			/*0x0118 NDFC Pattern ID Register*/
+//	volatile unsigned int *ddr2_spec_ctl;		/*0x011C NDFC DDR2 Specific Control Register*/
+//	volatile unsigned int *ndma_mode_ctl;		/*0x0120 NDFC Normal DMA Mode Control Register*/
+	volatile unsigned int *mbus_dma_addr;		/*0x0200 NDFC MBUS DMA Descriptor List Base Address Register in no.1 version*/
+	volatile unsigned int *mbus_dma_cnt;		/*0x0204 NDFC MBUS DMA Interrupt Status Register in no.1 version*/
+//	volatile unsigned int *mdma_int_mask;		/*0x0208 NDFC MBUS DMA Interrupt Enable Register in no.1 version*/
+//	volatile unsigned int *mdma_cur_desc_addr;	/*0x020C NDFC MBUS DMA Current Descriptor Address Register in no.1 version*/
+//	volatile unsigned int *mdma_cur_buf_addr;	/*0x0210 NDFC MBUS DMA Current Buffer Address Register in no.1 version*/
+	volatile unsigned int *dma_mode;			/*0x0214 NDFC Normal DMA Byte Counter Register*/
+//	volatile unsigned int *ver;			/*0x02F0 NDFC Version Number Register*/
+	volatile unsigned int *ram0_base;		/*0x0400 NDFC Control Register*/
+	volatile unsigned int *ram1_base;		/*0x0800 NDFC Control Register*/
+};
+
+#else /* CONFIG_MACH_SUN8IW11 */
+
+#define BCH_NO	(-1)
+#define BCH_16	(0)
+#define BCH_24	(1)
+#define BCH_28	(2)
+#define BCH_32	(3)
+#define BCH_40	(4)
+#define BCH_44	(5)
+#define BCH_48	(6)
+#define BCH_52	(7)
+#define BCH_56	(8)
+#define BCH_60	(9)
+#define BCH_64	(10)
+#define BCH_68	(11)
+#define BCH_72	(12)
+#define BCH_76	(13)
+#define BCH_80	(14)
+
 struct nfc_reg {
 	volatile unsigned int *ctl;			/*0x0000 NDFC Control Register*/
 	volatile unsigned int *sta;			/*0x0004 NDFC Status Register*/
@@ -428,6 +490,7 @@ struct nfc_reg {
 	volatile unsigned int *ram0_base;		/*0x0400 NDFC Control Register*/
 	volatile unsigned int *ram1_base;		/*0x0800 NDFC Control Register*/
 };
+#endif /* CONFIG_MACH_SUN8IW11 */
 
 enum op_type {
 	READ = 0,
@@ -960,6 +1023,10 @@ struct aw_nand_host {
 	 *struct clk *mcclk;	[>nand ecc engine clock<]
 	 */
 	void __iomem *bus_gate;
+#ifdef CONFIG_MACH_SUN8IW11
+	void __iomem *bus_reset;
+#endif
+
 	/*clk src*/
 #define OSC24M (0)
 #define PLL_PERI0_1X (1)
@@ -1326,6 +1393,7 @@ extern int aw_rawnand_secure_storage_write(struct aw_nand_sec_sto *sec_sto,
 extern void rawnand_uboot_blknum(unsigned int *start, unsigned int *end);
 
 extern int rawnand_mtd_download_uboot(unsigned int len, void *buf);
+extern int rawnand_mtd_upload_uboot(unsigned int len, void *buf);
 extern int rawnand_mtd_download_boot0(unsigned int len, void *buf);
 extern int rawnand_mtd_secure_storage_write(int item, char *buf, unsigned int len);
 extern int rawnand_mtd_secure_storage_read(int item, char *buf, unsigned int len);
@@ -1364,5 +1432,9 @@ extern int rawslcnand_read_boot0_page(struct mtd_info *mtd, struct aw_nand_chip 
 extern void DISPLAY_VERSION(void);
 extern int aw_rawnand_probe(struct udevice *dev);
 extern int aw_rawnand_remove(struct udevice *dev);
+int aw_rawnand_phy_read(unsigned int start, unsigned int sectors, void *buf);
+int aw_rawnand_phy_write(unsigned int start, unsigned int sectors, void *buf);
+
+extern void disable_rawnand(void);
 
 #endif /*AW_RAWNAND_H*/

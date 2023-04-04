@@ -11,8 +11,11 @@
  */
 
 #include <common.h>
+#include <dm.h>
 #include <mmc.h>
 #include <axp_pmic.h>
+#include <generic-phy.h>
+#include <phy-sun4i-usb.h>
 #include <asm/arch/clock.h>
 #include <asm/arch/cpu.h>
 #include <asm/arch/display.h>
@@ -20,7 +23,7 @@
 #include <asm/arch/gpio.h>
 #include <asm/arch/mmc.h>
 #include <asm/arch/spl.h>
-#include <asm/arch/usb_phy.h>
+//#include <asm/arch/usb_phy.h>
 #ifdef CONFIG_ARM
 #include <asm/setup.h>
 #ifndef CONFIG_ARM64
@@ -42,6 +45,9 @@
 #ifdef CONFIG_SUNXI_POWER
 #include <sunxi_power/axp.h>
 #include <sunxi_power/power_manage.h>
+#endif
+#ifdef CONFIG_TCS4838_POWER
+#include <sunxi_power/pmu_tcs4838.h>
 #endif
 #ifdef CONFIG_SUNXI_DMA
 #include <asm/arch/dma.h>
@@ -134,7 +140,7 @@ void i2c_init_board(void)
 #else
 #if defined(CONFIG_MACH_SUN50IW9)
 	sprintf(fdt_node_str, "twi5");
-#elif defined(CONFIG_MACH_SUN50IW10)
+#elif defined(CONFIG_MACH_SUN50IW10) || defined(CONFIG_MACH_SUN55IW3)
 	sprintf(fdt_node_str, "twi6");
 #else
 	sprintf(fdt_node_str, "twi4");
@@ -233,6 +239,11 @@ int board_init(void)
 #endif
 	}
 #endif
+#ifdef CONFIG_SUNXI_PMU_EXT
+	if (!pmu_ext_probe()) {
+		pmu_ext_set_dcdc_mode();
+	}
+#endif
 
 	rtc_set_dcxo_off();
 
@@ -276,6 +287,24 @@ int dram_init(void)
 		gd->ram_size = dram_size * 1024 * 1024;
 	else
 		gd->ram_size = get_ram_size((long *)PHYS_SDRAM_0, PHYS_SDRAM_0_SIZE);
+
+#ifdef CONFIG_ARM
+	ulong drm_base = 0, drm_size = 0;
+	if (sunxi_probe_secure_os()) {
+		if (!smc_tee_probe_drm_configure(&drm_base, &drm_size)) {
+			pr_msg("drm_base=0x%lx\n", drm_base);
+			pr_msg("drm_size=0x%lx\n", drm_size);
+			pr_msg("dram_base=0x%lx\n", CONFIG_SYS_SDRAM_BASE);
+			pr_msg("dram_size=0x%lx\n", gd->ram_size);
+			if (drm_base + drm_size ==
+			    CONFIG_SYS_SDRAM_BASE + gd->ram_size) {
+				//drm region resides in end of memory
+				//do not relocate to that area
+				gd->ram_size -= drm_size;
+			}
+		}
+	}
+#endif
 
 	return 0;
 }
@@ -375,7 +404,35 @@ int board_mmc_init(bd_t *bis)
 #ifdef CONFIG_USB_GADGET
 int g_dnl_board_usb_cable_connected(void)
 {
-	return sunxi_usb_phy_vbus_detect(0);
+	struct udevice *dev;
+	struct phy phy;
+	int ret;
+
+	ret = uclass_get_device(UCLASS_USB_DEV_GENERIC, 0, &dev);
+	if (ret) {
+		pr_err("%s: Cannot find USB device\n", __func__);
+		return ret;
+	}
+
+	ret = generic_phy_get_by_name(dev, "usb", &phy);
+	if (ret) {
+		pr_err("failed to get %s USB PHY\n", dev->name);
+		return ret;
+	}
+
+	ret = generic_phy_init(&phy);
+	if (ret) {
+		pr_err("failed to init %s USB PHY\n", dev->name);
+		return ret;
+	}
+
+	ret = sun4i_usb_phy_vbus_detect(&phy);
+	if (ret == 1) {
+		pr_err("A charger is plugged into the OTG\n");
+		return -ENODEV;
+	}
+
+	return ret;
 }
 #endif
 

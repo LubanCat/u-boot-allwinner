@@ -75,6 +75,7 @@ typedef struct global_data {
 	void *new_fdt;			/* Relocated FDT */
 	void *new_ext_fdt;		/* Relocated EXTERNAL FDT */
 	void *new_dtbo;			/*Relocated dtbo */
+	const void *uboot_fdt_blob;		/* Our device tree, NULL if none */
 	unsigned long fdt_size;		/* Space reserved for relocated FDT */
 	unsigned long fdt_ext_size;	/* Space reserved for relocated EXTERNAL FDT */
 #ifdef CONFIG_OF_LIVE

@@ -166,8 +166,17 @@ bool avb_str_concat(char* buf,
     avb_error("Insufficient buffer space.\n");
     return false;
   }
+  if (str1_len > buf_size - 1) {
+    avb_error("Insufficient buf space.\n");
+    return false;
+  }
 
   avb_memcpy(buf, str1, str1_len);
+
+  if (str2_len > (buf_size - str1_len - 1)) {
+    avb_error("Insufficient buf + str1_len, space.\n");
+    return false;
+  }
   avb_memcpy(buf + str1_len, str2, str2_len);
   buf[combined_len] = '\0';
 

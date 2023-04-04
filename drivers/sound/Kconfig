@@ -62,6 +62,10 @@ menu "Allwinner Soc Audio support"
 config SOUND_SUNXI_SOC_RWFUNC
 	bool
 
+config SOUND_SUNXI_DSP_DMAC
+	bool
+	default n
+
 config SOUND_SUNXI_SUN8IW18_CODEC
 	bool "Support sunxi sun8iw18 audio codec"
 	depends on MACH_SUN8IW18
@@ -78,10 +82,18 @@ config SOUND_SUNXI_SUN50IW10_CODEC
 	  Select Y or M to add support for the Codec embedded in the Allwinner
 	  SUN50IW10 and affiliated SoCs.
 
+config SOUND_SUNXI_SUN55IW3_CODEC
+	bool "Support sunxi sun55iw3 audio codec"
+	depends on MACH_SUN55IW3
+	select SOUND_SUNXI_SOC_RWFUNC
+	select SOUND_SUNXI_DSP_DMAC
+	help
+	  Select Y or M to add support for the Codec embedded in the Allwinner
+	  SUN50IW10 and affiliated SoCs.
 
 config SOUND_SUNXI_BOOT_TONE
 	bool "Enable boot tone"
-	depends on SOUND_SUNXI_SUN8IW18_CODEC || SOUND_SUNXI_SUN50IW10_CODEC
+	depends on SOUND_SUNXI_SUN8IW18_CODEC || SOUND_SUNXI_SUN50IW10_CODEC || SOUND_SUNXI_SUN55IW3_CODEC
 	help
 	  Select Y or M to add support for Boottone. it depends on Codec
 	  embedded in Allwinner SoCs.

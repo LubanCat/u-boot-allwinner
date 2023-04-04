@@ -17,6 +17,7 @@ ifdef CONFIG_BOOT_RETRY_TIME
 obj-y += bootretry.o
 endif
 
+obj-y += libxbc.o
 # # boards
 obj-y += board_f.o
 obj-y += board_r.o
@@ -29,7 +30,6 @@ obj-$(CONFIG_CMD_BOOTI) += bootm.o bootm_os.o
 
 obj-$(CONFIG_CMD_BEDBUG) += bedbug.o
 obj-$(CONFIG_$(SPL_TPL_)OF_LIBFDT) += fdt_support.o
-
 obj-$(CONFIG_MII) += miiphyutil.o
 obj-$(CONFIG_CMD_MII) += miiphyutil.o
 obj-$(CONFIG_PHYLIB) += miiphyutil.o
@@ -110,19 +110,6 @@ obj-$(CONFIG_IO_TRACE) += iotrace.o
 obj-y += memsize.o
 obj-y += stdio.o
 
-ifndef CONFIG_SPL_BUILD
-# This option is not just y/n - it can have a numeric value
-ifdef CONFIG_FASTBOOT_FLASH
-obj-y += image-sparse.o
-ifdef CONFIG_FASTBOOT_FLASH_MMC_DEV
-obj-y += fb_mmc.o
-endif
-ifdef CONFIG_FASTBOOT_FLASH_NAND_DEV
-obj-y += fb_nand.o
-endif
-endif
-endif
-
 ifdef CONFIG_CMD_EEPROM_LAYOUT
 obj-y += eeprom/eeprom_field.o eeprom/eeprom_layout.o
 endif
@@ -135,5 +122,16 @@ obj-$(CONFIG_$(SPL_)LOG) += log.o
 obj-$(CONFIG_$(SPL_)LOG_CONSOLE) += log_console.o
 obj-y += s_record.o
 obj-y += xyzModem.o
+obj-n += avb_verify.o
+
+obj-$(CONFIG_BCC) += bcc.o
+CFLAGS_bcc.o = \
+	-I$(srctree)/lib/boringssl/include/\
+	-I$(srctree)/lib/boringssl/src/include/\
+	-I$(srctree)/lib/open-dice/include/\
+	-I$(srctree)/lib/open-dice/include/dice/config/$(CONFIG_LIB_OPENDICE_CONFIG)\
+	-DOPENSSL_NO_THREADS_CORRUPT_MEMORY_AND_LEAK_SECRETS_IF_THREADED\
+	-DOPENSSL_SMALL\
+	-DOPENSSL_NO_ASM\
 
 subdir-ccflags-$(CONFIG_SUNXI_TRACE) += -finstrument-functions

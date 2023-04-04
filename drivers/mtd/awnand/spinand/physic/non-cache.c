@@ -191,6 +191,7 @@ static int aw_spinand_cahce_write_to_cache_do(struct aw_spinand_chip *chip,
 	struct aw_spinand_phy_info *pinfo = info->phy_info;
 	unsigned int tcnt = len + 3;
 	unsigned char *tbuf = cache->wbuf;
+	int ret;
 
 	if (chip->tx_bit == SPI_NBITS_QUAD)
 		tbuf[0] = column ? SPI_NAND_RANDOM_PP_X4 : SPI_NAND_PP_X4;
@@ -208,7 +209,21 @@ static int aw_spinand_cahce_write_to_cache_do(struct aw_spinand_chip *chip,
 		spic0_config_io_mode(2, 0, 3);
 	else
 		spic0_config_io_mode(0, 0, tcnt);
-	return spi0_write(tbuf, tcnt, SPI0_MODE_NOTSET);
+
+#define XTXTECH_MANUFACTURE	0x0b
+	if (pinfo->NandID[0] == XTXTECH_MANUFACTURE) {
+		spic0_set_soft_ss(1);
+		spic0_set_ss(1);
+		spic0_set_ss(0);
+		ret = spi0_write(tbuf, 3, SPI0_MODE_NOTSET);
+		ret = spi0_write(buf, len, SPI0_MODE_NOTSET);
+		spic0_set_ss(1);
+		spic0_set_soft_ss(0);
+	} else {
+		ret = spi0_write(tbuf, tcnt, SPI0_MODE_NOTSET);
+	}
+
+	return ret;
 }
 
 static int write_to_cache_half_page_twice(struct aw_spinand_chip *chip,

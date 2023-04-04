@@ -140,6 +140,19 @@ static int mmc_resource_init(int sdc_no)
 		}
 	}
 
+#ifdef CONFIG_MACH_SUN55IW3
+#ifdef CONFIG_CLK_SUNXI
+	priv->cfg.clk_mmc = clk_get(NULL, priv->cfg.clk_mmc_name);
+	if (IS_ERR_OR_NULL(priv->cfg.clk_mmc)) {
+		MMCINFO("Error to get clk_mmc\n");
+		return -1;
+	}
+#else
+	MMCINFO("%s: need ccu config open\n", __func__);
+	return -1;
+#endif
+#endif
+
 	return ret;
 }
 #endif
@@ -1350,7 +1363,7 @@ struct mmc *sunxi_mmc_init(int sdc_no)
 	}
 	mmc_clk_io_onoff(sdc_no, 1, 1);
 
-	version = readl(&priv->reg->vers);
+	version = readl(&priv->reg->vers) & SMHC_VERSION_MASK;
 	MMCINFO("SUNXI SDMMC Controller Version:0x%x\n", version);
 	priv->version = version;
 
@@ -1411,7 +1424,7 @@ struct mmc *sunxi_mmc_init(int sdc_no)
 	&& !defined(CONFIG_MACH_SUN50IW11) && !defined(CONFIG_MACH_SUN50IW12)\
 	&& !defined(CONFIG_MACH_SUN20IW1) && !defined(CONFIG_MACH_SUN8IW20)\
 	&& !defined(CONFIG_MACH_SUN8IW21) && !defined(CONFIG_MACH_SUN50IW5)\
-	&& !defined(CONFIG_MACH_SUN55IW3)
+	&& !defined(CONFIG_MACH_SUN55IW3) && !defined(CONFIG_MACH_SUN60IW1)
 	setbits_le32(&ccm->ahb_gate0, 1 << AHB_GATE_OFFSET_MMC(sdc_no));
 
 #ifdef CONFIG_SUNXI_GEN_SUN6I

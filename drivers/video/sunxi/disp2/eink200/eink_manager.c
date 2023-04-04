@@ -228,6 +228,13 @@ static int detect_fresh_thread(struct eink_manager *eink_mgr, struct eink_img *c
 		get_waveform_data(pipe_info.upd_mode, temperature,
 				&pipe_info.total_frames, &pipe_info.wav_paddr,
 				&pipe_info.wav_vaddr);
+		if (pipe_info.wav_paddr == 0) {
+			pr_err("wavefile not support mode 0x%x, use GC16 replace\n", pipe_info.upd_mode);
+			pipe_info.upd_mode = EINK_GC16_MODE;
+			get_waveform_data(pipe_info.upd_mode, temperature,
+					  &pipe_info.total_frames, &pipe_info.wav_paddr,
+					  &pipe_info.wav_vaddr);
+		}
 #endif
 
 	EINK_INFO_MSG("temp=%d, mode=0x%x, total=%d, waveform_paddr=0x%x, waveform_vaddr=0x%x\n",
@@ -612,13 +619,63 @@ static void print_panel_info(struct init_para *para)
 	EINK_INFO_MSG("wavdata_path = %s\n", para->wav_path);
 }
 
+static int __eink_clk_config(struct eink_manager *mgr, unsigned long panel_freq)
+{
+	unsigned long rate = 0, round_rate = 0;
+	struct clk *parent_clk = NULL;
+	long rate_diff = 0;
+	unsigned long parent_rate = 0, parent_round_rate = 0;
+	long parent_rate_diff = 0;
+	unsigned int div = 1;
+
+	if (!mgr || !panel_freq || !mgr->panel_clk) {
+		return -1;
+	}
+
+	rate = panel_freq;
+	parent_clk = clk_get_parent(mgr->panel_clk);
+	if (!parent_clk) {
+		return -2;
+	}
+	clk_set_rate(parent_clk, rate);
+
+	round_rate = clk_round_rate(mgr->panel_clk, rate);
+	rate_diff = (long)(round_rate - rate);
+	if ((rate_diff > 200000) || (rate_diff < -200000)) {
+		for (div = 1; (rate * div) <= 600000000; div++) {
+			parent_rate = rate * div;
+			parent_round_rate = clk_round_rate(parent_clk,
+							   parent_rate);
+			parent_rate_diff = (long)(parent_round_rate - parent_rate);
+			if ((parent_rate_diff < 200000)
+				&& (parent_rate_diff > -200000)) {
+				clk_set_rate(parent_clk, parent_rate);
+				clk_set_rate(mgr->panel_clk, rate);
+				break;
+			}
+		}
+		if ((rate * div) > 600000000) {
+			clk_set_rate(parent_clk, parent_rate);
+			clk_set_rate(mgr->panel_clk, rate);
+		}
+	} else {
+		clk_set_rate(mgr->panel_clk, rate);
+
+	}
+
+	/*pr_err("parent rate:%lu panel rate:%lu\n",clk_get_rate(parent_clk), clk_get_rate(mgr->panel_clk));*/
+	clk_prepare_enable(mgr->panel_clk);
+
+	return 0;
+}
+
 int eink_clk_enable(struct eink_manager *mgr)
 {
 	int ret = 0;
 	u32 vsync = 0, hsync = 0;
 	struct timing_info *timing = NULL;
 	u32 fresh_rate = 0;
-	unsigned long panel_freq = 0, temp_freq = 0;
+	unsigned long panel_freq = 0;
 
 	if (mgr->clk_enable_flag) {
 		printf("[%s]has been enable\n", __func__);
@@ -637,27 +694,7 @@ int eink_clk_enable(struct eink_manager *mgr)
 
 	EINK_INFO_MSG("panel_freq = %lu\n", panel_freq);
 
-	if (mgr->panel_clk_parent) {
-		ret = clk_set_rate(mgr->panel_clk_parent, panel_freq);
-		if (ret) {
-			pr_err("%s:set panel parent freq failed!\n", __func__);
-			return -1;
-		}
-	}
-	if (mgr->panel_clk) {
-		ret = clk_set_rate(mgr->panel_clk, panel_freq);
-		if (ret) {
-			pr_err("%s:set panel freq failed!\n", __func__);
-			return -1;
-		}
-
-		temp_freq = clk_get_rate(mgr->panel_clk);
-		if (panel_freq != temp_freq) {
-			pr_warn("%s: not set real clk, freq=%lu\n", __func__, temp_freq);
-		}
-
-		ret = clk_prepare_enable(mgr->panel_clk);
-	}
+	ret = __eink_clk_config(mgr, panel_freq);
 
 	mgr->clk_enable_flag = 1;
 	return ret;
@@ -903,9 +940,6 @@ int eink_mgr_init(struct init_para *para)
 
 	eink_mgr->ee_clk = para->ee_clk;
 	eink_mgr->panel_clk = para->panel_clk;
-	eink_mgr->panel_clk_parent = clk_get_parent(eink_mgr->panel_clk);
-	if (!eink_mgr->panel_clk_parent)
-		printf("[%s]: panel clk parent is NULL\n", __func__);
 
 	eink_mgr->clk_enable_flag = 0;
 #ifdef REGISTER_PRINT

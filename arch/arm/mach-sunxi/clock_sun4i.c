@@ -14,6 +14,7 @@
 #include <asm/arch/clock.h>
 #include <asm/arch/gpio.h>
 #include <asm/arch/sys_proto.h>
+#include "private_uboot.h"
 
 #ifdef CONFIG_SPL_BUILD
 void clock_init_safe(void)
@@ -58,7 +59,7 @@ void clock_init_uart(void)
 
 	/* open the clock for uart */
 	setbits_le32(&ccm->apb1_gate,
-		CLK_GATE_OPEN << (APB1_GATE_UART_SHIFT+CONFIG_CONS_INDEX - 1));
+		CLK_GATE_OPEN << (APB1_GATE_UART_SHIFT+uboot_spare_head.boot_data.uart_port));
 }
 
 int clock_twi_onoff(int port, int state)

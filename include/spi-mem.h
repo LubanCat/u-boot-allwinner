@@ -22,6 +22,8 @@
 		.opcode = __opcode,				\
 	}
 
+#define SPI_MEM_OP_NO_CMD	{ }
+
 #define SPI_MEM_OP_ADDR(__nbytes, __val, __buswidth)		\
 	{							\
 		.nbytes = __nbytes,				\
@@ -31,9 +33,17 @@
 
 #define SPI_MEM_OP_NO_ADDR	{ }
 
-#define SPI_MEM_OP_DUMMY(__nbytes, __buswidth)			\
+#define SPI_MEM_OP_MODE(__val, __buswidth)                      \
+       {                                                        \
+		.val = __val,                                    \
+		.buswidth = __buswidth,                          \
+       }
+
+#define SPI_MEM_OP_NO_MODE     { }
+
+#define SPI_MEM_OP_DUMMY(__cycle, __buswidth)			\
 	{							\
-		.nbytes = __nbytes,				\
+		.cycle = __cycle,				\
 		.buswidth = __buswidth,				\
 	}
 
@@ -100,7 +110,12 @@ struct spi_mem_op {
 	} addr;
 
 	struct {
-		u8 nbytes;
+		u8 buswidth;
+		const void *val;
+	} mode;
+
+	struct {
+		u8 cycle;
 		u8 buswidth;
 	} dummy;
 
@@ -116,10 +131,11 @@ struct spi_mem_op {
 	} data;
 };
 
-#define SPI_MEM_OP(__cmd, __addr, __dummy, __data)		\
+#define SPI_MEM_OP(__cmd, __addr, __mode, __dummy, __data)	\
 	{							\
 		.cmd = __cmd,					\
 		.addr = __addr,					\
+		.mode = __mode,                                 \
 		.dummy = __dummy,				\
 		.data = __data,					\
 	}

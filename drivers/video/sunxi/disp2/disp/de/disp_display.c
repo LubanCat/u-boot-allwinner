@@ -16,6 +16,7 @@
  */
 #include "disp_display.h"
 
+extern struct disp_drv_info g_disp_drv;
 disp_dev_t gdisp;
 s32 bsp_disp_init(disp_bsp_init_para *para)
 {
@@ -34,7 +35,7 @@ s32 bsp_disp_init(disp_bsp_init_para *para)
 
 	bsp_disp_set_print_level(DEFAULT_PRINT_LEVLE);
 	disp_init_al(para);
-#if defined (DE_VERSION_V33X)
+#if defined (DE_VERSION_V33X) || defined(DE_VERSION_V35X)
 	disp_al_init_tcon(para);
 #endif
 	disp_init_lcd(para);
@@ -45,7 +46,7 @@ s32 bsp_disp_init(disp_bsp_init_para *para)
 	disp_init_tv_para(para);
 #endif
 
-#if defined(SUPPORT_EDP) && defined(CONFIG_EDP_DISP2_SUNXI)
+#if defined(SUPPORT_EDP) && (defined(CONFIG_EDP_DISP2_SUNXI) || defined(CONFIG_EDP2_DISP2_SUNXI))
 	disp_init_edp(para);
 #endif /*endif SUPPORT_EDP */
 
@@ -243,7 +244,8 @@ s32 disp_device_detach(int disp_mgr, int disp_dev, enum disp_output_type output_
 s32 bsp_disp_device_switch(int disp, enum disp_output_type output_type, enum disp_output_type mode)
 {
 	int num_screens = 0;
-	int disp_dev;
+	int disp_dev = disp;
+	struct disp_init_para *init_para = &g_disp_drv.disp_init;
 	int ret = -1;
 	struct disp_device_config config;
 
@@ -255,15 +257,23 @@ s32 bsp_disp_device_switch(int disp, enum disp_output_type output_type, enum dis
 	config.eotf = DISP_EOTF_GAMMA22;
 	config.cs = DISP_UNDEF;
 
-	ret = disp_device_attached_and_enable(disp, disp, &config);
+	if (config.type == DISP_OUTPUT_TYPE_LCD
+		&& init_para->to_lcd_index[disp] != DE_TO_TCON_NOT_DEFINE) {
+		disp_dev = init_para->to_lcd_index[disp];
+	}
+	ret = disp_device_attached_and_enable(disp, disp_dev, &config);
 	if (ret != 0) {
-		num_screens = bsp_disp_feat_get_num_screens();
+		DE_INF("DE%d attach TCON_LCD_%d/TCON_TV_%d failed! \n", disp, disp_dev, disp_dev);
+		num_screens = disp_device_get_num();
 		for (disp_dev = 0; disp_dev < num_screens; disp_dev++) {
+			DE_INF("DE%d try to attach TCON_LCD_%d/TCON_TV_%d \n", disp, disp_dev, disp_dev);
 			ret = disp_device_attached_and_enable(disp,
 							      disp_dev,
 							      &config);
-			if (ret == 0)
+			if (ret == 0) {
+				DE_INF("DE%d attach TCON_LCD_%d/TCON_TV_%d OK! \n", disp, disp_dev, disp_dev);
 				break;
+			}
 		}
 	}
 
@@ -273,18 +283,27 @@ s32 bsp_disp_device_switch(int disp, enum disp_output_type output_type, enum dis
 s32 bsp_disp_device_set_config(int disp, struct disp_device_config *config)
 {
 	int num_screens = 0;
-	int disp_dev;
+	int disp_dev = disp;
+	struct disp_init_para *init_para = &g_disp_drv.disp_init;
 	int ret = -1;
 
-	ret = disp_device_attached_and_enable(disp, disp, config);
+	if (config->type == DISP_OUTPUT_TYPE_LCD
+		&& init_para->to_lcd_index[disp] != DE_TO_TCON_NOT_DEFINE) {
+		disp_dev = init_para->to_lcd_index[disp];
+	}
+	ret = disp_device_attached_and_enable(disp, disp_dev, config);
 	if (ret != 0) {
-		num_screens = bsp_disp_feat_get_num_screens();
+		DE_INF("DE%d attach TCON_LCD_%d/TCON_TV_%d failed! \n", disp, disp_dev, disp_dev);
+		num_screens = disp_device_get_num();
 		for (disp_dev = 0; disp_dev < num_screens; disp_dev++) {
+			DE_INF("DE%d try to attach TCON_LCD_%d/TCON_TV_%d \n", disp, disp_dev, disp_dev);
 			ret = disp_device_attached_and_enable(disp,
 							      disp_dev,
 							      config);
-			if (ret == 0)
+			if (ret == 0) {
+				DE_INF("DE%d attach TCON_LCD_%d/TCON_TV_%d OK! \n", disp, disp_dev, disp_dev);
 				break;
+			}
 		}
 	}
 
@@ -310,11 +329,13 @@ s32 disp_init_connections(disp_bsp_init_para *para)
 	u32 num_screens = 0;
 	u32 num_layers = 0, layer_id = 0;
 	u32 i = 0;
+	struct disp_init_para *init_para = &g_disp_drv.disp_init;
 
 	DE_INF("disp_init_connections\n");
 
 	num_screens = bsp_disp_feat_get_num_screens();
 	for (disp = 0; disp < num_screens; disp++) {
+		int dev_index = disp;
 		struct disp_manager *mgr;
 		struct disp_layer *lyr;
 		struct disp_device *dispdev = NULL;
@@ -342,18 +363,25 @@ s32 disp_init_connections(disp_bsp_init_para *para)
 		if ((para->boot_info.sync == 1) && (disp == para->boot_info.disp)
 			&& (para->boot_info.type == DISP_OUTPUT_TYPE_LCD)) {
 			/* connect device & it's manager */
-			dispdev = disp_device_get(disp, DISP_OUTPUT_TYPE_LCD);
+			if (init_para->to_lcd_index[disp] != DE_TO_TCON_NOT_DEFINE) {
+				dev_index = init_para->to_lcd_index[disp];
+			}
+			dispdev = disp_device_get(dev_index, DISP_OUTPUT_TYPE_LCD);
 			if ((dispdev) && (dispdev->set_manager)) {
 				dispdev->set_manager(dispdev, mgr);
 			} else {
-				for (i = 0; i < num_screens; i++) {
+				int num_devices = disp_device_get_num();
+				for (i = 0; i < num_devices; i++) {
 					dispdev = disp_device_get(i, DISP_OUTPUT_TYPE_LCD);
 					if ((dispdev) && (dispdev->set_manager))
 						dispdev->set_manager(dispdev, mgr);
 				}
 			}
 		} else if (para->boot_info.sync == 0) {
-			dispdev = disp_device_get(disp, DISP_OUTPUT_TYPE_LCD);
+			if (init_para->to_lcd_index[disp] != DE_TO_TCON_NOT_DEFINE) {
+				dev_index = init_para->to_lcd_index[disp];
+			}
+			dispdev = disp_device_get(dev_index, DISP_OUTPUT_TYPE_LCD);
 			if ((dispdev) && (dispdev->set_manager))
 				dispdev->set_manager(dispdev, mgr);
 		}
@@ -400,7 +428,7 @@ s32 bsp_disp_sync_with_hw(disp_bsp_init_para *para)
 		/* attach manager and display device */
 		ret = disp_device_attached(disp, disp_dev, type, mode);
 		if (ret != 0) {
-			num_screens = bsp_disp_feat_get_num_screens();
+			num_screens = disp_device_get_num();
 			for (disp_dev = 0; disp_dev < num_screens; disp_dev++) {
 				ret = disp_device_attached(disp, disp_dev, type, mode);
 				if (ret == 0)
@@ -1300,7 +1328,8 @@ s32 bsp_disp_lcd_set_panel_funs(char *name, disp_lcd_panel_fun *lcd_cfg)
 	u32 screen_id;
 	u32 registered_cnt = 0;
 	u32 num_compat_cnt;
-	num_screens = bsp_disp_feat_get_num_screens();
+	u32 lcd_device_current;
+	num_screens = disp_device_get_num();
 	for (screen_id = 0; screen_id < num_screens; screen_id++) {
 		lcd = disp_get_lcd(screen_id);
 		if (lcd && (lcd->set_panel_func)) {
@@ -1311,17 +1340,42 @@ s32 bsp_disp_lcd_set_panel_funs(char *name, disp_lcd_panel_fun *lcd_cfg)
 			}
 		}
 	}
-	/*now only support lcd0*/
-	num_compat_cnt = disp_get_compat_lcd_panel_num(0);
-	for (screen_id = 1; screen_id <= num_compat_cnt; screen_id++) {
-		lcd = disp_get_direct_lcd_compat(0, screen_id);
-		if (lcd && (lcd->set_panel_func)) {
-			if (!lcd->set_panel_func(lcd, name, lcd_cfg)) {
-				registered_cnt++;
-				DE_INF("panel driver %s register for compatible usage\n", name);
+
+	for (lcd_device_current = 0; lcd_device_current < get_lcd_device_num(); lcd_device_current++) {
+
+		num_compat_cnt = disp_get_compat_lcd_panel_num(lcd_device_current);
+		for (screen_id = 1; screen_id <= num_compat_cnt; screen_id++) {
+			lcd = disp_get_direct_lcd_compat(lcd_device_current, screen_id);
+			if (lcd && (lcd->set_panel_func)) {
+				if (!lcd->set_panel_func(lcd, name, lcd_cfg)) {
+					registered_cnt++;
+					DE_INF("panel driver %s register for compatible usage\n", name);
+				}
 			}
 		}
 	}
+	return 0;
+}
+
+s32 bsp_disp_edp_set_panel_funs(char *name, disp_lcd_panel_fun *edp_cfg)
+{
+	struct disp_device *edp;
+	u32 num_screens;
+	u32 screen_id;
+	u32 registered_cnt = 0;
+
+	num_screens = bsp_disp_feat_get_num_screens();
+	for (screen_id = 0; screen_id < num_screens; screen_id++) {
+		edp = disp_get_edp(screen_id);
+		if (edp && (edp->set_panel_func)) {
+			if (!edp->set_panel_func(edp, name, edp_cfg)) {
+				gdisp.edp_registered = 1;
+				registered_cnt++;
+				DE_INF("panel driver %s register\n", name);
+			}
+		}
+	}
+
 	return 0;
 }
 
@@ -1335,6 +1389,7 @@ void LCD_OPEN_FUNC(u32 disp, LCD_FUNC func, u32 delay)
 		lcd->set_open_func(lcd, func, delay);
 	}
 }
+EXPORT_SYMBOL(LCD_OPEN_FUNC);
 
 void LCD_CLOSE_FUNC(u32 disp, LCD_FUNC func, u32 delay)
 {
@@ -1346,6 +1401,29 @@ void LCD_CLOSE_FUNC(u32 disp, LCD_FUNC func, u32 delay)
 		lcd->set_close_func(lcd, func, delay);
 	}
 }
+EXPORT_SYMBOL(LCD_CLOSE_FUNC);
+
+void EDP_OPEN_FUNC(u32 disp, EDP_FUNC func, u32 delay)
+{
+	struct disp_device *edp;
+
+	edp = disp_get_edp(disp);
+
+	if (edp && edp->set_open_func)
+		edp->set_open_func(edp, func, delay);
+}
+EXPORT_SYMBOL(EDP_OPEN_FUNC);
+
+void EDP_CLOSE_FUNC(u32 disp, EDP_FUNC func, u32 delay)
+{
+	struct disp_device *edp;
+
+	edp = disp_get_edp(disp);
+
+	if (edp && edp->set_close_func)
+		edp->set_close_func(edp, func, delay);
+}
+EXPORT_SYMBOL(EDP_CLOSE_FUNC);
 
 s32 bsp_disp_get_lcd_registered(u32 disp)
 {
@@ -1502,6 +1580,161 @@ s32 bsp_disp_lcd_get_bright(u32 disp)
 	return bright;
 }
 
+
+s32 bsp_disp_edp_backlight_enable(u32 disp)
+{
+	s32 ret = -1;
+	struct disp_device *edp;
+
+	edp = disp_get_edp(disp);
+	if (edp == NULL)
+		return ret;
+
+	if (edp->backlight_enable)
+		ret = edp->backlight_enable(edp);
+
+	return ret;
+}
+
+s32 bsp_disp_edp_backlight_disable(u32 disp)
+{
+	s32 ret = -1;
+	struct disp_device *edp;
+
+	edp = disp_get_edp(disp);
+	if (edp == NULL)
+		return ret;
+
+	if (edp && edp->backlight_disable)
+		ret = edp->backlight_disable(edp);
+
+	return ret;
+}
+
+s32 bsp_disp_edp_pwm_enable(u32 disp)
+{
+	s32 ret = -1;
+	struct disp_device *edp;
+
+	edp = disp_get_edp(disp);
+	if (edp == NULL)
+		return ret;
+
+	if (edp && edp->pwm_enable)
+		ret = edp->pwm_enable(edp);
+
+	return ret;
+}
+
+s32 bsp_disp_edp_pwm_disable(u32 disp)
+{
+	s32 ret = -1;
+	struct disp_device *edp;
+
+	edp = disp_get_edp(disp);
+	if (edp == NULL)
+		return ret;
+
+	if (edp && edp->pwm_disable)
+		ret = edp->pwm_disable(edp);
+
+	return ret;
+}
+
+s32 bsp_disp_edp_power_enable(u32 disp, u32 power_id)
+{
+	s32 ret = -1;
+	struct disp_device *edp;
+
+	edp = disp_get_edp(disp);
+	if (edp == NULL)
+		return ret;
+
+	if (edp && edp->power_enable)
+		ret = edp->power_enable(edp, power_id);
+
+	return ret;
+}
+
+s32 bsp_disp_edp_power_disable(u32 disp, u32 power_id)
+{
+	s32 ret = -1;
+	struct disp_device *edp;
+
+	edp = disp_get_edp(disp);
+	if (edp == NULL)
+		return ret;
+
+	if (edp && edp->power_disable)
+		ret = edp->power_disable(edp, power_id);
+
+	return ret;
+}
+
+s32 bsp_disp_edp_set_bright(u32 disp, u32 bright)
+{
+	s32 ret = -1;
+	struct disp_device *edp;
+
+	edp = disp_get_edp(disp);
+	if (edp == NULL)
+		return ret;
+
+	if (edp && edp->set_bright)
+		ret = edp->set_bright(edp, bright);
+
+	return ret;
+}
+
+s32 bsp_disp_edp_get_bright(u32 disp)
+{
+	u32 bright = 0;
+	struct disp_device *edp;
+
+	edp = disp_get_edp(disp);
+	if (edp && edp->get_bright)
+		bright = edp->get_bright(edp);
+
+	return bright;
+}
+
+s32 bsp_disp_edp_pin_cfg(u32 disp, u32 en)
+{
+	int ret = -1;
+	struct disp_device *edp;
+
+	edp = disp_get_edp(disp);
+	if (edp && edp->pin_cfg)
+		ret = edp->pin_cfg(edp, en);
+
+	return ret;
+}
+
+s32 bsp_disp_edp_gpio_set_value(u32 disp, u32 io_index, u32 value)
+{
+	int ret = -1;
+	struct disp_device *edp;
+
+	edp = disp_get_edp(disp);
+	if (edp && edp->gpio_set_value)
+		ret = edp->gpio_set_value(edp, io_index, value);
+
+	return ret;
+}
+
+s32 bsp_disp_edp_gpio_set_direction(u32 disp, unsigned int io_index,
+				    u32 direction)
+{
+	int ret = -1;
+	struct disp_device *edp;
+
+	edp = disp_get_edp(disp);
+	if (edp && edp->gpio_set_direction)
+		ret = edp->gpio_set_direction(edp, io_index, direction);
+
+	return ret;
+}
+
 s32 bsp_disp_lcd_tcon_enable(u32 disp)
 {
 	int ret = -1;
@@ -1607,6 +1840,18 @@ s32 bsp_disp_lcd_gpio_set_value(u32 disp, u32 io_index, u32 value)
 	lcd = disp_get_lcd(disp);
 	if (lcd && lcd->gpio_set_value)
 		ret = lcd->gpio_set_value(lcd, io_index, value);
+
+	return ret;
+}
+/**** add for lcd read gpio level id by lxm 20220310 ***/
+s32 bsp_disp_lcd_gpio_get_value(u32 disp, u32 io_index)
+{
+	int ret = -1;
+	struct disp_device *lcd;
+
+	lcd = disp_get_lcd(disp);
+	if (lcd && lcd->gpio_get_value)
+		ret = lcd->gpio_get_value(lcd, io_index);
 
 	return ret;
 }

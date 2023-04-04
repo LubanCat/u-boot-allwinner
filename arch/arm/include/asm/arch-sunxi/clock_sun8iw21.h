@@ -151,7 +151,9 @@ struct sunxi_ccm_reg {
 	u32 scr_gate_reset;	/* 0x93c SCR gate/reset control */
 	u32 spi0_clk_cfg;	/* 0x940 SPI0 clock control */
 	u32 spi1_clk_cfg;	/* 0x944 SPI1 clock control */
-	u8 reserved_0x948[36];
+	u8 reserved_0x948[8];
+	u32 spif_clk_cfg;       /* 0x950 SPIF clock control */
+	u8 reserved_0x954[24];
 	u32 spi_gate_reset;	/* 0x96c SPI gate/reset control */
 	u8 reserved_0x970[12];
 	u32 emac_gate_reset;	/* 0x97c EMAC gate/reset control */
@@ -259,7 +261,19 @@ struct sunxi_ccm_reg {
 /* apb1 bit field */
 #define CCM_APB1_DEFAULT		0x00000100
 
-/* Module gate/reset shift*/
+/* SPIF clock bit field */
+#define CCM_SPIF_CTRL_M(x)		((x) - 1)
+#define CCM_SPIF_CTRL_N(x)		((x) << 8)
+#define CCM_SPIF_CTRL_HOSC		(0x0 << 24)
+#define CCM_SPIF_CTRL_PERI400M		(0x1 << 24)
+#define CCM_SPIF_CTRL_PERI300M		(0x2 << 24)
+#define CCM_SPIF_CTRL_ENABLE		(0x1 << 31)
+#define GET_SPIF_CLK_SOURECS(x)		(x == CCM_SPIF_CTRL_PERI400M ? 400000000 : 300000000)
+#define CCM_SPIF_CTRL_PERI		CCM_SPIF_CTRL_PERI400M
+#define SPIF_RESET_SHIFT		(20)
+#define SPIF_GATING_SHIFT		(4)
+
+/* spi gate/reset shift*/
 #define RESET_SHIFT			(16)
 #define GATING_SHIFT			(0)
 

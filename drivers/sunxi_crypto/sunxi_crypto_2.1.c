@@ -15,12 +15,52 @@
 #define ALG_SHA256 (0x13)
 #define ALG_SHA512 (0x15)
 #define ALG_RSA (0x20)
+#define ALG_ECC (0x21)
 #define ALG_MD5 (0x10)
 #define ALG_TRANG (0x1C)
 
 /*check if task_queue size is cache_line align*/
 #define STATIC_CHECK(condition) extern u8 checkFailAt##__LINE__[-!(condition)];
 STATIC_CHECK(sizeof(task_queue) == ALIGN(sizeof(task_queue), CACHE_LINE_SIZE))
+
+const struct ecc_curve_param_t p256_param = {
+	{
+		0xfc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x01, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
+	},
+	{
+		0x4b, 0x60, 0xd2, 0x27, 0x3e, 0x3c, 0xce, 0x3b,
+		0xf6, 0xb0, 0x53, 0xcc, 0xb0, 0x06, 0x1d, 0x65,
+		0xbc, 0x86, 0x98, 0x76, 0x55, 0xbd, 0xeb, 0xb3,
+		0xe7, 0x93, 0x3a, 0xaa, 0xd8, 0x35, 0xc6, 0x5a,
+	},
+	{
+		0x51, 0x25, 0x63, 0xfc, 0xc2, 0xca, 0xb9, 0xf3,
+		0x84, 0x9e, 0x17, 0xa7, 0xad, 0xfa, 0xe6, 0xbc,
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
+	},
+	{
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x01, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
+	},
+	{
+		0x96, 0xc2, 0x98, 0xd8, 0x45, 0x39, 0xa1, 0xf4,
+		0xa0, 0x33, 0xeb, 0x2d, 0x81, 0x7d, 0x03, 0x77,
+		0xf2, 0x40, 0xa4, 0x63, 0xe5, 0xe6, 0xbc, 0xf8,
+		0x47, 0x42, 0x2c, 0xe1, 0xf2, 0xd1, 0x17, 0x6b,
+	},
+	{
+		0xf5, 0x51, 0xbf, 0x37, 0x68, 0x40, 0xb6, 0xcb,
+		0xce, 0x5e, 0x31, 0x6b, 0x57, 0x33, 0xce, 0x2b,
+		0x16, 0x9e, 0x0f, 0x7c, 0x4a, 0xeb, 0xe7, 0x8e,
+		0x9b, 0x7f, 0x1a, 0xfe, 0xe2, 0x42, 0xe3, 0x4f,
+	}
+};
 
 static u32 __aw_endian4(u32 data)
 {
@@ -1001,6 +1041,140 @@ s32 sunxi_normal_rsa(u8 *n_addr, u32 n_len, u8 *e_addr, u32 e_len, u8 *dst_addr,
 	invalidate_dcache_range((ulong)p_dst,
 				(ulong)p_dst + mod_size_len_inbytes);
 	memcpy(dst_addr, p_dst, mod_size_len_inbytes);
+
+	return 0;
+}
+
+int sunxi_ecc_pub_gen(uint8_t *private, struct ecc_pubkey_t *pubkey,
+		      const struct ecc_curve_param_t *ecc_param)
+{
+	const u32 TEMP_BUFF_LEN = 32;
+
+	u32 mod_bit_size			    = 256;
+	u32 mod_size_len_inbytes		    = mod_bit_size / 8;
+	u32 data_word_len			    = mod_size_len_inbytes / 4;
+	u32 align_shift				    = ss_get_addr_align();
+	task_queue task0 __aligned(CACHE_LINE_SIZE) = { 0 };
+	uint8_t *p;
+	uint8_t idx;
+	ALLOC_CACHE_ALIGN_BUFFER(u8, p_n, TEMP_BUFF_LEN * 8);
+	ALLOC_CACHE_ALIGN_BUFFER(u8, p_dst, TEMP_BUFF_LEN * 2);
+
+	/*CE2.1*/
+	task0.task_id	     = CHANNEL_0;
+	task0.common_ctl     = (ALG_ECC | (1U << 31));
+	task0.symmetric_ctl  = 0;
+	task0.asymmetric_ctl = (2 << 16) | (256 >> 5);
+
+	p   = p_n;
+	idx = 0;
+#define INPUT_PARAM(label, data)                                               \
+	memcpy(p, (data), 32);                                                 \
+	task0.source[idx].addr	 = ((ulong)p >> align_shift);                  \
+	task0.source[idx].length = data_word_len;                              \
+	task0.data_len += task0.source[idx].length;                            \
+	p += 32;                                                               \
+	idx += 1;
+
+	INPUT_PARAM(p, ecc_param->p);
+	INPUT_PARAM(k, private);
+	INPUT_PARAM(a, ecc_param->a);
+	INPUT_PARAM(gx, ecc_param->gx);
+	INPUT_PARAM(gy, ecc_param->gy);
+
+	task0.data_len *= 4; //len in byte
+
+	task0.destination[0].addr   = ((uint)p_dst >> align_shift);
+	task0.destination[0].length = data_word_len * 2;
+	task0.next_descriptor	    = 0;
+
+	flush_cache((u32)&task0, sizeof(task0));
+	flush_cache((u32)p_n, TEMP_BUFF_LEN * 8);
+	flush_cache((u32)p_dst, TEMP_BUFF_LEN * 2);
+
+	ss_set_drq(((u32)&task0) >> align_shift);
+	ss_irq_enable(task0.task_id);
+	ss_ctrl_start(ASYM_TRPE);
+	ss_wait_finish(task0.task_id);
+	ss_pending_clear(task0.task_id);
+	ss_ctrl_stop();
+	ss_irq_disable(task0.task_id);
+	if (ss_check_err(task0.task_id)) {
+		printf("SS %s fail 0x%x\n", __func__,
+		       ss_check_err(task0.task_id));
+		return -1;
+	}
+
+	invalidate_dcache_range((ulong)p_dst,
+				(ulong)p_dst + task0.destination[0].length * 4);
+	memcpy(pubkey->qx, p_dst, 32);
+	memcpy(pubkey->qy, p_dst + 32, 32);
+
+	return 0;
+}
+
+int sunxi_ecc_sign(u8 *input, u8 *random,
+		   const struct ecc_curve_param_t *ecc_param, u8 *private,
+		   struct ecc_signature_t *signature)
+{
+	const u32 TEMP_BUFF_LEN = 32;
+
+	u32 mod_bit_size			    = 256;
+	u32 mod_size_len_inbytes		    = mod_bit_size / 8;
+	u32 data_word_len			    = mod_size_len_inbytes / 4;
+	u32 align_shift				    = ss_get_addr_align();
+	task_queue task0 __aligned(CACHE_LINE_SIZE) = { 0 };
+	uint8_t *p;
+	uint8_t idx;
+	ALLOC_CACHE_ALIGN_BUFFER(u8, p_n, TEMP_BUFF_LEN * 8);
+	ALLOC_CACHE_ALIGN_BUFFER(u8, p_dst, TEMP_BUFF_LEN * 2);
+
+	/*CE2.1*/
+	task0.task_id	     = CHANNEL_0;
+	task0.common_ctl     = (ALG_ECC | (1U << 31));
+	task0.symmetric_ctl  = 0;
+	task0.asymmetric_ctl = (6 << 16) | (256 >> 5);
+
+	p   = p_n;
+	idx = 0;
+
+	INPUT_PARAM(k /*random*/, random);
+	INPUT_PARAM(p, ecc_param->p);
+	INPUT_PARAM(a, ecc_param->a);
+	INPUT_PARAM(gx, ecc_param->gx);
+	INPUT_PARAM(gy, ecc_param->gy);
+	INPUT_PARAM(n, ecc_param->n);
+	INPUT_PARAM(d /*private*/, private);
+	INPUT_PARAM(e /*hash*/, input);
+#undef INPUT_PARAM
+
+	task0.data_len *= 4; //len in byte
+
+	task0.destination[0].addr   = ((uint)p_dst >> align_shift);
+	task0.destination[0].length = data_word_len * 2;
+	task0.next_descriptor	    = 0;
+
+	flush_cache((u32)&task0, sizeof(task0));
+	flush_cache((u32)p_n, TEMP_BUFF_LEN * 8);
+	flush_cache((u32)p_dst, TEMP_BUFF_LEN * 2);
+
+	ss_set_drq(((u32)&task0) >> align_shift);
+	ss_irq_enable(task0.task_id);
+	ss_ctrl_start(ASYM_TRPE);
+	ss_wait_finish(task0.task_id);
+	ss_pending_clear(task0.task_id);
+	ss_ctrl_stop();
+	ss_irq_disable(task0.task_id);
+	if (ss_check_err(task0.task_id)) {
+		printf("SS %s fail 0x%x\n", __func__,
+		       ss_check_err(task0.task_id));
+		return -1;
+	}
+
+	invalidate_dcache_range((ulong)p_dst,
+				(ulong)p_dst + task0.destination[0].length * 4);
+	memcpy(signature->r, p_dst, 32);
+	memcpy(signature->s, p_dst + 32, 32);
 
 	return 0;
 }

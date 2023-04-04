@@ -128,10 +128,6 @@ extern void board_mtdparts_default(const char **mtdids, const char **mtdparts);
 static const char *mtdids_default = MTDIDS_DEFAULT;
 static const char *mtdparts_default = MTDPARTS_DEFAULT;
 
-/* copies of last seen 'mtdids', 'mtdparts' and 'partition' env variables */
-#define MTDIDS_MAXLEN		128
-#define MTDPARTS_MAXLEN		512
-#define PARTITION_MAXLEN	16
 static char last_ids[MTDIDS_MAXLEN + 1];
 static char last_parts[MTDPARTS_MAXLEN + 1];
 static char last_partition[PARTITION_MAXLEN + 1];
@@ -1971,6 +1967,9 @@ static int do_mtdparts(cmd_tbl_t *cmdtp, int flag, int argc,
 
 			/* mtd_devices_init() calls current_save() */
 			return mtd_devices_init();
+		} else if (strcmp(argv[1], "list") == 0) {
+			list_partitions();
+			return 0;
 		}
 	}
 
@@ -2079,7 +2078,7 @@ U_BOOT_CMD(
 
 #ifdef CONFIG_SYS_LONGHELP
 static char mtdparts_help_text[] =
-	"\n"
+	"list\n"
 	"    - list partition table\n"
 	"mtdparts delall\n"
 	"    - delete all partitions\n"

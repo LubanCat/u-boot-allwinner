@@ -224,11 +224,46 @@
 				allwinner,drive = <1>;
 				allwinner,pull = <0>;
 			};
+			pwm0_pin_a: pwm0@0 {
+			};
+
+			pwm0_pin_b: pwm0@1 {
+			};
+
+			pwm1_pin_a: pwm1@0 {
+			};
+
+			pwm1_pin_b: pwm1@1 {
+			};
 
 			pwm2_pin_a: pwm2@0 {
 			};
 
 			pwm2_pin_b: pwm2@1 {
+			};
+
+			pwm3_pin_a: pwm3@0 {
+			};
+
+			pwm3_pin_b: pwm3@1 {
+			};
+
+			pwm4_pin_a: pwm4@0 {
+			};
+
+			pwm4_pin_b: pwm4@1 {
+			};
+
+			pwm5_pin_a: pwm5@0 {
+			};
+
+			pwm5_pin_b: pwm5@1 {
+			};
+
+			pwm6_pin_a: pwm6@0 {
+			};
+
+			pwm6_pin_b: pwm6@1 {
 			};
 
 			pwm7_pin_a: pwm7@0 {

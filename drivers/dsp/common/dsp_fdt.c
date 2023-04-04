@@ -61,8 +61,6 @@ int match_compatible(const char *path,
 		DSP_DEBUG("dsp:find compatible err\n");
 		return -1;
 	}
-
-	return -1;
 }
 
 int match_status(int nodeoffset)
@@ -166,7 +164,7 @@ int dts_uart_msg(struct dts_msg_t *pmsg, u32 dsp_id)
 
 	/* uart has two pin*/
 	pin_count = fdt_get_all_pin(nodeoff, str, pin_set);
-	if ((pin_count < 0) || (pin_count != 2))
+	if (pin_count != 2)
 		return -1;
 
 	for (i = 0; i < pin_count; i++) {

@@ -15,7 +15,8 @@
 #include <linux/types.h>
 #include <asm/arch/watchdog.h>
 
-#if defined(CONFIG_MACH_SUN50IW12) || defined(CONFIG_MACH_SUN55IW3)
+#if defined(CONFIG_MACH_SUN50IW12) || defined(CONFIG_MACH_SUN55IW3) || \
+    defined(CONFIG_MACH_SUN60IW1)
 /* General purpose timer */
 struct sunxi_timer {
 	volatile u32 ctl;
@@ -134,6 +135,16 @@ struct sunxi_timer_reg {
 	volatile u32 tirqsta; /* 0x04 */
 	uint res1[6];
 	struct sunxi_timer timer[6]; /* We have 2 timers */
+	struct sunxi_wdog wdog[1]; /* 0xa0 */
+	struct sunxi_avs avs; /* 0xc0 */
+};
+
+#elif defined(CONFIG_MACH_SUN60IW1)
+struct sunxi_timer_reg {
+	volatile u32 tirqen; /* 0x00 */
+	volatile u32 tirqsta; /* 0x04 */
+	uint res1[6];
+	struct sunxi_timer timer[4]; /* We have 4 timers */
 	struct sunxi_wdog wdog[1]; /* 0xa0 */
 	struct sunxi_avs avs; /* 0xc0 */
 };

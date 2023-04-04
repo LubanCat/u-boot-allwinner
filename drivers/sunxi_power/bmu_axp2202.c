@@ -11,6 +11,63 @@
 #include <sunxi_power/bmu_axp2202.h>
 #include <sunxi_power/axp.h>
 #include <asm/arch/pmic_bus.h>
+#include <sys_config.h>
+
+int bmu_axp2202_get_battery_probe_check(void)
+{
+	u8 reg_value;
+	int ret = 0, bat_exist = 0;
+
+	ret = script_parser_fetch(FDT_PATH_POWER_SPLY, "battery_exist", &bat_exist, 1);
+	if (ret < 0)
+		bat_exist = 1;
+
+	if (!bat_exist)
+		return 0;
+
+	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_COMM_STATUS0, &reg_value)) {
+		return -1;
+	}
+
+	if (reg_value & 0x08)
+		return 0;
+
+	pmic_bus_clrbits(AXP2202_RUNTIME_ADDR, AXP2202_ADC_CH_EN0, BIT(1));
+
+	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_TS_CFG, &reg_value))
+		return -1;
+
+	reg_value |= (1 << 4);
+	reg_value &= ~(3 << 2);
+	if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_TS_CFG, reg_value))
+		return -1;
+
+	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_COMM_FAULT, &reg_value))
+		return -1;
+
+	reg_value |= 0x03;
+	if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_COMM_FAULT, reg_value))
+		return -1;
+
+	if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_TS_CFG_DATA_H, 0x03))
+		return -1;
+
+	if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_TS_CFG_DATA_L, 0xEB))
+		return -1;
+
+	pmic_bus_clrbits(AXP2202_RUNTIME_ADDR, AXP2202_BAT_DET, BIT(0));
+	mdelay(200);
+	pmic_bus_setbits(AXP2202_RUNTIME_ADDR, AXP2202_BAT_DET, BIT(0));
+	mdelay(2 * 1000);
+
+	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_COMM_STATUS0, &reg_value)) {
+		return -1;
+	}
+
+	tick_printf("battery probe reset :STATUS0:0x%x\n", reg_value);
+
+	return 0;
+}
 
 static int bmu_axp2202_probe(void)
 {
@@ -26,6 +83,7 @@ static int bmu_axp2202_probe(void)
 	bmu_chip_id &= 0Xff;
 
 	if (bmu_chip_id == 0x01) {
+		bmu_axp2202_get_battery_probe_check();
 		/*bmu type AXP21*/
 		tick_printf("BMU: AXP2202\n");
 
@@ -49,6 +107,7 @@ static int bmu_axp2202_probe(void)
 	}
 
 	if (bmu_chip_id == 0x02) {
+		bmu_axp2202_get_battery_probe_check();
 		tick_printf("BMU: AXP2202\n");
 		return 0;
 	}
@@ -146,6 +205,7 @@ int bmu_axp2202_get_axp_bus_exist(void)
 	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_COMM_STATUS0, &reg_value)) {
 		return -1;
 	}
+
 	/*bit1: 0: vbus not power,  1: power good*/
 	if (reg_value & 0x20) {
 		return AXP_VBUS_EXIST;
@@ -218,7 +278,20 @@ int bmu_axp2202_battery_check(int ratio)
 		}
 	}
 
-	tick_printf("battery_check pass\n");
+	if (ratio > 60) {
+		if (bat_vol < 3500) {
+			pmic_bus_clrbits(AXP2202_RUNTIME_ADDR, AXP2202_MODULE_EN, BIT(1));
+			mdelay(500);
+			pmic_bus_setbits(AXP2202_RUNTIME_ADDR, AXP2202_RESET_CFG, BIT(2));
+			pmic_bus_clrbits(AXP2202_RUNTIME_ADDR, AXP2202_RESET_CFG, BIT(2));
+			mdelay(500);
+			pmic_bus_setbits(AXP2202_RUNTIME_ADDR, AXP2202_MODULE_EN, BIT(1));
+			tick_printf("%s adapt reset gauge: soc > 60% , bat_vol < 3500\n", __func__);
+			return -1;
+		}
+	}
+
+	tick_printf("battery_check pass:radio:%d, vol:%d\n", ratio, bat_vol);
 	return 0;
 }
 
@@ -228,6 +301,9 @@ int bmu_axp2202_get_battery_capacity(void)
 	u8 reg_value;
 	int check;
 	static int check_count = 1;
+
+	if (bmu_get_battery_probe() < 0)
+		return 0;
 
 	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_BAT_PERCEN_CAL,
 			  &reg_value)) {
@@ -241,12 +317,15 @@ int bmu_axp2202_get_battery_capacity(void)
 					  &reg_value)) {
 				return -1;
 			}
+			if (!reg_value)
+				pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_CURVE_CHECK, 0);
 		}
 		check_count = 0;
 	}
 
 	return reg_value;
 }
+
 
 int bmu_axp2202_get_battery_probe(void)
 {
@@ -338,7 +417,31 @@ unsigned char bmu_axp2202_set_reg_value(unsigned char reg_addr, unsigned char re
 	return reg;
 }
 
-int bmu_axp2202_set_ntc_onff(int onoff)
+int bmu_axp2202_set_ntc_cur(int ntc_cur)
+{
+	unsigned char reg_value;
+	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_TS_CFG, &reg_value)) {
+			return -1;
+	}
+	reg_value &= 0xFC;
+
+	if (ntc_cur < 40)
+		reg_value |= 0x00;
+	else if (ntc_cur < 50)
+		reg_value |= 0x01;
+	else if (ntc_cur < 60)
+		reg_value |= 0x02;
+	else
+		reg_value |= 0x03;
+
+	if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_TS_CFG, reg_value)) {
+			return -1;
+	}
+
+	return reg_value;
+}
+
+int bmu_axp2202_set_ntc_onff(int onoff, int ntc_cur)
 {
 	unsigned char reg_value;
 	if (!onoff) {
@@ -356,6 +459,21 @@ int bmu_axp2202_set_ntc_onff(int onoff)
 		reg_value &= ~(3 << 2);
 		if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_TS_CFG, reg_value))
 			return -1;
+
+		if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_COMM_FAULT, &reg_value))
+			return -1;
+
+		reg_value |= 0x03;
+		if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_COMM_FAULT, reg_value))
+			return -1;
+
+		if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_TS_CFG_DATA_H, 0x03))
+			return -1;
+
+		if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_TS_CFG_DATA_L, 0xEB))
+			return -1;
+
+
 	} else {
 		if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_ADC_CH_EN0, &reg_value))
 			return -1;
@@ -372,9 +490,102 @@ int bmu_axp2202_set_ntc_onff(int onoff)
 		if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_TS_CFG, reg_value))
 			return -1;
 
+		if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_COMM_FAULT, &reg_value))
+			return -1;
+
+		reg_value |= 0x03;
+		if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_COMM_FAULT, reg_value))
+			return -1;
+
+		bmu_axp2202_set_ntc_cur(ntc_cur);
+
+		if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_ADC_DATA_SEL, &reg_value)) {
+			return -1;
+		}
+
+		reg_value &= ~(3 << 0);
+
+		if (pmic_bus_write(AXP2202_RUNTIME_ADDR, AXP2202_ADC_DATA_SEL, reg_value))
+			return -1;
+
 	}
 
 	return 0;
+}
+
+static int axp_vts_to_temp(int data, int param[16])
+{
+	int temp;
+
+	if (data < param[15])
+		return 800;
+	else if (data <= param[14]) {
+		temp = 700 + (param[14]-data)*100/
+		(param[14]-param[15]);
+	} else if (data <= param[13]) {
+		temp = 600 + (param[13]-data)*100/
+		(param[13]-param[14]);
+	} else if (data <= param[12]) {
+		temp = 550 + (param[12]-data)*50/
+		(param[12]-param[13]);
+	} else if (data <= param[11]) {
+		temp = 500 + (param[11]-data)*50/
+		(param[11]-param[12]);
+	} else if (data <= param[10]) {
+		temp = 450 + (param[10]-data)*50/
+		(param[10]-param[11]);
+	} else if (data <= param[9]) {
+		temp = 400 + (param[9]-data)*50/
+		(param[9]-param[10]);
+	} else if (data <= param[8]) {
+		temp = 300 + (param[8]-data)*100/
+		(param[8]-param[9]);
+	} else if (data <= param[7]) {
+		temp = 200 + (param[7]-data)*100/
+		(param[7]-param[8]);
+	} else if (data <= param[6]) {
+		temp = 100 + (param[6]-data)*100/
+		(param[6]-param[7]);
+	} else if (data <= param[5]) {
+		temp = 50 + (param[5]-data)*50/
+		(param[5]-param[6]);
+	} else if (data <= param[4]) {
+		temp = 0 + (param[4]-data)*50/
+		(param[4]-param[5]);
+	} else if (data <= param[3]) {
+		temp = -50 + (param[3]-data)*50/
+		(param[3] - param[4]);
+	} else if (data <= param[2]) {
+		temp = -100 + (param[2]-data)*50/
+		(param[2] - param[3]);
+	} else if (data <= param[1]) {
+		temp = -150 + (param[1]-data)*50/
+		(param[1] - param[2]);
+	} else if (data <= param[0]) {
+		temp = -250 + (param[0]-data)*100/
+		(param[0] - param[1]);
+	} else
+		temp = -250;
+	return temp;
+}
+
+int bmu_axp2202_get_ntc_temp(int param[16])
+{
+	unsigned char reg_value[2];
+	int temp, tmp;
+
+	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_ADC_DATA_H, &reg_value[0])) {
+			return -1;
+		}
+	if (pmic_bus_read(AXP2202_RUNTIME_ADDR, AXP2202_ADC_DATA_L, &reg_value[1])) {
+			return -1;
+	}
+
+	temp = (((reg_value[0] & GENMASK(5, 0)) << 0x08) | (reg_value[1]));
+	tmp = temp * 500 / 1000;
+	temp = axp_vts_to_temp(tmp, (int *)param);
+
+	return temp;
 }
 
 U_BOOT_AXP_BMU_INIT(bmu_axp2202) = {
@@ -394,4 +605,5 @@ U_BOOT_AXP_BMU_INIT(bmu_axp2202) = {
 	.set_reg_value	   = bmu_axp2202_set_reg_value,
 	.reset_capacity    = bmu_axp2202_reset_capacity,
 	.set_ntc_onoff     = bmu_axp2202_set_ntc_onff,
+	.get_ntc_temp      = bmu_axp2202_get_ntc_temp,
 };

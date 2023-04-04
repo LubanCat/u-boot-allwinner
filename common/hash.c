@@ -88,6 +88,10 @@ static int hash_finish_sha256(struct hash_algo *algo, void *ctx, void
 static int hash_init_crc32(struct hash_algo *algo, void **ctxp)
 {
 	uint32_t *ctx = malloc(sizeof(uint32_t));
+	if (ctx == NULL) {
+		printf("fail to malloc hash crc32\n");
+		return -1;
+	}
 	*ctx = 0;
 	*ctxp = ctx;
 	return 0;

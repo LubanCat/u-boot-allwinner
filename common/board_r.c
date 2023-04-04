@@ -507,6 +507,17 @@ static int initr_mmc(void)
 }
 #endif
 
+#if defined(CONFIG_SUNXI_SPI)
+static int init_spi_all(void)
+{
+	puts("SPI ALL:   ");
+	spi_init_all();
+	puts("ready\n");
+	return 0;
+}
+#endif
+
+
 #ifdef CONFIG_ARCH_SUNXI
 static int initr_sunxi_plat(void)
 {
@@ -522,7 +533,15 @@ static int initr_sunxi_plat(void)
 #ifdef CONFIG_RECOVERY_KEY
 	check_recovery_key();
 #endif
+	sunxi_flashmap_init();
+#if defined(CONFIG_SUNXI_SPI)
+	init_spi_all();
+#endif
+#ifdef CONFIG_CLK_SUNXI
+	clk_init();
+#endif
 	if (!gd->boot_logo_addr) {
+
 		tick_printf("flash init start\n");
 #ifdef CONFIG_SUNXI_FLASH
 		ret = sunxi_flash_init_ext();
@@ -807,7 +826,7 @@ static int initr_pcmcia(void)
 }
 #endif
 
-#if defined(CONFIG_IDE)
+#if defined(CONFIG_IDE) && !defined(CONFIG_BLK)
 static int initr_ide(void)
 {
 	puts("IDE:   ");
@@ -1016,6 +1035,9 @@ static init_fnc_t init_sequence_r[] = {
 #ifndef CONFIG_ENABLE_MTD_CMDLINE_PARTS_BY_ENV
 	initr_env,
 #endif
+#ifdef CONFIG_SOUND_SUNXI_BOOT_TONE
+	sunxi_boot_tone_play,
+#endif
 	board_env_late_init,
 #if defined(CONFIG_MICROBLAZE) || defined(CONFIG_M68K)
 	timer_init,		/* initialize timer */
@@ -1030,7 +1052,6 @@ static init_fnc_t init_sequence_r[] = {
 #ifdef CONFIG_ARCH_SUNXI
 	sunxi_burn_key,
 #endif
-
 #ifdef CONFIG_BOARD_LATE_INIT
 	board_late_init,
 #endif
@@ -1051,7 +1072,7 @@ static init_fnc_t init_sequence_r[] = {
 #if defined(CONFIG_CMD_PCMCIA) && !defined(CONFIG_IDE)
 	initr_pcmcia,
 #endif
-#if defined(CONFIG_IDE)
+#if defined(CONFIG_IDE) && !defined(CONFIG_BLK)
 	initr_ide,
 #endif
 #ifdef CONFIG_LAST_STAGE_INIT
@@ -1071,9 +1092,6 @@ static init_fnc_t init_sequence_r[] = {
 	initr_mem,
 #endif
 
-#ifdef CONFIG_SOUND_SUNXI_BOOT_TONE
-	sunxi_boot_tone_play,
-#endif
 	run_main_loop,
 };
 

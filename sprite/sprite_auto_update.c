@@ -89,16 +89,20 @@ static int auto_update_firmware_probe(char *name)
 	return 0;
 }
 
-
 loff_t fat_fs_read(const char *filename, void *buf, int offset, int len)
 {
-	char temp_str[256] = {0};
-	if ((buf == NULL) || (filename == NULL))
+	loff_t len_read;
+
+	if (!buf || !filename)
 		return -1;
 
-	sprintf(temp_str, "fatload %s 0 0x%lx %s 0x%x 0x%x", interface, (unsigned long)buf, filename, len, offset);
-	run_command(temp_str, 0);
-	return env_get_hex("filesize", 0);
+	if (fs_set_blk_dev(interface, "0", FS_TYPE_FAT))
+		return -1;
+
+	if (fs_read(filename, (ulong)buf, offset, len, &len_read))
+		return -1;
+
+	return len_read;
 }
 
 static int auto_update_fetch_download_map(sunxi_download_info *dl_map)
@@ -334,7 +338,7 @@ static int __download_normal_part(dl_one_part_info *part_info,
 			}
 		}
 	}
-
+	sunxi_flash_flush();
 	tick_printf("successed in writting part %s\n", part_info->name);
 	ret = 0;
 	if (imgitemhd) {
@@ -563,7 +567,8 @@ static int auto_update_deal_part(sunxi_download_info *dl_map)
 
 	rate = (70 - 10) / dl_map->download_count;
 
-	down_buff = (uchar *)memalign(CONFIG_SYS_CACHELINE_SIZE, AU_ONCE_DATA_DEAL + AU_HEAD_BUFF);
+	down_buff = (uchar *)memalign(CONFIG_SYS_CACHELINE_SIZE,
+				      AU_ONCE_DATA_DEAL + AU_HEAD_BUFF);
 	if (!down_buff) {
 		printf("sunxi sprite err: unable to malloc memory for sunxi_sprite_deal_part\n");
 		goto __auto_update_deal_part_err1;
@@ -578,7 +583,7 @@ static int auto_update_deal_part(sunxi_download_info *dl_map)
 			if (ret1 < 0) {
 				printf("sunxi sprite err: sunxi_sprite_deal_part, download_udisk failed\n");
 
-				goto __auto_update_deal_part_err2;
+				goto __auto_update_deal_part_err1;
 			} else if (ret1 > 0) {
 				printf("do NOT need download UDISK\n");
 			}
@@ -590,7 +595,7 @@ static int auto_update_deal_part(sunxi_download_info *dl_map)
 			if (ret1 != 0) {
 				printf("sunxi sprite err: sunxi_sprite_deal_part, download sysrecovery failed\n");
 
-				goto __auto_update_deal_part_err2;
+				goto __auto_update_deal_part_err1;
 			}
 		}
 		/*private partition: check if need to burn private data*/
@@ -604,7 +609,7 @@ static int auto_update_deal_part(sunxi_download_info *dl_map)
 				if (ret1 != 0) {
 					printf("sunxi sprite err: sunxi_sprite_deal_part, download private failed\n");
 
-					goto __auto_update_deal_part_err2;
+					goto __auto_update_deal_part_err1;
 				}
 			} else {
 				printf("IGNORE private part\n");
@@ -614,19 +619,14 @@ static int auto_update_deal_part(sunxi_download_info *dl_map)
 			if (ret1 != 0) {
 				printf("sunxi sprite err: sunxi_sprite_deal_part, download normal failed\n");
 
-				goto __auto_update_deal_part_err2;
+				goto __auto_update_deal_part_err1;
 			}
 		}
 		//sprite_cartoon_upgrade(10 + rate * (i + 1));
 		tick_printf("successed in download part %s\n", part_info->name);
 	}
-
 	ret = 0;
-
 __auto_update_deal_part_err1:
-	/* sunxi_sprite_exit(1); */
-
-__auto_update_deal_part_err2:
 
 	if (down_buff) {
 		free(down_buff);
@@ -637,6 +637,7 @@ __auto_update_deal_part_err2:
 
 static int auto_update_deal_boot0(int production_media)
 {
+	int ret = 0;
 	char *buffer = memalign(CONFIG_SYS_CACHELINE_SIZE, 1 * 1024 * 1024);
 	uint item_original_size;
 
@@ -658,32 +659,41 @@ static int auto_update_deal_boot0(int production_media)
 
 	if (!imgitemhd) {
 		printf("sprite update error: fail to open boot0 item\n");
-		return -1;
+		ret = -1;
+		goto out;
 	}
 
 	/*get boot0 size*/
 	item_original_size = Img_GetItemSize(imghd, imgitemhd);
 	if (!item_original_size) {
 		printf("sprite update error: fail to get boot0 item size\n");
-		return -1;
+		ret = -1;
+		goto out;
 	}
 	/* read boot0 */
 	if (!Img_Fat_ReadItem(imghd, imgitemhd, imgname, (void *)buffer,
 			      1 * 1024 * 1024)) {
 		printf("update error: fail to read data from for boot0\n");
-		return -1;
+		ret = -1;
+		goto out;
 	}
 	Img_CloseItem(imghd, imgitemhd);
 	imgitemhd = NULL;
 	if (sunxi_sprite_download_boot0(buffer, production_media)) {
 		printf("update error: fail to write boot0\n");
-		return -1;
+		ret = -1;
+		goto out;
 	}
-	return 0;
+out:
+	if (buffer) {
+		free(buffer);
+	}
+	return ret;
 }
 
 int auto_update_deal_uboot(int production_media)
 {
+	int ret = 0;
 	char *buffer = memalign(CONFIG_SYS_CACHELINE_SIZE, 4 * 1024 * 1024);
 	uint item_original_size;
 	if (gd->bootfile_mode == SUNXI_BOOT_FILE_NORMAL) {
@@ -701,38 +711,48 @@ int auto_update_deal_uboot(int production_media)
 
 	if (!imgitemhd) {
 		printf("sprite update error: fail to open uboot item\n");
-		return -1;
+		ret = -1;
+		goto out;
 	}
 	/* get uboot size */
 	item_original_size = Img_GetItemSize(imghd, imgitemhd);
 	if (!item_original_size) {
 		printf("sprite update error: fail to get uboot item size\n");
-		return -1;
+		ret = -1;
+		goto out;
 	}
 	/* read uboot */
 	if (!Img_Fat_ReadItem(imghd, imgitemhd, imgname, (void *)buffer,
 			      4 * 1024 * 1024)) {
 		printf("update error: fail to read data from for uboot\n");
-		return -1;
+		ret = -1;
+		goto out;
 	}
 	Img_CloseItem(imghd, imgitemhd);
 	imgitemhd = NULL;
 
 	if (sunxi_sprite_download_uboot(buffer, production_media, 0)) {
 		printf("update error: fail to write uboot\n");
-		return -1;
+		ret = -1;
+		goto out;
 	}
 	printf("sunxi_sprite_deal_uboot ok\n");
-	return 0;
+out:
+	if (buffer) {
+		free(buffer);
+	}
+	return ret;
 }
 
 int sunxi_auto_update_main(void)
 {
+	int ret = 0;
 	int production_media;
 	/* uchar img_mbr[1024 * 1024]; */
-	uchar *img_mbr = memalign(CONFIG_SYS_CACHELINE_SIZE, 1024*1024);
+	uchar *img_mbr = memalign(CONFIG_SYS_CACHELINE_SIZE, 1024 * 1024);
 	sunxi_download_info *dl_map;
-	dl_map = (sunxi_download_info *)memalign(CONFIG_SYS_CACHELINE_SIZE, sizeof(sunxi_download_info));
+	dl_map = (sunxi_download_info *)memalign(CONFIG_SYS_CACHELINE_SIZE,
+						 sizeof(sunxi_download_info));
 	int mbr_num = SUNXI_MBR_COPY_NUM;
 	int nodeoffset;
 	int processbar_direct = 0;
@@ -747,17 +767,21 @@ int sunxi_auto_update_main(void)
 
 	production_media = get_boot_storage_type();
 
-	imgname = memalign(CONFIG_SYS_CACHELINE_SIZE, strlen(firmware_path) + 1);
-	if (imgname == NULL)
-		return -1;
+	imgname =
+		memalign(CONFIG_SYS_CACHELINE_SIZE, strlen(firmware_path) + 1);
+	if (imgname == NULL) {
+		printf("imgname : null\n");
+		ret = -1;
+		goto out;
+	}
 
 	strcpy(imgname, firmware_path);
 	//sprite_cartoon_create(processbar_direct);
 
 	if (auto_update_firmware_probe(imgname)) {
 		printf("sunxi sprite firmware probe fail\n");
-
-		return -1;
+		ret = -1;
+		goto out;
 	}
 
 	//sprite_cartoon_upgrade(5);
@@ -766,8 +790,8 @@ int sunxi_auto_update_main(void)
 	tick_printf("fetch download map\n");
 	if (auto_update_fetch_download_map(dl_map)) {
 		printf("sunxi sprite error : fetch download map error\n");
-
-		return -1;
+		ret = -1;
+		goto out;
 	}
 	__dump_dlmap(dl_map);
 
@@ -775,8 +799,8 @@ int sunxi_auto_update_main(void)
 	tick_printf("fetch mbr\n");
 	if (auto_update_fetch_mbr(img_mbr)) {
 		printf("sunxi sprite error : fetch mbr error\n");
-
-		return -1;
+		ret = -1;
+		goto out;
 	}
 
 	/* according to the mbr,erase or protect data*/
@@ -785,8 +809,8 @@ int sunxi_auto_update_main(void)
 	tick_printf("nand_get_mbr finish\n");
 	if (sunxi_sprite_erase_flash(img_mbr)) {
 		printf("sunxi sprite error: erase flash err\n");
-
-		return -1;
+		ret = -1;
+		goto out;
 	}
 	tick_printf("successed in erasing flash\n");
 
@@ -796,8 +820,8 @@ int sunxi_auto_update_main(void)
 
 	if (sunxi_sprite_download_mbr(img_mbr, sizeof(sunxi_mbr_t) * mbr_num)) {
 		printf("sunxi sprite error: download mbr err\n");
-
-		return -1;
+		ret = -1;
+		goto out;
 	}
 	//sprite_cartoon_upgrade(10);
 
@@ -805,8 +829,8 @@ int sunxi_auto_update_main(void)
 	/* start burning partition data*/
 	if (auto_update_deal_part(dl_map)) {
 		printf("sunxi sprite error : download part error\n");
-
-		return -1;
+		ret = -1;
+		goto out;
 	}
 	tick_printf("successed in downloading part\n");
 	//sprite_cartoon_upgrade(80);
@@ -814,16 +838,16 @@ int sunxi_auto_update_main(void)
 
 	if (auto_update_deal_uboot(production_media)) {
 		printf("sunxi sprite error : download uboot error\n");
-
-		return -1;
+		ret = -1;
+		goto out;
 	}
 	tick_printf("successed in downloading uboot\n");
 	//sprite_cartoon_upgrade(90);
 
 	if (auto_update_deal_boot0(production_media)) {
 		printf("sunxi sprite error : download boot0 error\n");
-
-		return -1;
+		ret = -1;
+		goto out;
 	}
 	tick_printf("successed in downloading boot0\n");
 	//sprite_cartoon_upgrade(100);
@@ -831,10 +855,18 @@ int sunxi_auto_update_main(void)
 	//sprite_uichar_printf("CARD OK\n");
 	tick_printf("update firmware success \n");
 	mdelay(3000);
+out:
+	if (dl_map) {
+		free(dl_map);
+		dl_map = NULL;
+	}
 
-	return 0;
+	if (img_mbr) {
+		free(img_mbr);
+		img_mbr = NULL;
+	}
+	return ret;
 }
-
 
 static uboot_command *get_script_next_line(char *line_buf_ptr, int *arg_max)
 {
@@ -861,7 +893,8 @@ static uboot_command *get_script_next_line(char *line_buf_ptr, int *arg_max)
 		if (next_line != NULL) {
 			free(next_line);
 		}
-		next_line = (uboot_command *)memalign(CONFIG_SYS_CACHELINE_SIZE, sizeof(uboot_command) * i);
+		next_line = (uboot_command *)memalign(
+			CONFIG_SYS_CACHELINE_SIZE, sizeof(uboot_command) * i);
 		if (next_line == NULL)
 			return NULL;
 		*arg_max = argv_max = i;
@@ -896,64 +929,108 @@ static uboot_command *get_script_next_line(char *line_buf_ptr, int *arg_max)
 	return next_line;
 }
 
-
-int do_auto_update_check(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[])
+int do_auto_update_check(cmd_tbl_t *cmdtp, int flag, int argc,
+			 char *const argv[])
 {
 	int arg_max = 0, i;
-	u32 file_size, file_offset;
+	u32 file_size, file_offset, len = 0;
 	uboot_command *commands;
-	char temp_buf[256] = {0};
-	char *file_buff = (char *)0x45000000;
-	int inited = 0;
-	if (!run_command("usb reset", 0)) {
+	char temp_buf[256] = { 0 };
+	char *file_buff    = (char *)0x45000000;
+	char *file_p = file_buff;
+	int inited	 = 0;
+
+	if (!run_command("sunxi_card0_probe", 0)) {
+		inited = 1;
+		strncpy(interface, "mmc", sizeof("usb"));
+	} else if (!run_command("usb reset", 0)) {
 		inited = 1;
 		strncpy(interface, "usb", sizeof("usb"));
-	} else if (!run_command("sunxi_card0_probe", 0)) {
-		inited = 1;
-		strncpy(interface, "mmc", sizeof("mmc"));
+	} else {
+		return 0;
 	}
+
 	if (simple_strtoul(argv[1], NULL, 16) == 1) {
 		return sunxi_auto_update_main();
 	} else if (inited == 1) {
-		memset(file_buff, 0, MAX_FILE_SIZE);
-
-		sprintf(temp_buf, "fatload %s 0 0x%lx scripts/auto_update.txt", interface, (unsigned long)file_buff);
-		run_command(temp_buf, 0);
+		file_size = 0;
+		file_offset = 0;
+		fat_fs_read("scripts/auto_update.txt", (void *)file_p,
+				file_offset, file_size);
 		commands = get_script_next_line(file_buff, &arg_max);
 		for (i = 0; i < arg_max; i++) {
-			if (!strncmp(commands[i].argv[3], "firmware", sizeof("firmware"))) {
+			if (!strncmp(commands[i].argv[3], "firmware",
+				     sizeof("firmware"))) {
 				firmware_path = commands[i].argv[2];
 				sunxi_auto_update_main();
-			} else {
-				sprintf(temp_buf, "fatsize %s 0 %s", interface, commands[i].argv[2]);
-				run_command(temp_buf, 0);
-				file_size = env_get_hex("filesize", 0);
-				pr_debug("file_size:0x%x temp_buf:%s\n", file_size, temp_buf);
-				if (file_size < MAX_FILE_SIZE) {
-					memset(file_buff, 0, MAX_FILE_SIZE);
+				sunxi_flash_write_end();
+				sunxi_flash_flush();
+				goto out;
+			}
+		}
+		for (i = 0; i < arg_max; i++) {
+			sprintf(temp_buf, "fatsize %s 0 %s", interface,
+				commands[i].argv[2]);
+			run_command(temp_buf, 0);
+			file_size = env_get_hex("filesize", 0);
+			printf("file_size:0x%x temp_buf:%s from:%s\n", file_size,
+				 temp_buf, commands[i].argv[2]);
+			file_p = file_buff;
+			if (file_size < MAX_FILE_SIZE) {
+				memset(file_buff, 0, MAX_FILE_SIZE);
+				file_offset = 0;
+				fat_fs_read(commands[i].argv[2], (void *)file_buff,
+						file_offset, file_size);
 
-					sprintf(temp_buf, "fatload %s 0 0x%lx %s;%s %s 0x%lx %s",
-							interface, (unsigned long)file_buff, commands[i].argv[2],
-							commands[i].argv[0], commands[i].argv[1], (unsigned long)file_buff, commands[i].argv[3]);
-					pr_debug("temp_buf:%s\n", temp_buf);
-					run_command(temp_buf, 0);
-					mdelay(10);
-				} else {
-					for (file_offset = 0; file_offset < ALIGN(file_size, MAX_FILE_SIZE); file_offset += MAX_FILE_SIZE) {
-						memset(file_buff, 0, MAX_FILE_SIZE);
-						sprintf(temp_buf, "fatload %s 0 0x%lx %s 0x%x 0x%x;%s %s 0x%lx %s 0x%x 0x%x",
-								interface, (unsigned long)file_buff, commands[i].argv[2], MAX_FILE_SIZE, file_offset,
-								commands[i].argv[0], commands[i].argv[1], (unsigned long)file_buff, commands[i].argv[3], file_offset,
-								file_size - file_offset < MAX_FILE_SIZE ? file_size - file_offset : MAX_FILE_SIZE);
-						pr_debug("temp_buf:%s\n", temp_buf);
+				sprintf(temp_buf, "%s %s 0x%lx %s 0x%x",
+					commands[i].argv[0],
+					commands[i].argv[1],
+					(unsigned long)file_buff,
+					commands[i].argv[3], file_size);
+				pr_debug("temp_buf:%s\n", temp_buf);
+				run_command(temp_buf, 0);
+				mdelay(10);
+			} else {
+				file_offset = 0;
+				memset(file_buff, 0, file_size);
+				len = file_size;
+				while (file_size) {
+					if (file_size >= MAX_FILE_SIZE) {
+						fat_fs_read(commands[i].argv[2],
+							(void *)file_p, file_offset,
+							MAX_FILE_SIZE);
+						mdelay(10);
+
+						file_size -= MAX_FILE_SIZE;
+						file_offset += MAX_FILE_SIZE;
+						file_p += MAX_FILE_SIZE;
+					} else {
+						fat_fs_read(commands[i].argv[2],
+							(void *)file_p, file_offset,
+							file_size);
+						mdelay(10);
+
+						memset(temp_buf, 0, 256);
+						sprintf(temp_buf,
+						"%s %s 0x%lx %s 0x%x",
+						commands[i].argv[0],
+						commands[i].argv[1],
+						(unsigned long)file_buff,
+						commands[i].argv[3], len);
 						run_command(temp_buf, 0);
 						mdelay(10);
+
+						file_size -= file_size;
+						file_offset += file_size;
+						file_p += file_size;
 					}
 				}
 			}
 		}
+		sunxi_flash_write_end();
+		sunxi_flash_flush();
 	}
-	sunxi_flash_write_end();
+out:
 	return 0;
 }
 U_BOOT_CMD(auto_update_check, CONFIG_SYS_MAXARGS, 1, do_auto_update_check,
@@ -967,6 +1044,4 @@ U_BOOT_CMD(auto_update_check, CONFIG_SYS_MAXARGS, 1, do_auto_update_check,
 	"		sunxi_flash write <file path> <load partition>\n"
 	"	exp:\n"
 	"		sunxi_flash write update/boot.fex boot\n"
-	"		sunxi_flash write update/boot_package.fex boot_package\n"
-	);
-
+	"		sunxi_flash write update/boot_package.fex boot_package\n");

@@ -60,7 +60,11 @@ typedef struct _boot0_file_head_t
 {
 	boot_file_head_t      boot_head;
 	boot0_private_head_t  prvt_head;
-	char hash[64];
+	char hash[16];
+	normal_gpio_cfg	      i2c_gpio[2];
+	/*write back to spl to limit dram size*/
+	__u32                 dram_size;
+	__u8                  reserved[36];
 }boot0_file_head_t;
 
 extern const boot0_file_head_t BT0_head;

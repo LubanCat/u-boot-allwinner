@@ -939,6 +939,10 @@ int nand_secure_storage_flush(void)
 	}
 */
 
+	if (!gs.writing) {
+		pr_info("no data in secure storage cache, don't need to flush\n");
+		return 0;
+	}
 retry:
 	ret = nand_physic_erase_block(0, nand_secure_storage_block);
 	if (!ret) {
@@ -963,6 +967,7 @@ retry:
 		pr_err("flush storage success\n");
 
 	gs.begin = false;
+	gs.writing = false;
 
 	return ret;
 }

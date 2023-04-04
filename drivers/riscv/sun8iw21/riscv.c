@@ -41,10 +41,9 @@
 
 /*
  * riscv need to remap addresses for some addr.
+ * riscv has the same addresses mapping as a7.
  */
 static struct vaddr_range_t addr_mapping[] = {
-	{ 0x10000000, 0x1fffffff, 0x30000000 },
-	{ 0x30000000, 0x3fffffff, 0x10000000 },
 };
 
 static int update_reset_vec(u32 img_addr, u32 *run_addr)

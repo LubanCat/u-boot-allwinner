@@ -466,7 +466,6 @@ static const char *cpurpio_parents[] = {"cpurapbs1"};
 static const char *stwi_parents[] = {"cpurapbs1"};
 static const char *losc_parents[] = {"losc"};
 static const char *dcxo_parents[] = {"hosc"};
-static const char *apbs2mod_parents[] = {"cpurapbs2"};
 
 struct sunxi_clk_comgate com_gates[] = {
 {"nand",    0, 0x3, BUS_GATE_SHARE|RST_GATE_SHARE|MBUS_GATE_SHARE, 0},

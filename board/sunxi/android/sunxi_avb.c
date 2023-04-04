@@ -127,9 +127,9 @@ int sunxi_avb_verify_all_vbmeta(AvbVBMetaImageHeader *vbmeta_hdr,
 	int vbmeta_system_size = sunxi_avb_vbmeta_size(vbmeta_hdr_system);
 	int vbmeta_vendor_size = sunxi_avb_vbmeta_size(vbmeta_hdr_vendor);
 	u8 *addr;
-	u8 *addr_vbmeta;
-	u8 *addr_vbmeta_system;
-	u8 *addr_vbmeta_vendor;
+	u8 *addr_vbmeta = NULL;
+	u8 *addr_vbmeta_system = NULL;
+	u8 *addr_vbmeta_vendor = NULL;
 	u8 sha1_hash[64];
 	int all_blk =
 		(vbmeta_size + vbmeta_system_size + vbmeta_vendor_size) / 512 +
@@ -137,9 +137,30 @@ int sunxi_avb_verify_all_vbmeta(AvbVBMetaImageHeader *vbmeta_hdr,
 	pr_msg("alloc block = %d \n", all_blk);
 	addr = (u8 *)memalign(CACHE_LINE_SIZE,
 			      all_blk * 512 + CONFIG_SUNXI_SHA_CAL_PADDING);
+	if (addr == NULL) {
+		pr_error("not enough memory\n");
+		ret = -1;
+		goto __ERROR_END;
+	}
 	addr_vbmeta	= (u8 *)malloc(vbmeta_size + 512);
+	if (addr_vbmeta == NULL) {
+		pr_err("fail to malloc vbmeta\n");
+		ret = -1;
+		goto __ERROR_END;
+	}
 	addr_vbmeta_system = (u8 *)malloc(vbmeta_system_size + 512);
+	if (addr_vbmeta_system == NULL) {
+		pr_err("fail to malloc vbmeta_system\n");
+		ret = -1;
+		goto __ERROR_END;
+	}
 	addr_vbmeta_vendor = (u8 *)malloc(vbmeta_vendor_size + 512);
+	if (addr_vbmeta_vendor == NULL) {
+		pr_err("fail to malloc vbmeta_vendor\n");
+		ret = -1;
+		goto __ERROR_END;
+	}
+
 	start_block	= sunxi_partition_get_offset_byname("vbmeta");
 	if (!start_block) {
 		pr_msg("cant find part named vbmeta\n");
@@ -174,7 +195,7 @@ int sunxi_avb_verify_all_vbmeta(AvbVBMetaImageHeader *vbmeta_hdr,
 	if (rbyte) {
 		printf("sunxi_verify_signature err: calc hash failed\n");
 		/*sunxi_ss_close();*/
-		return ret;
+		goto __ERROR_END;
 	}
 	sunxi_set_verify_boot_blob(SUNXI_VB_INFO_HASH, sha1_hash, 32);
 	char *p = sha1;
@@ -184,11 +205,17 @@ int sunxi_avb_verify_all_vbmeta(AvbVBMetaImageHeader *vbmeta_hdr,
 		p += 2;
 	}
 	pr_msg("vbmeta hash is %s\n", sha1);
-	free(addr);
-	free(addr_vbmeta);
-	free(addr_vbmeta_system);
-	free(addr_vbmeta_vendor);
 	ret = 1;
+
+__ERROR_END:
+	if (addr_vbmeta_vendor)
+		free(addr_vbmeta_vendor);
+	if (addr_vbmeta_system)
+		free(addr_vbmeta_system);
+	if (addr_vbmeta)
+		free(addr_vbmeta);
+	if (addr)
+		free(addr);
 	return ret;
 }
 
@@ -231,6 +258,49 @@ int sunxi_avb_verify_vbmeta(AvbVBMetaImageHeader *vbmeta_hdr, char *sha1)
 	return ret;
 }
 
+#define CALL_BACK_REQUIRE_GO_ON 0x07FF
+int sunxi_walk_avb_descriptor(const uint8_t *image_data, size_t image_size,
+			      int(call_back)(const AvbDescriptor *descriptor,
+					     size_t dest_len, void *args),
+			      void *call_back_arg)
+{
+	const AvbVBMetaImageHeader *header = NULL;
+	const uint8_t *image_end;
+	const uint8_t *desc_start;
+	const uint8_t *desc_end;
+	const uint8_t *p;
+	int ret;
+
+	header	  = (const AvbVBMetaImageHeader *)image_data;
+	image_end = image_data + image_size;
+
+	desc_start = image_data + sizeof(AvbVBMetaImageHeader) +
+		     be64_to_cpu(header->authentication_data_block_size) +
+		     be64_to_cpu(header->descriptors_offset);
+
+	desc_end = desc_start + be64_to_cpu(header->descriptors_size);
+
+	if (desc_start < image_data || desc_start > image_end ||
+	    desc_end < image_data || desc_end > image_end ||
+	    desc_end < desc_start) {
+		pr_error("Descriptors not inside passed-in data.\n");
+		return -3;
+	}
+
+	for (p = desc_start; p < desc_end;) {
+		const AvbDescriptor *dh = (const AvbDescriptor *)p;
+		avb_assert_aligned(dh);
+		uint64_t nb_following = be64_to_cpu(dh->num_bytes_following);
+		uint64_t nb_total     = sizeof(AvbDescriptor) + nb_following;
+		ret		      = call_back(dh, nb_total, call_back_arg);
+		if (ret)
+			return ret;
+		p += nb_total;
+	}
+
+	return -1;
+}
+
 int sunxi_avb_get_descriptor_by_name(const uint8_t *image_data,
 				     size_t image_size, const char *name,
 				     AvbDescriptor **out_descriptor)
@@ -270,7 +340,13 @@ int sunxi_avb_get_descriptor_by_name(const uint8_t *image_data,
 				const char *part_name =
 					(const char *)p +
 					sizeof(AvbHashDescriptor);
-
+				if (swappedDesc.partition_name_len >
+					    strlen(part_name) ||
+				    swappedDesc.partition_name_len >
+					    strlen(name)) {
+					pr_error(
+						"Length error:swappedDesc.partition_name_len\n");
+				}
 				if (memcmp(part_name, name,
 					   swappedDesc.partition_name_len) ==
 				    0) {
@@ -388,7 +464,15 @@ int sunxi_vbmeta_self_verify(const uint8_t *meta_data, size_t meta_data_size,
 	}
 
 	out_pk->n_len = 2048 / 8;
+	if (out_pk->n) {
+		free(out_pk->n);
+		out_pk->n = NULL;
+	}
 	out_pk->n     = malloc(2048 / 8);
+	if (!out_pk->n) {
+		printf("Failed to malloc pubkey n \n");
+		goto vbmeta_verify_err;
+	}
 	self_sign_key = auxiliary_block + h.public_key_offset +
 			sizeof(AvbRSAPublicKeyHeader);
 	for (total_len = 0; total_len < out_pk->n_len; total_len++) {
@@ -400,9 +484,16 @@ int sunxi_vbmeta_self_verify(const uint8_t *meta_data, size_t meta_data_size,
 	 * instead of preserved len 4.
 	 */
 	out_pk->e_len = 3;
+	if (out_pk->e) {
+		free(out_pk->e);
+		out_pk->e = NULL;
+	}
 	out_pk->e     = malloc(3);
 	memcpy(out_pk->e, &key_h.n0inv, 3);
-
+	if (!out_pk->e) {
+		printf("Failed to malloc pubkey e \n");
+		goto vbmeta_verify_err;
+	}
 	memset(hash_result, 0, 32);
 	sunxi_rsa_calc(out_pk->n, out_pk->n_len, out_pk->e, out_pk->e_len,
 		       hash_result, 32,
@@ -421,6 +512,12 @@ int sunxi_vbmeta_self_verify(const uint8_t *meta_data, size_t meta_data_size,
 	}
 
 	return 0;
+vbmeta_verify_err:
+	if (out_pk->n)
+		free(out_pk->n);
+	if (out_pk->e)
+		free(out_pk->e);
+	return -1;
 }
 
 int sunxi_avb_get_vbmeta_flags(uint32_t *flags)

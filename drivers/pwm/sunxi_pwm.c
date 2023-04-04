@@ -194,7 +194,7 @@ int sunxi_pwm_set_polarity(struct sunxi_pwm_chip *pchip, enum pwm_polarity polar
 int sunxi_pwm_config(struct sunxi_pwm_chip *pchip, int duty_ns, int period_ns)
 {
 
-#if defined(CONFIG_MACH_SUN8IW20) || defined(CONFIG_MACH_SUN20IW1)
+#if defined(CONFIG_MACH_SUN8IW20) || defined(CONFIG_MACH_SUN20IW1) || defined(CONFIG_MACH_SUN55IW3)
 	uint pre_scal[][2] = {
 		{0, 1},
 		{1, 2},
@@ -329,6 +329,9 @@ int sunxi_pwm_enable(struct sunxi_pwm_chip *pchip)
 	reg_offset = PCGR;
 	reg_shift = pwm;
 	value = sunxi_pwm_readl(pchip, reg_offset);
+#ifdef	CONFIG_SUNXI_EPHY_AC300
+	value = SET_BITS(reg_shift + PWM_CLK_BYPASS_SHIFT, 1, value, 1);
+#endif
 	value = SET_BITS(reg_shift, 1, value, 1);
 	sunxi_pwm_writel(pchip, reg_offset, value);
 

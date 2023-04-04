@@ -145,4 +145,6 @@ extern int spi0_write_then_read(void *txbuf, unsigned int txnum,
 		void *rxbuf, unsigned int rxnum, int mode);
 extern void spic0_config_io_mode(unsigned int rxmode, unsigned int dbc,
 		unsigned int stc);
+void spic0_set_soft_ss(unsigned int mod);
+void spic0_set_ss(unsigned int status);
 #endif

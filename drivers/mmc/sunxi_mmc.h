@@ -346,8 +346,6 @@ struct sunxi_sdmmc_parameter_region_header {
 };
 
 struct sunxi_sdmmc_parameter_region {
-#define SUNXI_SDMMC_PARAMETER_REGION_LBA_START 24504
-#define SUNXI_SDMMC_PARAMETER_REGION_SIZE_BYTE 512
 	struct sunxi_sdmmc_parameter_region_header header;
 	struct boot_sdmmc_private_info_t info;
 };
@@ -378,12 +376,6 @@ struct sunxi_sdmmc_parameter_region {
 				| SDXC_RespTimeout | SDXC_DataTimeout | SDXC_FIFORunErr \
 				| SDXC_HardWLocked | SDXC_StartBitErr | SDXC_EndBitErr)  //0xbfc2
 
-//#define TUNING_LEN		(1)//The address which store the tuninng pattern
-//#define TUNING_ADD		(38192-TUNING_LEN)//The address which store the tuninng pattern
-#define TUNING_LEN		(60)//The length of the tuninng pattern
-#define TUNING_ADD		(24576-4-TUNING_LEN)//The address which store the tuninng pattern
-#define REPEAT_TIMES		(30)
-#define SAMPLE_MODE 		(2)
 
 //secure storage relate
 #define MAX_SECURE_STORAGE_MAX_ITEM		32
@@ -419,8 +411,17 @@ struct sunxi_sdmmc_parameter_region {
 #define SDXC_CfgNewDly          		(0xF<<0)
 
 /* GPIO POWER MODE REGISTER */
+#ifdef CONFIG_MACH_SUN55IW3
+#define GPIO_POW_MODE_REG	(0x0380)
+#define GPIO_POW_MS_CTL	(0x0384)
+#define GPIO_POW_MODE_VAL_REG	(0x0388)
+#else
 #define GPIO_POW_MODE_REG		(0x0340)
 #define GPIO_POW_MODE_VAL_REG		(0x0348)
+#endif
+
+/* host version mask */
+#define SMHC_VERSION_MASK		(0xffffff)
 
 extern void dumphex32(char *name, char *base, int len);
 struct mmc *sunxi_mmc_init(int sdc_no);

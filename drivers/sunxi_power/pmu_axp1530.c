@@ -11,6 +11,7 @@
 #include <sunxi_power/pmu_axp1530.h>
 #include <sunxi_power/axp.h>
 #include <asm/arch/pmic_bus.h>
+#include <sys_config.h>
 
 /*#include <power/sunxi/pmu.h>*/
 
@@ -103,10 +104,15 @@ static int pmu_axp1530_necessary_reg_enable(void)
 static int pmu_axp1530_probe(void)
 {
 	u8 pmu_chip_id;
-	if (pmic_bus_init(AXP1530_DEVICE_ADDR, AXP1530_RUNTIME_ADDR)) {
+	int axp_bus_num;
+
+	script_parser_fetch(FDT_PATH_POWER_SPLY, "axp_bus_num", &axp_bus_num, AXP1530_DEVICE_ADDR);
+
+	if (pmic_bus_init(axp_bus_num, AXP1530_RUNTIME_ADDR)) {
 		tick_printf("%s pmic_bus_init fail\n", __func__);
 		return -1;
 	}
+
 	if (pmic_bus_read(AXP1530_RUNTIME_ADDR, AXP1530_VERSION, &pmu_chip_id)) {
 		tick_printf("%s pmic_bus_read fail\n", __func__);
 		return -1;
@@ -282,7 +288,30 @@ static int pmu_axp1530_set_power_off(void)
 	return 0;
 }
 
+static int pmu_axp1530_set_dcdc_mode(const char *name, int mode)
+{
+	u8 reg_value = 0, mask = 0;
 
+	if (!strncmp(name, "dcdc1_mode", sizeof("dcdc1_mode")))
+		mask = AXP1530_DCDC1_PWM_BIT;
+
+	if (!strncmp(name, "dcdc2_mode", sizeof("dcdc2_mode")))
+		mask = AXP1530_DCDC2_PWM_BIT;
+
+	if (!strncmp(name, "dcdc3_mode", sizeof("dcdc3_mode")))
+		mask = AXP1530_DCDC3_PWM_BIT;
+
+	if (pmic_bus_read(AXP1530_RUNTIME_ADDR, AXP1530_DCDC_MODESET, &reg_value))
+		return -1;
+
+	reg_value &= ~(1 << mask);
+	reg_value |= (mode << mask);
+
+	if (pmic_bus_write(AXP1530_RUNTIME_ADDR, AXP1530_DCDC_MODESET, reg_value))
+		return -1;
+
+	return 0;
+}
 
 static int pmu_axp1530_get_key_irq(void)
 {
@@ -332,6 +361,7 @@ U_BOOT_AXP_PMU_INIT(pmu_axp1530) = {
 	/*.set_sys_mode      = pmu_axp1530_set_sys_mode,*/
 	/*.get_sys_mode      = pmu_axp1530_get_sys_mode,*/
 	.get_key_irq       = pmu_axp1530_get_key_irq,
+	.set_dcdc_mode     = pmu_axp1530_set_dcdc_mode,
 	/*.set_bus_vol_limit = pmu_axp1530_set_bus_vol_limit,*/
 	.get_reg_value	   = pmu_axp1530_get_reg_value,
 	.set_reg_value	   = pmu_axp1530_set_reg_value,

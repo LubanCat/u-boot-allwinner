@@ -27,6 +27,29 @@
 #define SUNXI_GPIO_G	6
 #define SUNXI_GPIO_H	7
 #define SUNXI_GPIO_I	8
+#define SUNXI_GPIO_J	10
+
+enum io_pow_mode_e {
+	IO_MODE_1_8_V = 0,
+	IO_MODE_3_3_V,
+	IO_MODE_DEFAULT,
+	IO_MODE_AUTO
+};
+
+enum pin_e {
+	GPIO_GROUP_A = 0,
+	GPIO_GROUP_B,
+	GPIO_GROUP_C,
+	GPIO_GROUP_D,
+	GPIO_GROUP_E,
+	GPIO_GROUP_F,
+	GPIO_GROUP_G,
+	GPIO_GROUP_H,
+	GPIO_GROUP_I,
+	GPIO_GROUP_J,
+	GPIO_GROUP_K,
+	GPIO_GROUP_L
+};
 
 /*
  * This defines the number of GPIO banks for the _main_ GPIO controller.
@@ -272,6 +295,9 @@ int sunxi_gpio_set_drv(u32 pin, u32 val);
 int sunxi_gpio_set_pull(u32 pin, u32 val);
 int sunxi_name_to_gpio_bank(const char *name);
 int sunxi_name_to_gpio(const char *name);
+void sunxi_io_set_pow_mode_on_actual_val(enum pin_e port_group);
+void sunxi_io_set_pow_mode_to_default(enum pin_e port_group);
+
 #define name_to_gpio(name) sunxi_name_to_gpio(name)
 
 #if !defined CONFIG_SPL_BUILD && defined CONFIG_AXP_GPIO

@@ -5,6 +5,14 @@
  *
  * SPDX-License-Identifier:	GPL-2.0+
  */
+#define KEYBOX_ENC_MASK   0x1
+#define KEYBOX_ENC_OFFSET 0
+#define KEYBOX_ENC_PARAM_MASK   0xF
+#define KEYBOX_ENC_PARAM_OFFSET 28
+#define KEYBOX_ENC_PARAM_ECB_256_SSK 0
+#define KEYBOX_ENC_PARAM_CBC_128_HUK 1
+#define KEYBOX_ENC_PARAM_CBC_192_HUK 2
+
 int sunxi_keybox_has_key(char *key_name);
 int sunxi_keybox_init(void);
 int sunxi_keybox_burn_key(const char *name, char *buf, int key_len, int encrypt,

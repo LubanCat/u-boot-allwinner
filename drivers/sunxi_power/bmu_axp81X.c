@@ -65,10 +65,19 @@ int bmu_axp81X_get_battery_probe(void)
 
 int bmu_axp81X_reset_capacity(void)
 {
+	u8 reg_value;
 	if (pmic_bus_write(AXP81X_RUNTIME_ADDR, AXP81X_BAT_MAX_CAP1, 0x00))
 		return -1;
 
 	if (pmic_bus_write(AXP81X_RUNTIME_ADDR, AXP81X_BAT_MAX_CAP0, 0x00))
+		return -1;
+
+	if (pmic_bus_read(AXP81X_RUNTIME_ADDR, AXP81X_FUEL_GAUGE_CTL, &reg_value))
+		return -1;
+
+	reg_value &= 0x3F;
+
+	if (pmic_bus_write(AXP81X_RUNTIME_ADDR, AXP81X_FUEL_GAUGE_CTL, reg_value))
 		return -1;
 
 	return 1;
@@ -285,7 +294,31 @@ unsigned char bmu_axp81X_set_reg_value(unsigned char reg_addr, unsigned char reg
 	return reg;
 }
 
-int bmu_axp81X_set_ntc_onff(int onoff)
+int bmu_axp81X_set_ntc_cur(int ntc_cur)
+{
+	unsigned char reg_value;
+	if (pmic_bus_read(AXP81X_RUNTIME_ADDR, AXP81X_ADC_SPEED_TS, &reg_value)) {
+			return -1;
+	}
+	reg_value &= 0xCF;
+
+	if (ntc_cur < 40)
+		reg_value |= 0x00;
+	else if (ntc_cur < 60)
+		reg_value |= 0x10;
+	else if (ntc_cur < 80)
+		reg_value |= 0x20;
+	else
+		reg_value |= 0x30;
+
+	if (pmic_bus_write(AXP81X_RUNTIME_ADDR, AXP81X_ADC_SPEED_TS, reg_value)) {
+			return -1;
+	}
+
+	return reg_value;
+}
+
+int bmu_axp81X_set_ntc_onff(int onoff, int ntc_cur)
 {
 	unsigned char reg_value;
 	if (!onoff) {
@@ -319,8 +352,84 @@ int bmu_axp81X_set_ntc_onff(int onoff)
 		if (pmic_bus_write(AXP81X_RUNTIME_ADDR, AXP81X_ADC_SPEED_TS, reg_value))
 			return -1;
 
+		bmu_axp81X_set_ntc_cur(ntc_cur);
 	}
 	return 0;
+}
+
+static int axp_vts_to_temp(int data, int param[16])
+{
+	int temp;
+
+	if (data < param[15])
+		return 800;
+	else if (data <= param[14]) {
+		temp = 700 + (param[14]-data)*100/
+		(param[14]-param[15]);
+	} else if (data <= param[13]) {
+		temp = 600 + (param[13]-data)*100/
+		(param[13]-param[14]);
+	} else if (data <= param[12]) {
+		temp = 550 + (param[12]-data)*50/
+		(param[12]-param[13]);
+	} else if (data <= param[11]) {
+		temp = 500 + (param[11]-data)*50/
+		(param[11]-param[12]);
+	} else if (data <= param[10]) {
+		temp = 450 + (param[10]-data)*50/
+		(param[10]-param[11]);
+	} else if (data <= param[9]) {
+		temp = 400 + (param[9]-data)*50/
+		(param[9]-param[10]);
+	} else if (data <= param[8]) {
+		temp = 300 + (param[8]-data)*100/
+		(param[8]-param[9]);
+	} else if (data <= param[7]) {
+		temp = 200 + (param[7]-data)*100/
+		(param[7]-param[8]);
+	} else if (data <= param[6]) {
+		temp = 100 + (param[6]-data)*100/
+		(param[6]-param[7]);
+	} else if (data <= param[5]) {
+		temp = 50 + (param[5]-data)*50/
+		(param[5]-param[6]);
+	} else if (data <= param[4]) {
+		temp = 0 + (param[4]-data)*50/
+		(param[4]-param[5]);
+	} else if (data <= param[3]) {
+		temp = -50 + (param[3]-data)*50/
+		(param[3] - param[4]);
+	} else if (data <= param[2]) {
+		temp = -100 + (param[2]-data)*50/
+		(param[2] - param[3]);
+	} else if (data <= param[1]) {
+		temp = -150 + (param[1]-data)*50/
+		(param[1] - param[2]);
+	} else if (data <= param[0]) {
+		temp = -250 + (param[0]-data)*100/
+		(param[0] - param[1]);
+	} else
+		temp = -250;
+	return temp;
+}
+
+int bmu_axp81X_get_ntc_temp(int param[16])
+{
+	unsigned char reg_value[2];
+	int temp, tmp;
+
+	if (pmic_bus_read(AXP81X_RUNTIME_ADDR, AXP803_VTS_RES_H, &reg_value[0])) {
+			return -1;
+		}
+	if (pmic_bus_read(AXP81X_RUNTIME_ADDR, AXP803_VTS_RES_L, &reg_value[1])) {
+			return -1;
+	}
+
+	temp = (((reg_value[0] & GENMASK(4, 0)) << 0x04) | ((reg_value[1]) & 0x0F));
+	tmp = temp * 800 / 1000;
+	temp = axp_vts_to_temp(tmp, (int *)param);
+
+	return temp;
 }
 
 U_BOOT_AXP_BMU_INIT(bmu_axp81X) = {
@@ -340,5 +449,6 @@ U_BOOT_AXP_BMU_INIT(bmu_axp81X) = {
 	.set_reg_value	   = bmu_axp81X_set_reg_value,
 	.reset_capacity	   = bmu_axp81X_reset_capacity,
 	.set_ntc_onoff     = bmu_axp81X_set_ntc_onff,
+	.get_ntc_temp      = bmu_axp81X_get_ntc_temp,
 };
 

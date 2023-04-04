@@ -13,6 +13,7 @@
 #include <sunxi_board.h>
 #include <sys_partition.h>
 #include <sunxi_keybox.h>
+#include <sprite.h>
 DECLARE_GLOBAL_DATA_PTR;
 volatile int sunxi_usb_burn_from_boot_handshake, sunxi_usb_burn_from_boot_init,
 	sunxi_usb_burn_from_boot_setup, sunxi_auto_fel_from_boot_handshake;
@@ -726,17 +727,51 @@ int __sunxi_read_key_by_name(void *buffer, uint buff_len, int *read_len)
 	}
 	else
 	{
+#ifdef CONFIG_SUNXI_RKP
+		extern int key_extraction_output_generate(char *out,
+							  size_t out_size);
+
+		if (strcmp("key-extraction", key_info->name) == 0) {
+			int ret = key_extraction_output_generate(
+				(char *)key_info->key_data,
+				buff_len - *read_len);
+			//rkp data generate on run
+			key_info->len = strlen((char *)key_info->key_data) + 1;
+			*read_len += strlen((char *)key_info->key_data) + 1;
+			return ret;
+		} else if (strcmp("reported-serial", key_info->name) == 0) {
+			extern int sunxi_bootargs_load_key(const char *name,
+							   int *data_len,
+							   char *buffer,
+							   int buffer_size);
+			int sunxi_set_serial_num(void);
+
+			char buffer[128];
+			int data_len;
+			char *p;
+			sunxi_bootargs_load_key("snum", &data_len, buffer,
+						sizeof(buffer));
+			sunxi_set_serial_num();
+			p = env_get("snum");
+			strcpy((char *)key_info->key_data, p);
+			key_info->len = strlen(p) + 1;
+			*read_len += key_info->len;
+			return 0;
+		}
+#endif
+#ifdef CONFIG_SUNXI_SECURE_STORAGE
 		printf("read key form securestorage\n");
 		ret = sunxi_secure_object_read(key_info->name, data_buff, (u32)sizeof(sunxi_usb_burn_key_info_t), &key_data_len);
-		if (ret < 0)
+		if (ret < 0) {
 			printf("read %s form securestorage failed\n", key_info->name);
-		else {
+		} else {
 			key_info->len = key_data_len;
 			memcpy((void *)(key_info->key_data),
 				(void *)data_buff, key_data_len);
 			*read_len += key_data_len;
 			return 0;
 		}
+#endif
 	}
 
 	return ret;
@@ -1654,6 +1689,33 @@ static int sunxi_pburn_state_loop(void  *buffer)
 							printf("sunxi erase all key success\n");
 						}
 						break;
+						case USB_BURN_SET_NEXTWORK_REBOOT:
+						{
+							return SUNXI_UPDATE_NEXT_ACTION_REBOOT;
+						}
+#ifdef CONFIG_SUNXI_SPRITE_RECOVERY
+						case USB_BURN_ANDROID_RECOVERY:
+						{
+							int ret;
+							__usb_handshake_ext_t  *handshake = (__usb_handshake_ext_t *)trans_data.base_send_buffer;
+
+							memset(handshake, 0, (u32)sizeof(__usb_handshake_ext_t));
+							strcpy(handshake->magic, "usb_burn_androidrecovery");
+
+							trans_data.act_send_buffer = trans_data.base_send_buffer;
+							trans_data.send_size = min(cbw->dCBWDataTransferLength, (u32)sizeof(__usb_handshake_ext_t));
+							ret = sprite_erase_for_androidrecovery();
+							if (ret < 0) {
+								printf("usb_burn_androidrecovery failed\n");
+								csw.bCSWStatus = -1;
+							} else {
+								printf("usb_burn_androidrecovery successed\n");
+								csw.bCSWStatus = 0;
+							}
+							sunxi_usb_pburn_status = SUNXI_USB_PBURN_SEND_DATA;
+						}
+						break;
+#endif /* CONFIG_SUNXI_SPRITE_RECOVERY*/
 					default:
 						break;
 	  			}

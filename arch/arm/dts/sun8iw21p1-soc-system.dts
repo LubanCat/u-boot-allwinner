@@ -17,6 +17,7 @@
 	soc: soc@29000000 {
 		#address-cells = <2>;
 		#size-cells = <2>;
+		device_type = "soc";
 		power_sply:power_sply@4500000c {
 			device_type = "power_sply";
 
@@ -50,6 +51,10 @@
 
 		gpio_bias:gpio_bias@45000018 {
 			device_type = "gpio_bias";
+		};
+
+		sunxi_flashmap:sunxi_flashmap@45000018 {
+			device_type = "sunxi_flashmap";
 		};
 
 		fastboot_key:fastboot_key@4500001c {
@@ -272,6 +277,18 @@
 			//clocks = <&ccu CLK_PLL_PERIPH0>, <&ccu CLK_SPI0>, <&ccu CLK_BUS_SPI0>;
 			//clock-names = "pll", "mod", "bus";
 			//resets = <&ccu RST_BUS_SPI0>;
+		};
+
+		spif: spif@4f00000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "allwinner,sun8i-spif";
+			device_type = "spif";
+			reg = <0x0 0x04f00000 0x0 0x1000>;
+			//interrupts-extended = <&plic0 19 IRQ_TYPE_LEVEL_HIGH>;
+			//clocks = <&ccu CLK_PLL_PERIPH0>, <&ccu CLK_SPIF>, <&ccu CLK_BUS_SPIF>;
+			//clock-names = "pll", "mod", "bus";
+			//resets = <&ccu RST_BUS_SPIF>;
 		};
 
 		disp: disp@05000000 {

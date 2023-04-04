@@ -26,8 +26,10 @@
 #include <sunxi_board.h>
 #include <sunxi-codec.h>
 
+//#define sunxi_boottone_debug
+
 #if 0
-#define tone_dbg(fmt, arg...)	printf("[%s:%d] "fmt"\n", __FUNCTION__, __LINE__, ##arg)
+#define tone_dbg(fmt, arg...)	printf("[%s:%d] " fmt "\n", __FUNCTION__, __LINE__, ##arg)
 #else
 #define tone_dbg(fmt, arg...)
 #endif
@@ -77,7 +79,7 @@ static int sunxi_boot_tone_dma_init(void)
 	g_codec_tx_buf->channal_cfg.src_data_width	= DMAC_CFG_SRC_DATA_WIDTH_16BIT;
 	g_codec_tx_buf->channal_cfg.reserved0		= 0;
 
-#ifdef CONFIG_MACH_SUN50IW10
+#if (defined CONFIG_MACH_SUN50IW10) || (defined CONFIG_MACH_SUN55IW3)
 	g_codec_tx_buf->channal_cfg.dst_drq_type	= 0x07;
 #else
 	g_codec_tx_buf->channal_cfg.dst_drq_type	= 0x06;
@@ -86,7 +88,7 @@ static int sunxi_boot_tone_dma_init(void)
 	g_codec_tx_buf->channal_cfg.dst_burst_length	= DMAC_CFG_DEST_4_BURST;
 	g_codec_tx_buf->channal_cfg.dst_data_width	= DMAC_CFG_DEST_DATA_WIDTH_16BIT;
 	g_codec_tx_buf->channal_cfg.reserved1		= 0;
-	tone_dbg("config:0x%x...\n", g_codec_tx_buf->channal_cfg);
+	tone_dbg("config:0x%p...\n", &g_codec_tx_buf->channal_cfg);
 
 	/* g_codec_tx_buf->channal_cfg.wait_state		= 4; */
 	/* g_codec_tx_buf->channal_cfg.continuous_mode	= 0; */
@@ -193,6 +195,10 @@ int sunxi_boot_tone_play(void)
 	ret = sunxi_codec_playback_start(g_codec_dma_handle, buf_start, ALIGN(buf_size, 64));
 	if (ret < 0)
 		printf("sunxi_codec_dma_start failed, error=%d\n", ret);
+
+#if (defined sunxi_boottone_debug)
+	sunxi_codec_playback_debug();
+#endif
 
 	/*printf("[%s] line:%d end\n", __func__, __LINE__);*/
 	return 0;

@@ -25,6 +25,7 @@
 #include <boot_gui.h>
 #include <bmp_layout.h>
 
+int disp_fat_load(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
 struct boot_fb_private {
 	char *base;
 	int width;
@@ -201,7 +202,7 @@ static int read_jpeg(const char *filename, char *buf, unsigned int buf_size)
 	argv[3] = read_addr;
 	argv[4] = file_name;
 	argv[5] = len;
-	if (!do_fat_fsload(0, 0, 5, argv))
+	if (!disp_fat_load(0, 0, 5, argv))
 		return env_get_hex("filesize", 0);
 	else
 		return 0;
@@ -356,9 +357,8 @@ int sunxi_jpeg_display(const char *filename)
 	snprintf(disp_reserve, 80, "%d,0x%x",
 		(fb.stride * fb.height + sizeof(struct bmp_header)), (uint)tmp);
 	env_set("disp_reserve", disp_reserve);
-	fb.base = tmp ;
 	add_bmp_header(&fb);
-
+	fb.base = tmp ;
 	memcpy(&boot_fb, &fb, sizeof(fb));
 #endif
 

@@ -99,7 +99,7 @@ int sunxi_keymaster_verify_boot_params_install(void)
 
 	strcpy(param_object.name, "verify-boot");
 	param_object.encrypted     = 0;
-	param_object.write_protect = 0;
+	param_object.write_protect = 1;
 	param_object.len	   = sizeof(struct sunxi_verify_boot_params);
 	memcpy(param_object.key_data, &verify_boot_params, param_object.len);
 	ret = smc_tee_keybox_store(param_object.name, (void *)&param_object,

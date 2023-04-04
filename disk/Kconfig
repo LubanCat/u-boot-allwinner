@@ -143,6 +143,7 @@ config LAST_PARTITION_NAME
 	string "set last partition name"
 	default "UDISK"
 	help
+		set last partition name
 
 config DISABLE_SUNXI_PART_DOWNLOAD
 	bool "disable sunxi mbr part. "

@@ -20,6 +20,7 @@
  */
 
 #include <common.h>
+#include <fs.h>
 #include <bmp_layout.h>
 #include <command.h>
 #include <malloc.h>
@@ -35,6 +36,7 @@ extern int sunxi_partition_get_partno_byname(const char *part_name);
 static int sunxi_bmp_probe_info(unsigned long addr);
 int sunxi_advert_display(char *fatname, char *filename);
 int sunxi_advert_logo_load(char *fatname, char *filename);
+int disp_fat_load(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
 
 DECLARE_GLOBAL_DATA_PTR;
 /*
@@ -80,7 +82,7 @@ static int do_sunxi_bmp_info(cmd_tbl_t *cmdtp, int flag, int argc,
 			}
 		}
 		snprintf(part_info, 16, "0:%x", partno);
-		if (do_fat_fsload(0, 0, 5, bmp_argv)) {
+		if (disp_fat_load(0, 0, 5, bmp_argv)) {
 			printf("sunxi bmp info error : unable to open bmp file %s\n",
 			       argv[2]);
 
@@ -128,7 +130,7 @@ static int do_sunxi_bmp_display(cmd_tbl_t *cmdtp, int flag, int argc,
 			}
 		}
 		snprintf(part_info, 16, "0:%x", partno);
-		if (do_fat_fsload(0, 0, 5, bmp_argv)) {
+		if (disp_fat_load(0, 0, 5, bmp_argv)) {
 			printf("sunxi bmp info error : unable to open bmp file %s\n",
 			       argv[2]);
 			return cmd_usage(cmdtp);
@@ -172,7 +174,8 @@ int show_bmp_on_fb(char *bmp_head_addr, unsigned int fb_id)
 		printf("this is not a bmp picture\n");
 		goto err_out;
 	}
-	if ((bmp->header.bit_count != 24) && (bmp->header.bit_count != 32)) {
+	if ((bmp->header.bit_count != 16) && (bmp->header.bit_count != 24)
+			&& (bmp->header.bit_count != 32)) {
 		printf("no support %d bit bmp\n", bmp->header.bit_count);
 		goto err_out;
 	}
@@ -234,6 +237,24 @@ int show_bmp_on_fb(char *bmp_head_addr, unsigned int fb_id)
 					       ((*(c_b + 2)) << 16) |
 					       ((*(c_b + 1)) << 8) | (*c_b);
 					c_b += 3;
+				}
+				src_addr += src_stride;
+			}
+		} else if ((bmp->header.bit_count == 16) && (cv->bpp == 32)) {
+			uint16_t rgb565;
+			for (; dst_addr_b != dst_addr_e;
+			     dst_addr_b += cv->stride) {
+				int *d = (int *)dst_addr_b;
+				char *c_b = src_addr;
+				char *c_end = c_b + src_cp_bytes;
+
+				for (; c_b < c_end;) {
+					rgb565 = *(c_b + 1) << 8 | *c_b;
+					*d++ = 0xFF000000 |
+					       (((rgb565 & 0xf800) >> 8) << 16) |
+					       (((rgb565 & 0x07e0) >> 3) << 8) |
+					       ((rgb565 & 0x001f) << 3);
+					c_b += 2;
 				}
 				src_addr += src_stride;
 			}
@@ -309,7 +330,7 @@ int sunxi_bmp_display(char *name)
 	argv[4] = bmp_name;
 	argv[5] = size;
 
-	if (do_fat_fsload(0, 0, 6, argv)) {
+	if (disp_fat_load(0, 0, 6, argv)) {
 		pr_error("sunxi bmp info error : unable to open logo file %s\n",
 		       argv[4]);
 		goto free1;
@@ -333,7 +354,7 @@ int sunxi_bmp_display(char *name)
 
 	tick_printf("bmp_name=%s size %ld\n", bmp_name, file_size);
 
-	if (do_fat_fsload(0, 0, 6, argv)) {
+	if (disp_fat_load(0, 0, 6, argv)) {
 		pr_error("sunxi bmp info error : unable to open logo file %s\n",
 		       argv[4]);
 		goto free2;
@@ -417,7 +438,7 @@ static int fat_read_file_ex(char *fatname, char *filename, char *addr)
 	bmp_argv[2] = partition;
 	sprintf(bmp_addr, "%lx", (ulong)bmp_buff);
 	bmp_argv[3] = bmp_addr;
-	if (do_fat_fsload(0, 0, 5, bmp_argv)) {
+	if (disp_fat_load(0, 0, 5, bmp_argv)) {
 		pr_error("sunxi bmp info error : unable to open logo file %s\n",
 		       bmp_argv[1]);
 		return -1;

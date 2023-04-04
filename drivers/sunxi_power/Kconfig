@@ -10,6 +10,10 @@ config SUNXI_BMU
 	bool "Sunxi bmu support"
 	---help---
 	Select this to enable support for BMU
+config SUNXI_PMU_EXT
+	bool "Sunxi pmu_ext support"
+	---help---
+	Select this to enable support for PMU_EXT
 config SUNXI_TRY_POWER_SPLY
 	bool "try power sply"
 	depends on SUNXI_PMU
@@ -102,6 +106,24 @@ config AXP221_POWER_SUNXI
 	---help---
 	Say y here to enable support for the axp221 pmic found on some
 	sun8iw11p1 PMU dev board
+
+config TCS4838_POWER
+	bool "pmu tcs4838 pmic support"
+	depends on SUNXI_PMU
+	select AXP_PMIC_BUS
+	select CMD_POWEROFF
+	---help---
+	Say y here to enable support for the tcs4838 pmic found on some
+	sun50iw10p1 PMU dev board, with axp2202
+
+config SY8827G_POWER
+	bool "pmu sy8827g pmic support"
+	depends on SUNXI_PMU
+	select AXP_PMIC_BUS
+	select CMD_POWEROFF
+	---help---
+	Say y here to enable support for the sy8827g pmic found on some
+	sun50iw10p1 PMU dev board, with axp2202
 
 config SUNXI_UBOOT_POWER_OFF
 	bool "Sunxi uboot power off"

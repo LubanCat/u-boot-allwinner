@@ -17,12 +17,15 @@ config SUNXI_CE_21
 
 config SUNXI_CE_23
 	bool "CE_VERSION 2.3"
+
+config SUNXI_CE_30
+	bool "CE_VERSION 3.0"
 endchoice
 
 config SUNXI_SHA_CAL_PADDING
 	int "padding when malloc buffer for sha calculation"
 	depends on SUNXI_CE_DRIVER
-	default 0 if SUNXI_CE_20 || SUNXI_CE_21 || SUNXI_CE_23
+	default 0 if SUNXI_CE_20 || SUNXI_CE_21 || SUNXI_CE_23 || SUNXI_CE_30
 	default 64 if SUNXI_CE_10
 	help
 		some version of ce need to add padding data
@@ -31,5 +34,9 @@ config SUNXI_SHA_CAL_PADDING
 		equals data len, padding goes to success buffer,
 		result in heap overflow. count this size in when
 		malloc buffer for sha calculation
+
+
+source "drivers/sunxi_crypto/sunxi_rsa/Kconfig"
+source "drivers/sunxi_crypto/sunxi_hash/Kconfig"
 
 endmenu

@@ -22,7 +22,7 @@
 struct vaddr_range_t {
 	unsigned long vstart;
 	unsigned long vend;
-	unsigned long offset;
+	unsigned long pstart;
 };
 
 int show_img_version(char *head_addr, u32 riscv_id);

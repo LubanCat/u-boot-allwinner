@@ -115,14 +115,18 @@ static s32 sm2_kdf(u8 *src, u32 src_len, u8 *dst, u32 dst_len)
 				hash_len = dst_len % 32;
 			}
 		}
+		if (hash_len + (32 * i) > dst_len) {
+			goto err;
+		}
 		memcpy(tmp + (32 * i), hash, hash_len);
-
 		ct++;
 	}
 
+	if (dst_len > SM2_SIZE_BYTE) {
+		goto err;
+	}
 	memcpy(dst, tmp, dst_len);
 	ret = 0;
-
 err:
 	if (!tmp)
 		free(tmp);
@@ -490,8 +494,13 @@ int do_aes_test(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[])
 
 	if (argc == 7) {
 		if (strcmp(argv[6], "sm4") == 0) {
+#ifdef ALG_SM4
 			c_ctl = ALG_SM4 << 0;
 			pr_err("test sm4\n");
+#else
+			pr_err("no support sm4\n");
+			return CMD_RET_FAILURE;
+#endif
 		}
 	}
 

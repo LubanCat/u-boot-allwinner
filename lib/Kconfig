@@ -27,6 +27,15 @@ config HAVE_PRIVATE_LIBGCC
 config LIB_UUID
 	bool
 
+config LIB_OPENDICE
+	bool "Enable AOSP library: Open Profile for DICE"
+	default n
+
+config LIB_OPENDICE_CONFIG
+	string "Name of Open Profile for DICE library configuration"
+	default "boringssl_ed25519"
+	depends on LIB_OPENDICE
+
 config PRINTF
 	bool
 	default y
@@ -60,6 +69,17 @@ config SPL_STRTO
 
 config TPL_STRTO
 	bool
+
+config IMAGE_SPARSE
+	bool
+
+config IMAGE_SPARSE_FILLBUF_SIZE
+	hex "Android sparse image CHUNK_TYPE_FILL buffer size"
+	default 0x80000
+	depends on IMAGE_SPARSE
+	help
+	  Set the size of the fill buffer used when processing CHUNK_TYPE_FILL
+	  chunks.
 
 config USE_PRIVATE_LIBGCC
 	bool "Use private libgcc"
@@ -316,6 +336,8 @@ config OF_LIBFDT
 
 config OF_LIBFDT_OVERLAY
 	bool "Enable the FDT library overlay support"
+	depends on OF_LIBFDT
+	default y if ARCH_OMAP2PLUS || ARCH_KEYSTONE
 	help
 	  This enables the FDT library (libfdt) overlay support.
 

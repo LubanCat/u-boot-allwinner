@@ -14,6 +14,8 @@
 #include <linux/compiler.h>
 #include <part.h>
 #include <config.h>
+#include <clk/clk.h>
+#include <linux/err.h>
 
 #define CONFIG_MMC_SUNXI_USE_DMA
 
@@ -384,6 +386,11 @@ enum mmc_voltage {
 /* Maximum block size for MMC */
 #define MMC_MAX_BLOCK_LEN	512
 
+/* Maximum dts string for MMC */
+#define MMC_MAX_DTS_STRING_LEN	50
+/* Maximum dts string for MMC */
+#define MMC_MAX_PLL_STRING_LEN	32
+
 /* The number of MMC physical partitions.  These consist of:
  * boot partitions (2), general purpose partitions (4) in MMC v4.4.
  */
@@ -691,6 +698,11 @@ struct mmc_config {
 
 	/* 1: boot0 support HS400 or HS200; 0: not support*/
 	u8 boot0_sup_1v8;
+	struct clk *clk_mmc;
+	char clk_mmc_name[MMC_MAX_PLL_STRING_LEN];
+	char pll0[MMC_MAX_PLL_STRING_LEN];
+	char pll1[MMC_MAX_PLL_STRING_LEN];
+	char pll2[MMC_MAX_PLL_STRING_LEN];
 };
 
 struct sd_ssr {
@@ -992,6 +1004,9 @@ int mmc_voltage_to_mv(enum mmc_voltage voltage);
 int mmc_set_clock(struct mmc *mmc, uint clock, bool disable);
 int mmc_set_bus_width(struct mmc *mmc, uint width);
 
+#define MMC_CLK_ENABLE		false
+#define MMC_CLK_DISABLE		true
+
 struct mmc *find_mmc_device(int dev_num);
 int mmc_set_dev(int dev_num);
 void print_mmc_devices(char separator);
@@ -1096,6 +1111,7 @@ int sunxi_switch_to_best_bus(struct mmc *mmc);
 
 int mmc_exit(void);
 void mmc_update_config_for_dragonboard(int card_no);
+void mmc_set_mmcblckx(const char *node_name);
 void mmc_update_config_for_sdly(struct mmc *mmc);
 unsigned int sunxi_select_freq(struct mmc *mmc, int speed_md,
 			int freq_index);

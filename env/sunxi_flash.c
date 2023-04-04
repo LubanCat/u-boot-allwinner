@@ -245,6 +245,9 @@ static int env_sunxi_flash_load(void)
 	int ret;
 	char *errmsg = "!no device";
 	int workmode = get_boot_work_mode();
+	char ids[MTDIDS_MAXLEN];
+	char parts[MTDPARTS_MAXLEN];
+	char partition[PARTITION_MAXLEN];
 
 	if ((workmode & WORK_MODE_PRODUCT) &&
 	    (!(workmode & WORK_MODE_UPDATE))) {
@@ -290,12 +293,20 @@ static int env_sunxi_flash_load(void)
 		printf("\n** Unable to read env data from %s partition **\n",
 		       CONFIG_SUNXI_ENV_REDUNDAND_PARTITION);
 
-	return env_import_redund((char *)tmp_env1, read1_fail, (char *)tmp_env2,
+	strcpy(ids, env_get("mtdids"));
+	strcpy(parts, env_get("mtdparts"));
+	strcpy(partition, env_get("partition"));
+
+	ret =  env_import_redund((char *)tmp_env1, read1_fail, (char *)tmp_env2,
 							 read2_fail);
 
 err:
 	if (ret)
 		set_default_env(errmsg);
+
+	env_set("mtdids", ids);
+	env_set("mtdparts", parts);
+	env_set("partition", partition);
 
 	return ret;
 }
@@ -318,6 +329,9 @@ static int env_sunxi_flash_load(void)
 	int ret;
 	char *errmsg = "!no device";
 	int workmode = get_boot_work_mode();
+	char ids[MTDIDS_MAXLEN];
+	char parts[MTDPARTS_MAXLEN];
+	char partition[PARTITION_MAXLEN];
 
 	if ((workmode & WORK_MODE_PRODUCT) &&
 	    (!(workmode & WORK_MODE_UPDATE))) {
@@ -336,6 +350,10 @@ static int env_sunxi_flash_load(void)
 		ret = -ENODEV;
 		goto err;
 	}
+
+	strcpy(ids, env_get("mtdids"));
+	strcpy(parts, env_get("mtdparts"));
+	strcpy(partition, env_get("partition"));
 
 #ifdef CONFIG_SUNXI_ENV_BACKUP
 	if (read_env(desc, (CONFIG_ENV_SIZE*2 + 511) / 512, (uint)info.start,
@@ -397,6 +415,10 @@ static int env_sunxi_flash_load(void)
 err:
 	if (ret)
 		set_default_env(errmsg);
+
+	env_set("mtdids", ids);
+	env_set("mtdparts", parts);
+	env_set("partition", partition);
 
 	return ret;
 }

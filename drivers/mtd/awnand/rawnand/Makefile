@@ -9,7 +9,13 @@
 
 obj-$(CONFIG_AW_MTD_RAWNAND) += aw-rawnand-slc.o
 
-aw-rawnand-slc-objs += aw_rawnand_nfc.o aw_rawnand_base.o aw_rawnand_bbt.o
+ifdef CONFIG_MACH_SUN8IW11
+aw-rawnand-slc-objs += aw_rawnand_nfc_v0.o
+else
+aw-rawnand-slc-objs += aw_rawnand_nfc.o
+endif
+
+aw-rawnand-slc-objs += aw_rawnand_base.o aw_rawnand_bbt.o
 aw-rawnand-slc-objs += aw_rawnand_spl.o aw_rawnand_ids.o aw_rawnand_uboot.o
 aw-rawnand-slc-objs += aw_rawnand_securestorage.o
 

@@ -40,16 +40,7 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
-#define MMC_LOGICAL_OFFSET   (20 * 1024 * 1024/512)
 #define GPT_BUFF_SIZE        (8*1024)
-
-#ifdef CONFIG_SUNXI_SPINOR
-#ifdef CONFIG_SUNXI_RTOS
-#define SPINOR_LOGICAL_OFFSET CONFIG_SUNXI_RTOS_LOGICAL_OFFSET
-#else
-#define SPINOR_LOGICAL_OFFSET CONFIG_SPINOR_LOGICAL_OFFSET
-#endif
-#endif
 
 int sunxi_mbr_convert_to_gpt(void *sunxi_mbr_buf, char *gpt_buf,int storage_type);
 int download_standard_gpt(void *sunxi_mbr_buf, size_t buf_size, int storage_type);
@@ -184,6 +175,11 @@ int sunxi_sprite_download_uboot(void *buffer, int production_media, int generate
 
 	return sunxi_sprite_download_toc(buffer, length, production_media);
 
+}
+
+int sunxi_sprite_upload_uboot(void *buffer, uint len)
+{
+	return sunxi_sprite_upload_toc(buffer, len);
 }
 
 #if defined(CONFIG_SUNXI_ROTPK_BURN_ENABLE_BY_TOOL)
@@ -425,7 +421,7 @@ void sunxi_get_logical_offset_param(int storage_type, u32 *logic_offset,
 	 */
 	if (storage_type == STORAGE_EMMC || storage_type == STORAGE_EMMC3 ||
 	    storage_type == STORAGE_SD || storage_type == STORAGE_EMMC0) {
-		*logic_offset = MMC_LOGICAL_OFFSET;
+		*logic_offset = sunxi_flashmap_logical_offset(FLASHMAP_SDMMC, LINUX_LOGIC_OFFSET);
 	} else {
 		*logic_offset = 0;
 	}
@@ -433,7 +429,11 @@ void sunxi_get_logical_offset_param(int storage_type, u32 *logic_offset,
 	*total_sectors = sunxi_sprite_size();
 #ifdef CONFIG_SUNXI_SPINOR
 	if (storage_type == STORAGE_NOR) {
-		*total_sectors -= SPINOR_LOGICAL_OFFSET;
+#ifdef CONFIG_SUNXI_RTOS
+		*total_sectors -= sunxi_flashmap_logical_offset(FLASHMAP_SPI_NOR, RTOS_LOGIC_OFFSET);
+#else
+		*total_sectors -= sunxi_flashmap_logical_offset(FLASHMAP_SPI_NOR, LINUX_LOGIC_OFFSET);
+#endif
 	}
 #endif
 }
@@ -571,6 +571,7 @@ int sunxi_mbr_convert_to_gpt(void *sunxi_mbr_buf, char *gpt_buf,int storage_type
 
 	unsigned char guid[16] = {0x88,0x38,0x6f,0xab,0x9a,0x56,0x26,0x49,0x96,0x68,0x80,0x94,0x1d,0xcb,0x40,0xbc};
 	unsigned char part_guid[16] = {0x46,0x55,0x08,0xa0,0x66,0x41,0x4a,0x74,0xa3,0x53,0xfc,0xa9,0x27,0x2b,0x8e,0x45};
+	efi_guid_t basic_data_guid = PARTITION_BASIC_DATA_GUID;
 
 	if(strncmp((const char*)sunxi_mbr->magic, SUNXI_MBR_MAGIC, 8)) {
 		debug("%s:not sunxi mbr, can't convert to GPT partition\n", __func__);
@@ -628,7 +629,7 @@ int sunxi_mbr_convert_to_gpt(void *sunxi_mbr_buf, char *gpt_buf,int storage_type
 	for(i=0;i<sunxi_mbr->PartCount;i++) {
 		pgpt_entry = (gpt_entry *)(gpt_entry_start + (i)*GPT_ENTRY_SIZE);
 
-		pgpt_entry->partition_type_guid = PARTITION_BASIC_DATA_GUID;
+		memcpy((void*)&(pgpt_entry->partition_type_guid),(void*)&basic_data_guid,sizeof(basic_data_guid));
 
 		memcpy(pgpt_entry->unique_partition_guid.b,part_guid,16);
 		pgpt_entry->unique_partition_guid.b[15] = part_guid[15]+i;

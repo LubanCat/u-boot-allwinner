@@ -287,6 +287,43 @@ static int pmu_axp858_get_key_irq(void)
 	return (reg_value)&3;
 }
 
+static int pmu_axp858_set_dcdc_mode(const char *name, int mode)
+{
+	u8 reg_value = 0, mask = 0;
+
+	if (!strncmp(name, "dcdc1_mode", sizeof("dcdc1_mode")))
+		mask = AXP858_DCDC1_PWM_BIT;
+
+	if (!strncmp(name, "dcdc2_mode", sizeof("dcdc2_mode")))
+		mask = AXP858_DCDC2_PWM_BIT;
+
+	if (!strncmp(name, "dcdc3_mode", sizeof("dcdc3_mode")))
+		mask = AXP858_DCDC3_PWM_BIT;
+
+	if (!strncmp(name, "dcdc4_mode", sizeof("dcdc4_mode")))
+		mask = AXP858_DCDC4_PWM_BIT;
+
+	if (!strncmp(name, "dcdc5_mode", sizeof("dcdc5_mode")))
+		mask = AXP858_DCDC5_PWM_BIT;
+
+	if (!strncmp(name, "dcdc6_mode", sizeof("dcdc6_mode")))
+		mask = AXP858_DCDC6_PWM_BIT;
+
+	if (pmic_bus_read(AXP858_RUNTIME_ADDR, AXP858_DCDC_MODESET, &reg_value))
+		return -1;
+
+	reg_value &= ~(1 << mask);
+	reg_value |= (mode << mask);
+
+	if (pmic_bus_write(AXP858_RUNTIME_ADDR, AXP858_DCDC_MODESET, reg_value))
+		return -1;
+
+	pmu_axp858_set_dcdc_mode(name, mode);
+
+	return 0;
+}
+
+
 unsigned char pmu_axp858_get_reg_value(unsigned char reg_addr)
 {
 	u8 reg_value;
@@ -318,6 +355,7 @@ U_BOOT_AXP_PMU_INIT(pmu_axp858) = {
 	.set_sys_mode  = pmu_axp858_set_sys_mode,
 	.get_sys_mode  = pmu_axp858_get_sys_mode,
 	.get_key_irq   = pmu_axp858_get_key_irq,
+	.set_dcdc_mode = pmu_axp858_set_dcdc_mode,
 	/*.set_bus_vol_limit	= pmu_axp858_set_bus_vol_limit, */
 	.get_reg_value = pmu_axp858_get_reg_value,
 	.set_reg_value = pmu_axp858_set_reg_value,

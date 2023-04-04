@@ -5,6 +5,7 @@
 obj-$(CONFIG_SUNXI_POWER)   	+= axp.o
 obj-$(CONFIG_SUNXI_PMU)		+= pmu.o
 obj-$(CONFIG_SUNXI_BMU)		+= bmu.o
+obj-$(CONFIG_SUNXI_PMU_EXT)	+= pmu_ext.o
 #PMU
 ifdef CONFIG_SUNXI_PMU
 obj-$(CONFIG_AXPNULL_POWER)	+= pmu_axpnull.o
@@ -26,4 +27,10 @@ obj-$(CONFIG_AXP81X_POWER)      += bmu_axp81X.o
 obj-$(CONFIG_SUNXI_AXP152_POWER)	+= bmu_axp152.o
 obj-$(CONFIG_AXPNULL_POWER)     += bmu_axpnull.o
 obj-$(CONFIG_AXP221_POWER_SUNXI)      += bmu_axp221.o
+endif
+#PMU_EXT
+ifdef CONFIG_SUNXI_PMU_EXT
+obj-$(CONFIG_TCS4838_POWER)      += pmu_tcs4838.o
+obj-$(CONFIG_SY8827G_POWER)      += pmu_sy8827g.o
+obj-$(CONFIG_AXP1530_POWER)      += pmu_axp1530_ext.o
 endif

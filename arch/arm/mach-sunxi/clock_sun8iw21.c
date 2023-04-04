@@ -11,6 +11,7 @@
 #include <asm/arch/clock.h>
 #include <asm/arch/timer.h>
 #include <asm/arch/prcm.h>
+#include "private_uboot.h"
 
 void rtc_set_vccio_det_spare(void)
 {
@@ -29,20 +30,20 @@ void clock_init_uart(void)
 
 	/* open the clock for uart */
 	clrbits_le32(&ccm->uart_gate_reset,
-		     1 << (CONFIG_CONS_INDEX - 1));
+		     1 << (uboot_spare_head.boot_data.uart_port));
 	udelay(2);
 
 	clrbits_le32(&ccm->uart_gate_reset,
-		     1 << (RESET_SHIFT + CONFIG_CONS_INDEX - 1));
+		     1 << (RESET_SHIFT + uboot_spare_head.boot_data.uart_port));
 	udelay(2);
 
 	/* deassert uart reset */
 	setbits_le32(&ccm->uart_gate_reset,
-		     1 << (RESET_SHIFT + CONFIG_CONS_INDEX - 1));
+		     1 << (RESET_SHIFT + uboot_spare_head.boot_data.uart_port));
 
 	/* open the clock for uart */
 	setbits_le32(&ccm->uart_gate_reset,
-		     1 << (CONFIG_CONS_INDEX - 1));
+		     1 << (uboot_spare_head.boot_data.uart_port));
 }
 
 uint clock_get_pll_ddr(void)

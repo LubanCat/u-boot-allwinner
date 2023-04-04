@@ -293,20 +293,24 @@ int i2c_probe(uint8_t chip)
 int i2c_read(uint8_t chip, unsigned int addr, int alen,
 				uint8_t *buffer, int len)
 {
-	int ret;
-	disable_interrupts();
+	int ret, flag;
+	flag = disable_interrupts();
 	ret = I2C_ADAP->read(I2C_ADAP, chip, addr, alen, buffer, len);
-	enable_interrupts();
+	if (flag) {
+		enable_interrupts();
+	}
 	return ret;
 }
 
 int i2c_write(uint8_t chip, unsigned int addr, int alen,
 				uint8_t *buffer, int len)
 {
-	int ret;
-	disable_interrupts();
+	int ret, flag;
+	flag = disable_interrupts();
 	ret = I2C_ADAP->write(I2C_ADAP, chip, addr, alen, buffer, len);
-	enable_interrupts();
+	if (flag) {
+		enable_interrupts();
+	}
 	return ret;
 }
 

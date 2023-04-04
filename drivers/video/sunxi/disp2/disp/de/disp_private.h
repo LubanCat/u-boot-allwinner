@@ -22,6 +22,8 @@
 
 #if defined(DE_VERSION_V33X)
 #include "./lowlevel_v33x/disp_al.h"
+#elif defined(DE_VERSION_V35X)
+#include "./lowlevel_v35x/disp_al.h"
 #elif defined(CONFIG_MACH_SUN8IW10)
 #include "./lowlevel_sun8iw10/disp_al.h"
 #elif defined(CONFIG_MACH_SUN8IW11) || defined(CONFIG_MACH_SUN8IW15)
@@ -53,6 +55,7 @@
 struct disp_device *disp_get_lcd(u32 disp);
 struct disp_device *disp_get_direct_lcd_compat(u32 disp, u32 index);
 
+struct disp_device *disp_get_edp(u32 disp);
 struct disp_device *disp_get_hdmi(u32 disp);
 
 struct disp_manager *disp_get_layer_manager(u32 disp);

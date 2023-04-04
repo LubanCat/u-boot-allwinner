@@ -103,17 +103,21 @@ s32 bsp_disp_get_print_level(void);
 #include <linux/compat.h>
 #include "../disp_sys_intf.h"
 #include "disp_features.h"
+#include <asm/atomic.h>
 
 #define OSAL_PRINTF
+
 #define __inf(msg...)
 #define __msg(msg...)
 #define __wrn(fmt, msg...) pr_notice(fmt, ##msg)
-#define __here
-#define __debug
+#define __here__
+#define __debug(msg...)
+
+#define DP printk("[DEBUG] %s, %s, %d \n", __FILE__, __func__, __LINE__);
 
 #define false 0
 #define true 1
-#endif
+#endif /* __UBOOT_PLAT__ */
 
 #if defined(__LINUX_PLAT__)
 #define DE_INF __inf
@@ -160,6 +164,8 @@ s32 bsp_disp_get_print_level(void);
 #endif
 
 #define LCD_GAMMA_TABLE_SIZE (256 * sizeof(unsigned int))
+
+#define ONE_SEC 1000000000ull
 
 typedef struct {
 	unsigned int   lcd_gamma_en;
@@ -321,7 +327,7 @@ struct disp_layer_info_inner {
 
 	unsigned int              id;
 	struct disp_atw_info      atw;
-#if defined(DE_VERSION_V33X)
+#if defined(DE_VERSION_V33X) || defined(DE_VERSION_V35X)
 	int transform;
 	struct disp_snr_info_inner snr;
 #endif
@@ -501,10 +507,33 @@ typedef enum {
   CAPTURE_DIRTY_ALL	  = 0x00000007,
 } disp_capture_dirty_flags;
 
+/* disp_s_frame_inner - display simple frame buffer
+ *
+ * @format: pixel format of fb
+ * @size: size for each plane
+ * @crop: crop zone to be fill image data
+ * @fd: dma_buf fd
+ * @addr: buffer addr for each plane
+ */
+struct disp_s_frame_inner {
+	enum disp_pixel_format format;
+	struct disp_rectsz size[3];
+	struct disp_rect crop;
+	unsigned long long addr[3];
+	int fd;
+};
+
+/* disp_capture_config - configuration for capture function
+ *
+ * @in_frame: input frame information
+ * @out_frame: output framebuffer infomation
+ * @disp: indicate which disp channel to be capture
+ * @flags: caputre flags
+ */
 struct disp_capture_config {
-	struct disp_s_frame in_frame;   //only format/size/crop valid
-	struct disp_s_frame out_frame;
-	u32 disp;              //which disp channel to be capture
+	struct disp_s_frame_inner in_frame;     /* only format/size/crop valid */
+	struct disp_s_frame_inner out_frame;
+	u32 disp;               /* which disp channel to be capture */
 	disp_capture_dirty_flags flags;
 };
 
@@ -737,6 +766,7 @@ typedef struct {
 	unsigned int            lcd_gamma_en;
 	unsigned int            lcd_cmap_en;
 	unsigned int            lcd_bright_curve_en;
+	unsigned int            lcd_start_delay;
 
 	char                    lcd_size[8]; //e.g. 7.9, 9.7
 	char                    lcd_model_name[32];
@@ -763,10 +793,15 @@ typedef enum {
 	DISP_MOD_LCD1,
 	DISP_MOD_LCD2,
 	DISP_MOD_LCD3,
+	DISP_MOD_LCD4,
 	DISP_MOD_DSI0,
 	DISP_MOD_DSI1,
 	DISP_MOD_DSI2,
 	DISP_MOD_DSI3,
+#if defined(DE_VERSION_V35X)
+	DSIP_MOD_COMBPHY0,
+	DSIP_MOD_COMBPHY1,
+#endif
 	DISP_MOD_HDMI,
 	DISP_MOD_LVDS,
 	DISP_MOD_LVDS1,
@@ -812,6 +847,8 @@ typedef struct {
 } disp_bsp_init_para;
 
 typedef void (*LCD_FUNC) (unsigned int sel);
+typedef void (*EDP_FUNC) (unsigned int sel);
+
 typedef struct lcd_function {
 	LCD_FUNC func;
 	unsigned int delay;//ms
@@ -949,6 +986,8 @@ struct disp_device {
 	s32 (*set_open_func)(struct disp_device *lcd, LCD_FUNC func, u32 delay);
 	s32 (*set_close_func)(struct disp_device *lcd, LCD_FUNC func, u32 delay);
 	int (*gpio_set_value)(struct disp_device *dispdev, unsigned int io_index, u32 value);
+	/**** add for lcd read gpio level id by lxm 20220310 ***/
+	s32 (*gpio_get_value)(struct disp_device *dispdev, unsigned int io_index);
 	int (*gpio_set_direction)(struct disp_device *dispdev, unsigned int io_index, u32 direction);
 	int (*get_panel_info)(struct disp_device *dispdev, disp_panel_para *info);
 	void (*show_builtin_patten)(struct disp_device *dispdev, u32 patten);

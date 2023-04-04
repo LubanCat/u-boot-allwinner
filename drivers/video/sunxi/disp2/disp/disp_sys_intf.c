@@ -21,6 +21,7 @@
 int do_fat_fswrite(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
 #endif
 extern int sunxi_partition_get_partno_byname(const char *part_name);
+int disp_fat_load(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
 /* cache flush flags */
 #define  CACHE_FLUSH_I_CACHE_REGION       0
 #define  CACHE_FLUSH_D_CACHE_REGION       1
@@ -231,6 +232,9 @@ static disp_fdt_node_map_t g_disp_fdt_node_map[] ={
 	{"/soc/lcd0_7", -1},
 	{"/soc/lcd0_8", -1},
 	{"/soc/lcd0_9", -1},
+	{"/soc/lcd1_1", -1},
+	{"/soc/lcd1_2", -1},
+	{"/soc/lcd1_3", -1},
 #ifdef CONFIG_DISP2_TV_AC200
 	{FDT_AC200_PATH, -1},
 #endif
@@ -239,7 +243,7 @@ static disp_fdt_node_map_t g_disp_fdt_node_map[] ={
 	{FDT_TV0_PATH, -1},
 	{FDT_TV1_PATH, -1},
 #endif
-#if defined(SUPPORT_EDP) && defined(CONFIG_EDP_DISP2_SUNXI)
+#if defined(SUPPORT_EDP) && (defined(CONFIG_EDP_DISP2_SUNXI) || defined(CONFIG_EDP2_DISP2_SUNXI))
 	{FDT_EDP0_PATH, -1},
 	{FDT_EDP1_PATH, -1},
 #endif
@@ -252,7 +256,7 @@ void disp_fdt_init(void)
 	while(strlen(g_disp_fdt_node_map[i].node_name))
 	{
 		g_disp_fdt_node_map[i].nodeoffset =
-			fdt_path_offset(working_fdt,g_disp_fdt_node_map[i].node_name);
+			fdt_path_offset(working_fdt, g_disp_fdt_node_map[i].node_name);
 		i++;
 	}
 }
@@ -268,6 +272,14 @@ int  disp_fdt_nodeoffset(char *main_name)
 		}
 		if( 0 == strlen(g_disp_fdt_node_map[i].node_name) )
 		{
+			int node;
+
+			DE_INF("[DISP] %s, main_name: %s cannot be found in g_disp_fdt_node_map.\n", __func__, main_name);
+			node = fdt_path_offset(working_fdt, main_name);
+
+			if (node != -1)
+				return node;
+
 			//last
 			return -1;
 		}
@@ -275,28 +287,25 @@ int  disp_fdt_nodeoffset(char *main_name)
 	return -1;
 }
 
-/*now only support lcd0*/
 int disp_get_compat_lcd_panel_num(int disp)
 {
 	char dts_node_path[] = "/soc/lcd0_0";
 	int node;
 	int i;
-	static int count = -1;
+	int count = 0;
 
-	if (disp > 0)
-		return 0;
-	if (count == -1) {
-		count = 0;
-		for (i = 1; i <= 9; i++) {
-			dts_node_path[10] = '0' + i;
-			node = fdt_path_offset(working_fdt, dts_node_path);
-			if (node < 0) {
-				break;
-			}
-			count++;
+	dts_node_path[8] = '0' + disp;
+
+	for (i = 1; i <= 9; i++) {
+		dts_node_path[10] = '0' + i;
+		node = fdt_path_offset(working_fdt, dts_node_path);
+		if (node < 0) {
+			break;
 		}
+		count++;
 	}
-		return count;
+
+	return count;
 }
 /*
 *******************************************************************************
@@ -318,7 +327,7 @@ int disp_get_compat_lcd_panel_num(int disp)
 *
 *******************************************************************************
 */
-int disp_get_set_lcd_param_index_from_flash(bool is_set, int idx)
+int disp_get_set_lcd_param_index_from_flash(bool is_set, int *disp, int idx)
 {
 	char *argv[6];
 	char part_num[16] = {0};
@@ -330,7 +339,9 @@ int disp_get_set_lcd_param_index_from_flash(bool is_set, int idx)
 	unsigned int lcd_param_index;
 	int ret = -1;
 	static int idx_get = -1;
-	if (!is_set && idx_get != -1) {
+	static int this_disp = -1;
+	if (!is_set && idx_get != -1 && this_disp != -1) {
+		*disp = this_disp;
 		return idx_get;
 	}
 
@@ -346,7 +357,6 @@ int disp_get_set_lcd_param_index_from_flash(bool is_set, int idx)
 
 
 	buf = kmalloc(LCD_CONFIG_SIZE, GFP_KERNEL | __GFP_ZERO);
-	memset(buf, 0, LCD_CONFIG_SIZE);
 	snprintf(part_num, 16, "0:%x", partno);
 	snprintf(len, 16, "%ld", (ulong)LCD_CONFIG_SIZE);
 	snprintf(addr, 32, "%lx", (ulong)buf);
@@ -358,15 +368,17 @@ int disp_get_set_lcd_param_index_from_flash(bool is_set, int idx)
 
 	if (!is_set) {
 		argv[0] = "fatload";
-		if (do_fat_fsload(0, 0, 6, argv)) {
-			pr_error("do_fat_fsload for lcd config failed\n");
+		if (disp_fat_load(0, 0, 6, argv)) {
+			pr_error("disp_fat_load for lcd config failed\n");
 			ret = -1;
 			goto exit_free;
 		}
 		if (!strncmp("lcd", buf, 3)) {
-
-			lcd_param_index = simple_strtoul(buf + 3, NULL, 10);
+			DE_INF("buf in flash : %s \n", buf);
+			lcd_param_index = simple_strtoul(buf + 5, NULL, 10);
+			*disp = simple_strtoul(buf + 3, NULL, 10);
 			ret = idx_get = lcd_param_index;
+			this_disp = *disp;
 			if (lcd_param_index > 9) {
 				pr_error("error: lcd_param_index must less than 10\n");
 				ret = -1;
@@ -378,14 +390,16 @@ int disp_get_set_lcd_param_index_from_flash(bool is_set, int idx)
 			ret = -1;
 		}
 	} else {
+#ifdef CONFIG_COMPATIBLE_PANEL_RECORD
 #ifdef CONFIG_FAT_WRITE
 		if (idx < 0 || idx > 9) {
 			ret = -1;
 			pr_error("set_lcd_param_index_from_flash param err\n");
 			goto exit_free;
 		}
-		memcpy(buf, "lcd0", 5);
-		buf[3] = '0' + idx;
+		memcpy(buf, "lcd0_0", 7);
+		buf[3] = '0' + *disp;
+		buf[5] = '0' + idx;
 		argv[0] = "fatwrite";
 		if (do_fat_fswrite(0, 0, 6, argv)) {
 			pr_error("do_fat_fswrite for lcd config failed\n");
@@ -393,11 +407,14 @@ int disp_get_set_lcd_param_index_from_flash(bool is_set, int idx)
 			goto exit_free;
 		} else {
 			ret = idx_get = idx;
-			printf("save lcd compatible index %d to flash\n", idx);
+			printf("save lcd compatible disp%d index %d to flash\n", *disp, idx);
 		}
 #else
 		pr_error("please enable FAT_WRITE for lcd compatible first\n");
 		ret = -1;
+#endif
+#else
+		ret = idx_get = idx;
 #endif
 }
 exit_free:
@@ -427,11 +444,14 @@ return ret;
 *
 *******************************************************************************
 */
-int disp_update_lcd_param(int lcd_param_index)
+
+static int to_update_disp_num;
+static int to_update_lcd_compat_index;
+
+int disp_update_lcd_param(int disp, int lcd_param_index, int is_set_index)
 {
 	int node;
 	int level = 0;
-	static int pre_index;
 	uint32_t tag;
 	int  nodeoffset;
 	int  nextoffset;
@@ -447,27 +467,23 @@ int disp_update_lcd_param(int lcd_param_index)
 	u8 prop_tmp[32] = {0};
 	u8 prop_name_tmp[32] = {0};
 	int flash_idx = 0;
+	char lcd_node_pre[32] = "/soc/lcd0";
 
+	if (is_set_index == 0) {
+	    int disp_tmp = 0;
 
-	if (lcd_param_index == -1) {
-
-		/*if not using compatible panel, following operation is useless and wasting time, so just return.*/
-		if (disp_get_compat_lcd_panel_num(0/*FIXME*/) == 0)
-			return 0;
-	/*
-	    4 case:
-	     1. first time      compatible panel -> need update kernel fdt   ;  pre_index=idx;  flash_idx=-1   ;   need to write idx to flash
-	     2. not first time  compatible panel -> need update kernel fdt   ;  pre_index=0;    flash_idx=idx  ;   no need to write flash
-	     3. first time      default panel    -> no need update kernel fdt;  pre_index=0;    flash_idx=-1   ;   need write 0 to flash
-	     4. not first time  defalut panel    -> no need update kernel fdt;  pre_index=0;    flash_idx=0    ;   no need to write to flash
-	*/
-
-		flash_idx = disp_get_set_lcd_param_index_from_flash(false, flash_idx);
-		if (flash_idx == -1) {
-			disp_get_set_lcd_param_index_from_flash(true, pre_index);
-			flash_idx = disp_get_set_lcd_param_index_from_flash(false, flash_idx);
+		flash_idx = disp_get_set_lcd_param_index_from_flash(READ, &disp_tmp, 0);
+		if (flash_idx == -1) {  // first start.
+			disp_get_set_lcd_param_index_from_flash(WRITE, &disp, to_update_lcd_compat_index);
+			flash_idx = disp_get_set_lcd_param_index_from_flash(READ, &disp_tmp, 0);
 		}
 		lcd_param_index = flash_idx;
+
+		disp = disp_tmp;
+		/*if not using compatible panel, following operation is useless and wasting time, so just return.*/
+		if (disp_get_compat_lcd_panel_num(disp) == 0) {
+			return 0;
+		}
 
 		char *ctp_path;
 		char val[2];
@@ -478,27 +494,31 @@ int disp_update_lcd_param(int lcd_param_index)
 		fdt_getprop_string(working_fdt, nodeoff, "ctp", &ctp_path);
 		snprintf(val, 2, "%d", lcd_param_index);
 		fdt_find_and_setprop(working_fdt, ctp_path, "ctp_fw_idx", val, 2, 1);
-	} else if (lcd_param_index != 0) {
-		pre_index = lcd_param_index;
+	} else if (is_set_index == 1) {
+		to_update_disp_num = disp;
+		to_update_lcd_compat_index = lcd_param_index;
 		/*
 		    now using uboot fdt, no need to update.
 		*/
 		return 0;
 	}
+
+	dts_node_path[8] = '0' + disp;
 	dts_node_path[10] = '0' + lcd_param_index;
 	if (lcd_param_index == 0) {
 		/*use default lcd0 param*/
 		return 0;
 	}
 
-//	pre_index = lcd_param_index;
+	lcd_node_pre[8] = '0' + disp;
 	nodeoffset = fdt_path_offset(working_fdt, dts_node_path);
-	node = fdt_path_offset(working_fdt, "lcd0");
+	node = fdt_path_offset(working_fdt, lcd_node_pre);
 
 	if (nodeoffset < 0 || node < 0) {
 		/*
 		 * Not found or something else bad happened.
 		 */
+		pr_error("nodeoffset: %d, node: %d \n", nodeoffset, node);
 		pr_error("libfdt fdt_path_offset() for lcd\n");
 		return -1;
 	}
@@ -528,11 +548,11 @@ int disp_update_lcd_param(int lcd_param_index)
 				break;
 			}
 			fdt_prop = fdt_offset_ptr(working_fdt, nodeoffset,
-					sizeof(*fdt_prop));
+					sizeof(*fdt_prop));  // lcd_compat's property
 			pathp    = fdt_string(working_fdt,
-					fdt32_to_cpu(fdt_prop->nameoff));
+					fdt32_to_cpu(fdt_prop->nameoff));  // property_name
 			prop_len      = fdt32_to_cpu(fdt_prop->len);
-			nodep    = fdt_prop->data;
+			nodep    = fdt_prop->data;  // property_data
 			if (prop_len < 0) {
 				printf ("libfdt fdt_getprop(): %s\n",
 					fdt_strerror(prop_len));
@@ -543,7 +563,7 @@ int disp_update_lcd_param(int lcd_param_index)
 					printf("NULL value for lcd0 param\n");
 			} else {
 				if (level <= depth) {
-					/*update this prop for lcd0*/
+					/*update this prop for lcd[disp]*/
 					fdt_getprop(working_fdt, node, pathp, &len);
 					success_count++;
 					if (len != prop_len) {
@@ -555,7 +575,7 @@ int disp_update_lcd_param(int lcd_param_index)
 						memcpy(prop_tmp, nodep, prop_len);
 						fdt_setprop(working_fdt, node, pathp, prop_tmp, prop_len);
 						nodeoffset = fdt_path_offset(working_fdt, dts_node_path);
-						node = fdt_path_offset(working_fdt, "lcd0");
+						node = fdt_path_offset(working_fdt, lcd_node_pre);
 						continue;
 					} else {
 						fdt_setprop(working_fdt, node, pathp, nodep, prop_len);
@@ -579,7 +599,13 @@ int disp_update_lcd_param(int lcd_param_index)
 	disp_fdt_init();
 	return 0;
 }
-/* type: 0:invalid, 1: int; 2:str, 3: gpio */
+
+int disp_lcd_param_update_to_kernel(void)
+{
+	return disp_update_lcd_param(to_update_disp_num, to_update_lcd_compat_index, UPDATE_PARAM);
+}
+
+/* type: 0:invalid, 1: int; 2:str, 3: gpio, 4: iommu master id */
 int disp_sys_script_get_item(char *main_name, char *sub_name, int value[], int type)
 {
 	int node;
@@ -628,7 +654,15 @@ int disp_sys_script_get_item(char *main_name, char *sub_name, int value[], int t
 			debug("%s.%s gpio=%d,mul_sel=%d,data:%d\n",main_name, sub_name, gpio_list->gpio, gpio_list->mul_sel, gpio_list->data);
 			ret = type;
 		}
+	} else if (type == 4) {
+		if (fdtdec_get_int_array_count(working_fdt, node, sub_name, (uint32_t *)value, 1)) {
+		       debug("of_property_read_u32_index %s.%s fail\n",
+			     main_name, sub_name);
+			ret = -1;
+		} else
+			ret = type;
 	}
+
 	return ret;
 }
 
@@ -716,17 +750,74 @@ int disp_sys_pin_set_state(char *dev_name, char *name)
 }
 EXPORT_SYMBOL(disp_sys_pin_set_state);
 
+char *disp_sys_power_get(int nodeoffset, const char *name)
+{
+	const char *power_name;
+
+	power_name = fdt_get_regulator_name(nodeoffset, name);
+
+	if (power_name == NULL) {
+		printf("power_name:%s parse fail!\n", power_name);
+		return NULL;
+	}
+
+	if (strlen(power_name) > 16) {
+		printf("power_name:%sout of lenth, keep in 16 bytes!\n", power_name);
+		return NULL;
+	}
+
+	return (char *)power_name;
+}
+
+int disp_sys_power_set_voltage(char *name, u32 vol)
+{
+	int ret = 0;
+	if (0 == strlen(name)) {
+		return 0;
+	}
+#if defined(CONFIG_SUNXI_PMU)
+	/*TODO:bmu*/
+	ret = pmu_set_voltage(name, vol, -1);
+	if (!ret)
+		__wrn("enable power %s, ret=%d\n", name, ret);
+#else
+	__wrn("SUNXI_POWER is not enabled!\n");
+#endif
+
+	return ret;
+}
+
+int disp_sys_power_get_voltage(char *name)
+{
+	int ret = 0;
+	if (0 == strlen(name)) {
+		return 0;
+	}
+#if defined(CONFIG_SUNXI_PMU)
+	/*TODO:bmu*/
+	ret = pmu_get_voltage(name);
+	if (!ret)
+		__wrn("enable power %s, ret=%d\n", name, ret);
+#else
+	__wrn("SUNXI_POWER is not enabled!\n");
+#endif
+
+	return ret;
+}
+
 int disp_sys_power_enable(char *name)
 {
 	int ret = 0;
-	if(0 == strlen(name)) {
+	if (0 == strlen(name)) {
 		return 0;
 	}
 #if defined(CONFIG_SUNXI_PMU)
 	/*TODO:bmu*/
 	ret = pmu_set_voltage(name, 0, 1);
-	if(!ret)
+	if (!ret)
 		__wrn("enable power %s, ret=%d\n", name, ret);
+#else
+	__wrn("SUNXI_POWER is not enabled!\n");
 #endif
 
 	return ret;

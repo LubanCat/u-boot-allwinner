@@ -54,29 +54,6 @@ int spd2num[] = {
 	[MMC_HS_400] = 4,
 };
 
-#if CONFIG_IS_ENABLED(MMC_TINY)
-static struct mmc mmc_static;
-struct mmc *find_mmc_device(int dev_num)
-{
-	return &mmc_static;
-}
-
-void mmc_do_preinit(void)
-{
-	struct mmc *m = &mmc_static;
-#ifdef CONFIG_FSL_ESDHC_ADAPTER_IDENT
-	mmc_set_preinit(m, 1);
-#endif
-	if (m->preinit)
-		mmc_start_init(m);
-}
-
-struct blk_desc *mmc_get_blk_desc(struct mmc *mmc)
-{
-	return &mmc->block_dev;
-}
-#endif
-
 #if !CONFIG_IS_ENABLED(DM_MMC)
 
 #if CONFIG_IS_ENABLED(MMC_UHS_SUPPORT)
@@ -469,7 +446,7 @@ static int mmc_read_blocks(struct mmc *mmc, void *dst, lbaint_t start,
 	static u32 frt;
 #endif
 
-void mmc_force_reinit(struct mmc *mmc)
+int mmc_force_reinit(struct mmc *mmc)
 {
 		int err = 0;
 		int work_mode = uboot_spare_head.boot_data.work_mode;
@@ -477,7 +454,7 @@ void mmc_force_reinit(struct mmc *mmc)
 		if (work_mode != WORK_MODE_BOOT
 				|| (mmc->do_tuning == 0x1 && mmc->tuning_end == 0x0)
 				|| (mmc->cfg->sample_mode != AUTO_SAMPLE_MODE)) {
-				return;
+				return -1;
 		}
 
 
@@ -490,11 +467,12 @@ void mmc_force_reinit(struct mmc *mmc)
 		if (err) {
 			MMCINFO("mmc->init error\n");
 			MMCINFO("mmc %d exit failed\n", mmc->cfg->host_no);
-			return;
+			return -2;
 		}
 		mmc_set_bus_width(mmc, 1);
 		mmc_set_clock(mmc, 1, false);
 		mmc_init(mmc);
+		return 0;
 }
 
 
@@ -567,9 +545,10 @@ ulong mmc_bread(struct blk_desc *block_dev, lbaint_t start, lbaint_t blkcnt,
 				MMCMSG(mmc, "read block failed\n");
 
 				if (!force_init) {
-					mmc_force_reinit(mmc);
-					force_init = 1;
-					continue;
+					if (!mmc_force_reinit(mmc)) {
+						force_init = 1;
+						continue;
+					}
 				}
 
 				free(dst_align);
@@ -586,9 +565,10 @@ ulong mmc_bread(struct blk_desc *block_dev, lbaint_t start, lbaint_t blkcnt,
 				MMCMSG(mmc, "read block failed\n");
 
 				if (!force_init) {
-					mmc_force_reinit(mmc);
-					force_init = 1;
-					continue;
+					if (!mmc_force_reinit(mmc)) {
+						force_init = 1;
+						continue;
+					}
 				}
 
 				return 0;
@@ -665,7 +645,7 @@ static int mmc_switch_voltage(struct mmc *mmc, int signal_voltage)
 	 * During a signal voltage level switch, the clock must be gated
 	 * for 5 ms according to the SD spec
 	 */
-	mmc_set_clock(mmc, mmc->clock, true);
+	mmc_set_clock(mmc, mmc->clock, MMC_CLK_DISABLE);
 
 	err = mmc_set_signal_voltage(mmc, signal_voltage);
 	if (err)
@@ -673,7 +653,7 @@ static int mmc_switch_voltage(struct mmc *mmc, int signal_voltage)
 
 	/* Keep clock gated for at least 10 ms, though spec only says 5 ms */
 	mdelay(10);
-	mmc_set_clock(mmc, mmc->clock, false);
+	mmc_set_clock(mmc, mmc->clock, MMC_CLK_ENABLE);
 
 	/*
 	 * Failure to switch is indicated by the card holding
@@ -815,7 +795,7 @@ static int mmc_complete_op_cond(struct mmc *mmc)
 {
 	struct mmc_cmd cmd;
 	int timeout = 1000;
-	uint start;
+	ulong start;
 	int err;
 
 	mmc->op_cond_pending = 0;
@@ -1622,6 +1602,7 @@ int mmc_getcd(struct mmc *mmc)
 }
 #endif
 
+#if !CONFIG_IS_ENABLED(MMC_TINY)
 static int sd_switch(struct mmc *mmc, int mode, int group, u8 value, u8 *resp)
 {
 	struct mmc_cmd cmd;
@@ -1641,7 +1622,6 @@ static int sd_switch(struct mmc *mmc, int mode, int group, u8 value, u8 *resp)
 
 	return mmc_send_cmd(mmc, &cmd, &data);
 }
-
 
 static int sd_get_capabilities(struct mmc *mmc)
 {
@@ -1829,6 +1809,7 @@ static int sd_select_bus_width(struct mmc *mmc, int w)
 
 	return 0;
 }
+#endif
 
 #if CONFIG_IS_ENABLED(MMC_WRITE)
 static int sd_read_ssr(struct mmc *mmc)
@@ -1974,6 +1955,8 @@ int mmc_set_clock(struct mmc *mmc, uint clock, bool disable)
 	mmc->clock = clock;
 	mmc->clk_disable = disable;
 
+	debug("clock is %s (%dHz)\n", disable ? "disabled" : "enabled", clock);
+
 	return mmc_set_ios(mmc);
 }
 
@@ -2050,6 +2033,7 @@ static inline int mmc_set_signal_voltage(struct mmc *mmc, uint signal_voltage)
 }
 #endif
 
+#if !CONFIG_IS_ENABLED(MMC_TINY)
 static const struct mode_width_tuning sd_modes_by_pref[] = {
 #if CONFIG_IS_ENABLED(MMC_UHS_SUPPORT)
 #ifdef MMC_SUPPORTS_TUNING
@@ -2145,7 +2129,8 @@ static int sd_select_mode_and_width(struct mmc *mmc, uint card_caps)
 
 				/* configure the bus mode (host) */
 				mmc_select_mode(mmc, mwt->mode);
-				mmc_set_clock(mmc, mmc->tran_speed, false);
+				mmc_set_clock(mmc, mmc->tran_speed,
+						MMC_CLK_ENABLE);
 
 #ifdef MMC_SUPPORTS_TUNING
 				/* execute tuning if needed */
@@ -2170,7 +2155,8 @@ static int sd_select_mode_and_width(struct mmc *mmc, uint card_caps)
 error:
 				/* revert to a safer bus speed */
 				mmc_select_mode(mmc, SD_LEGACY);
-				mmc_set_clock(mmc, mmc->tran_speed, false);
+				mmc_set_clock(mmc, mmc->tran_speed,
+						MMC_CLK_ENABLE);
 			}
 		}
 	}
@@ -2178,6 +2164,7 @@ error:
 	MMCINFO("unable to select a mode\n");
 	return -ENOTSUPP;
 }
+#endif
 #if 0
 /*
  * read the compare the part of ext csd that is constant.
@@ -2464,7 +2451,7 @@ static int mmc_select_mode_and_width(struct mmc *mmc, uint card_caps)
 
 			/* configure the bus mode (host) */
 			mmc_select_mode(mmc, mwt->mode);
-			mmc_set_clock(mmc, mmc->tran_speed, false);
+			mmc_set_clock(mmc, mmc->tran_speed, MMC_CLK_ENABLE);
 #ifdef MMC_SUPPORTS_TUNING
 
 			/* execute tuning if needed */
@@ -2505,6 +2492,11 @@ error:
 #endif
 }
 #endif
+
+#if CONFIG_IS_ENABLED(MMC_TINY)
+DEFINE_CACHE_ALIGN_BUFFER(u8, ext_csd_bkup, MMC_MAX_BLOCK_LEN);
+#endif
+
 static int mmc_startup_v4(struct mmc *mmc)
 {
 	int err, i;
@@ -2523,6 +2515,23 @@ static int mmc_startup_v4(struct mmc *mmc)
 		MMC_VERSION_5_1
 	};
 
+#if CONFIG_IS_ENABLED(MMC_TINY)
+	u8 *ext_csd = ext_csd_bkup;
+
+	if (IS_SD(mmc) || mmc->version < MMC_VERSION_4)
+		return 0;
+
+	if (!mmc->ext_csd)
+		memset(ext_csd_bkup, 0, sizeof(ext_csd_bkup));
+
+	err = mmc_send_ext_csd(mmc, ext_csd);
+	if (err)
+		goto error;
+
+	/* store the ext csd for future reference */
+	if (!mmc->ext_csd)
+		mmc->ext_csd = ext_csd;
+#else
 	ALLOC_CACHE_ALIGN_BUFFER(u8, ext_csd, MMC_MAX_BLOCK_LEN);
 
 	if (IS_SD(mmc) || (mmc->version < MMC_VERSION_4))
@@ -2539,7 +2548,7 @@ static int mmc_startup_v4(struct mmc *mmc)
 	if (!mmc->ext_csd)
 		return -ENOMEM;
 	memcpy(mmc->ext_csd, ext_csd, MMC_MAX_BLOCK_LEN);
-
+#endif
 	if (ext_csd[EXT_CSD_REV] >= ARRAY_SIZE(mmc_versions))
 		return -EINVAL;
 
@@ -2679,7 +2688,9 @@ static int mmc_startup_v4(struct mmc *mmc)
 	return 0;
 error:
 	if (mmc->ext_csd) {
+#if !CONFIG_IS_ENABLED(MMC_TINY)
 		free(mmc->ext_csd);
+#endif
 		mmc->ext_csd = NULL;
 	}
 	return err;
@@ -2872,6 +2883,11 @@ static int mmc_startup(struct mmc *mmc)
 	if (err)
 		return err;
 
+#if CONFIG_IS_ENABLED(MMC_TINY)
+	mmc_set_clock(mmc, mmc->legacy_speed, false);
+	mmc_select_mode(mmc, IS_SD(mmc) ? SD_LEGACY : MMC_LEGACY);
+	mmc_set_bus_width(mmc, 1);
+#else
 	if (IS_SD(mmc)) {
 		err = sd_get_capabilities(mmc);
 		if (err)
@@ -2884,6 +2900,7 @@ static int mmc_startup(struct mmc *mmc)
 		mmc_change_freq(mmc);
 //		mmc_select_mode_and_width(mmc, mmc->card_caps);
 	}
+#endif
 
 	mmc_set_clock(mmc, mmc->tran_speed, false);
 	MMCDBG("%s: set clock %d\n", __FUNCTION__, mmc->tran_speed);
@@ -3005,7 +3022,7 @@ static void mmc_set_initial_state(struct mmc *mmc)
 
 	mmc_select_mode(mmc, MMC_LEGACY);
 	mmc_set_bus_width(mmc, 1);
-	mmc_set_clock(mmc, 0, false);
+	mmc_set_clock(mmc, 0, MMC_CLK_ENABLE);
 }
 
 static int mmc_power_on(struct mmc *mmc)
@@ -3025,7 +3042,7 @@ static int mmc_power_on(struct mmc *mmc)
 
 static int mmc_power_off(struct mmc *mmc)
 {
-	mmc_set_clock(mmc, 0, true);
+	mmc_set_clock(mmc, 0, MMC_CLK_DISABLE);
 #if CONFIG_IS_ENABLED(DM_MMC) && CONFIG_IS_ENABLED(DM_REGULATOR)
 	if (mmc->vmmc_supply) {
 		int ret = regulator_set_enable(mmc->vmmc_supply, false);
@@ -3632,6 +3649,35 @@ __ERROR_END:
 	return;
 }
 
+
+/*
+*if SD card boot,change sdc0 to mmc0; if emmc boot,change sdc2 to mmc0;
+*add mmc0 to aliases(in dtsi), kernel(after linux 5.10 ver) will detect it and change the corresponding sdc to mmcblck0
+*/
+void mmc_set_mmcblckx(const char *node_name)
+{
+	int aliases_nodeoffset, len, err;
+	char *fdt_get_str = NULL;
+	char fdt_set_str[MMC_MAX_DTS_STRING_LEN];
+	aliases_nodeoffset = fdt_path_offset(working_fdt, "/aliases");
+	fdt_get_str = (void *)fdt_getprop(working_fdt, aliases_nodeoffset,
+					node_name, &len);
+
+	if (fdt_get_str == NULL || strlen(fdt_get_str)+1 > MMC_MAX_DTS_STRING_LEN) {
+		MMCINFO("get %s string failed\n", node_name);
+		return;
+	}
+
+	memcpy(fdt_set_str, fdt_get_str, strlen(fdt_get_str)+1);
+	MMCDBG("fdt_str_p len = %d | fdt_str len --%d | fdt_get_str = %s | fdt_set_str = %s \n",
+			strlen(fdt_get_str), strlen(fdt_set_str), fdt_get_str, fdt_set_str);
+
+	err = fdt_setprop_string(working_fdt, aliases_nodeoffset, "mmc0", fdt_set_str);
+	if (err < 0) {
+		MMCINFO("error, fdt_setprop_string(): %s\n", fdt_strerror(err));
+	}
+}
+
 int mmc_init_product(struct mmc *mmc)
 {
 	struct sunxi_mmc_priv *priv = mmc->priv;
@@ -3820,7 +3866,7 @@ int mmc_init(struct mmc *mmc)
 	struct sunxi_mmc_priv *priv = mmc->priv;
 	struct mmc_config *cfg = &priv->cfg;
 	int err = 0;
-	__maybe_unused unsigned start;
+	__maybe_unused ulong start;
 	int work_mode = uboot_spare_head.boot_data.work_mode;
 	int need_tuning = 0;
 	struct boot_sdmmc_private_info_t *priv_info =

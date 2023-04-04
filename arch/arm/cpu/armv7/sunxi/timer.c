@@ -10,9 +10,9 @@
 #include <asm/arch/timer.h>
 #include <asm/arch/gic.h>
 #include <div64.h>
-#if defined(CONFIG_MACH_SUN50IW12)
 #include <asm/arch/clock.h>
-#endif
+#include <sunxi_board.h>
+
 DECLARE_GLOBAL_DATA_PTR;
 
 #define TIMER_MODE   (0x0 << 7)	/* continuous mode */
@@ -367,7 +367,8 @@ void  add_timer(struct timer_list *timer)
 		printf("timer err: there is no timer cound be used\n");
 		return ;
 	}
-#if defined(CONFIG_MACH_SUN50IW12)
+#if defined(CONFIG_MACH_SUN50IW12) || defined(CONFIG_MACH_SUN55IW3) ||         \
+	defined(CONFIG_MACH_SUN60IW1)
 	clock_open_timer(timer_num);
 #endif
 	timer->timer_num = timer_num;
@@ -424,8 +425,9 @@ void del_timer(struct timer_list *timer)
 	timer_reg      =   (struct sunxi_timer_reg *)SUNXI_TIMER_BASE;
 	timer_tcontrol = &((struct sunxi_timer_reg *)SUNXI_TIMER_BASE)->timer[num];
 
-#if defined(CONFIG_MACH_SUN50IW12)
-	clock_open_timer(num);
+#if defined(CONFIG_MACH_SUN50IW12) || defined(CONFIG_MACH_SUN55IW3) ||         \
+	defined(CONFIG_MACH_SUN60IW1)
+	clock_close_timer(num);
 #endif
 	irq_disable(AW_IRQ_TIMER0 + num);
 	timer_tcontrol->ctl &= ~1;

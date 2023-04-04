@@ -19,6 +19,9 @@
 struct udevice awnand_device;
 struct aw_nand_chip awnand_chip;
 
+extern int aw_rawnand_get_ecc_mode(int sparesize, int pagesize);
+int aw_rawnand_get_ecc_bits(int bch_mode);
+
 void dump_data(void *data, int len)
 {
 	int i = 0;
@@ -46,47 +49,6 @@ void dump_data(void *data, int len)
 	printf("\nlen@%d\n", len);
 }
 
-static int aw_rawnand_get_ecc_mode(int sparesize, int pagesize)
-{
-	int cal_ecc = (((sparesize / B_TO_KB(pagesize)) - 4) / 14) * 8;
-	int ecc_mode = 0;
-
-	if (cal_ecc >= 16 && cal_ecc < 24)
-		ecc_mode = BCH_16;
-	else if (cal_ecc >= 24 && cal_ecc < 28)
-		ecc_mode = BCH_24;
-	else if (cal_ecc >= 28 && cal_ecc < 32)
-		ecc_mode = BCH_28;
-	else if (cal_ecc >= 32 && cal_ecc < 40)
-		ecc_mode = BCH_32;
-	else if (cal_ecc >= 40 && cal_ecc < 44)
-		ecc_mode = BCH_40;
-	else if (cal_ecc >= 44 && cal_ecc < 48)
-		ecc_mode = BCH_44;
-	else if (cal_ecc >= 48 && cal_ecc < 52)
-		ecc_mode = BCH_48;
-	else if (cal_ecc >= 52 && cal_ecc < 56)
-		ecc_mode = BCH_52;
-	else if (cal_ecc >= 56 && cal_ecc < 60)
-		ecc_mode = BCH_56;
-	else if (cal_ecc >= 60 && cal_ecc < 64)
-		ecc_mode = BCH_60;
-	else if (cal_ecc >= 64 && cal_ecc < 68)
-		ecc_mode = BCH_64;
-	else if (cal_ecc >= 68 && cal_ecc < 72)
-		ecc_mode = BCH_68;
-	else if (cal_ecc >= 72 && cal_ecc < 76)
-		ecc_mode = BCH_72;
-	else if (cal_ecc >= 76 && cal_ecc < 80)
-		ecc_mode = BCH_76;
-	else if (cal_ecc >= 80)
-		ecc_mode = BCH_80;
-	else
-		ecc_mode = BCH_NO;
-
-	return ecc_mode;
-}
-
 /*get ecc mode interger operation may be cause 1 level ecc mode different,
  * so test and correct*/
 static int aw_rawnand_ecc_mode_test(int sparesize, int pagesize, int ecc_mode, int *ret_ecc_mode)
@@ -102,7 +64,7 @@ static int aw_rawnand_ecc_mode_test(int sparesize, int pagesize, int ecc_mode, i
 
 	res = sparesize - val;
 	/*at least reserve 8 Byte avalid spare*/
-	if (res > 8) {
+	if (res > 8 && ecc_mode < (sizeof(ecc_bits_tbl) - 1)) {
 		val = ((14 * ecc_bits_tbl[ecc_mode+1]) >> 3);
 		val *= B_TO_KB(pagesize);
 		res2 = sparesize - val;
@@ -116,64 +78,6 @@ static int aw_rawnand_ecc_mode_test(int sparesize, int pagesize, int ecc_mode, i
 		*ret_ecc_mode = ecc_mode;
 
 	return ret;
-}
-
-static int aw_rawnand_get_ecc_bits(int bch_mode)
-{
-	int ecc_bits = 0;
-	switch (bch_mode) {
-	case BCH_16:
-		ecc_bits = 16;
-		break;
-	case BCH_24:
-		ecc_bits = 24;
-		break;
-	case BCH_28:
-		ecc_bits = 28;
-		break;
-	case BCH_32:
-		ecc_bits = 32;
-		break;
-	case BCH_40:
-		ecc_bits = 40;
-		break;
-	case BCH_44:
-		ecc_bits = 44;
-		break;
-	case BCH_48:
-		ecc_bits = 48;
-		break;
-	case BCH_52:
-		ecc_bits = 52;
-		break;
-	case BCH_56:
-		ecc_bits = 56;
-		break;
-	case BCH_60:
-		ecc_bits = 60;
-		break;
-	case BCH_64:
-		ecc_bits = 64;
-		break;
-	case BCH_68:
-		ecc_bits = 68;
-		break;
-	case BCH_72:
-		ecc_bits = 72;
-		break;
-	case BCH_76:
-		ecc_bits = 76;
-		break;
-	case BCH_80:
-		ecc_bits = 80;
-		break;
-	default:
-		awrawnand_err("get ecc bits err\n");
-		ecc_bits = -1;
-		break;
-	}
-
-	return ecc_bits;
 }
 
 void aw_rawnand_select_chip(struct mtd_info *mtd, int c)
@@ -812,7 +716,7 @@ int aw_rawnand_chip_simu_multi_read_page(struct mtd_info *mtd, struct aw_nand_ch
 
 	awrawnand_chip_trace("Enter %s page@[%d:%d]\n", __func__, pageA, pageB);
 
-	BATCH_REQ_READ(reqA, pageA, row_cycles, mdata, chip->pagesize, sdata, slen);
+	BATCH_REQ_READ(reqA, pageA, row_cycles, mdata, chip->pagesize, sdata, chip->avalid_sparesize);
 
 
 	if (!chip->dev_ready_wait(mtd)) {
@@ -833,7 +737,7 @@ int aw_rawnand_chip_simu_multi_read_page(struct mtd_info *mtd, struct aw_nand_ch
 	}
 
 	BATCH_REQ_READ(reqB, pageB, row_cycles, (mdata + chip->pagesize),
-			chip->pagesize, sdata, slen);
+			chip->pagesize, (sdata + chip->avalid_sparesize), chip->avalid_sparesize);
 
 	ret = host->batch_op(chip, &reqB);
 	if (ret == ECC_ERR)
@@ -1072,6 +976,7 @@ static bool aw_rawnand_is_valid_id(uint8_t id)
 	case RAWNAND_MFR_WINBOND:
 	case RAWNAND_MFR_DOSILICON:
 	case RAWNAND_MFR_FORESEE_1:
+	case RAWNAND_MFR_DOSILICON_1:
 		ret = true;
 		break;
 	default:
@@ -1959,7 +1864,9 @@ static int aw_rawnand_chip_data_init(struct mtd_info *mtd)
 	chip->clk_rate = dev->access_freq;
 	chip->data_interface.type = aw_rawnand_get_itf_type(chip);
 
-	chip->random = RAWNAND_NFC_NEED_RANDOM(chip);
+	/*chip->random = RAWNAND_NFC_NEED_RANDOM(chip);*/
+	/*random data maybe friendly to flash, default enable*/
+	chip->random = 1;
 
 	if (RAWNAND_HAS_ONLY_TWO_DDR(chip))
 		chip->row_cycles = 2;

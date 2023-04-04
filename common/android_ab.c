@@ -10,6 +10,7 @@
 #include <memalign.h>
 #include <u-boot/crc.h>
 #include <u-boot/crc.h>
+#include <securestorage.h>
 
 int sunxi_flash_try_partition(struct blk_desc *desc, const char *str,
 			      disk_partition_t *info);
@@ -182,7 +183,7 @@ static int ab_compare_slots(const struct slot_metadata *a,
 int ab_select_slot(struct blk_desc *dev_desc, disk_partition_t *part_info)
 {
 	struct bootloader_control *abc = NULL;
-	u32 crc32_le;
+	u32 crc32_le = 0;
 	int slot, i, ret;
 	bool store_needed = false;
 	char slot_suffix[4];
@@ -197,7 +198,38 @@ int ab_select_slot(struct blk_desc *dev_desc, disk_partition_t *part_info)
 		return ret;
 	}
 
+#ifdef CONFIG_SUNXI_SECURE_STORAGE
+	char boot_slot		= 0;
+	uint8_t slot_b		= 0;
+	uint8_t kActivePriority = 15;
+	uint8_t kActiveTries    = 6;
+
+	ret = sunxi_secure_storage_write_or_read("set-active-boot-slot",
+						 &boot_slot, 1, 1);
+
+	if ((ret >= 0) && (boot_slot > 0)) {
+		slot_b = boot_slot - 0x31;
+
+		for (i = 0; i < abc->nb_slot; ++i) {
+			if (i != slot_b) {
+				if (abc->slot_info[i].priority >=
+				    kActivePriority) {
+					abc->slot_info[i].priority =
+						kActivePriority - 1;
+				}
+			}
+		}
+		abc->slot_info[slot_b].priority	= kActivePriority;
+		abc->slot_info[slot_b].tries_remaining = kActiveTries;
+		abc->crc32_le = ab_control_compute_crc(abc);
+		boot_slot     = 0;
+		sunxi_secure_storage_write_or_read("set-active-boot-slot",
+						   &boot_slot, 1, 0);
+	}
+
+#endif
 	crc32_le = ab_control_compute_crc(abc);
+
 	if (abc->crc32_le != crc32_le) {
 		pr_err("ANDROID: Invalid CRC-32 (expected %.8x, found %.8x),",
 		       crc32_le, abc->crc32_le);

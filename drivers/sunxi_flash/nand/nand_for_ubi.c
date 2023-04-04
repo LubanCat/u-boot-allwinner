@@ -22,6 +22,7 @@
 #include <linux/mtd/mtd.h>
 #ifdef CONFIG_AW_MTD_SPINAND
 #include <linux/mtd/aw-spinand.h>
+#include "../../mtd/awnand/spinand/sunxi-spinand.h"
 #endif
 #ifdef CONFIG_AW_MTD_RAWNAND
 #include <linux/mtd/aw-rawnand.h>
@@ -66,12 +67,22 @@ int ubi_nand_init_uboot(int boot_mode)
 	if (init_end)
 		return 0;
 #ifdef CONFIG_AW_MTD_SPINAND
-	if (support_spinand())
+	if (support_spinand()) {
 		ret = spinand_mtd_init();
+		if (ret)
+			disable_spinand();
+		else {
+			init_end = ret == 0 ? true : false;
+			return ret;
+		}
+	}
 #endif
 #ifdef CONFIG_AW_MTD_RAWNAND
-	if (support_rawnand())
+	if (support_rawnand()) {
 		ret = rawnand_mtd_init();
+		if (ret)
+			disable_rawnand();
+	}
 
 #endif
 
@@ -108,8 +119,12 @@ int ubi_nand_probe_uboot(void)
 	if (support_spinand()) {
 		/* the same as @ubi_nand_init_uboot */
 		ret = spinand_mtd_init();
-		if (!ret)
+		if (!ret) {
 			set_boot_storage_type(STORAGE_SPI_NAND);
+			init_end = ret == 0 ? true : false;
+			return ret;
+		} else
+			disable_spinand();
 	}
 #endif
 
@@ -119,6 +134,8 @@ int ubi_nand_probe_uboot(void)
 		ret = rawnand_mtd_init();
 		if (!ret)
 			set_boot_storage_type(STORAGE_NAND);
+		else
+			disable_rawnand();
 	}
 
 #endif
@@ -138,8 +155,10 @@ int ubi_nand_attach_mtd(void)
 	if (support_spinand()) {
 		/* the same as @ubi_nand_init_uboot */
 		ret = spinand_mtd_attach_mtd();
-		if (!ret)
+		if (!ret) {
 			set_boot_storage_type(STORAGE_SPI_NAND);
+			return ret;
+		}
 	}
 #endif
 #ifdef CONFIG_AW_MTD_RAWNAND
@@ -230,6 +249,24 @@ int ubi_nand_download_uboot(unsigned int len, void *buf)
 	return ret;
 }
 
+int ubi_nand_upload_uboot(void *buf, unsigned int len)
+{
+	int ret = -EINVAL;
+
+	if (!init_end)
+		return -EBUSY;
+#ifdef CONFIG_AW_MTD_SPINAND
+	if (support_spinand())
+		return spinand_mtd_upload_uboot(buf, len);
+#endif
+#ifdef CONFIG_AW_MTD_RAWNAND
+	if (support_rawnand())
+		return rawnand_mtd_upload_uboot(len, buf);
+#endif
+	return ret;
+
+}
+
 int ubi_nand_download_boot0(unsigned int len, void *buf)
 {
 	int ret = -EINVAL;
@@ -298,12 +335,12 @@ int ubi_nand_write(unsigned int start, unsigned int sectors, void *buf)
 
 #ifdef CONFIG_AW_MTD_SPINAND
 	if (support_spinand())
-		return spinand_mtd_write(start, sectors, buf);
+		return spinand_mtd_write_ubi(start, sectors, buf);
 #endif
 
 #ifdef CONFIG_AW_MTD_RAWNAND
 	if (support_rawnand())
-		return rawnand_mtd_write(start, sectors, buf);
+		return rawnand_mtd_write_ubi(start, sectors, buf);
 #endif
 	return ret;
 }
@@ -317,12 +354,12 @@ int ubi_nand_read(unsigned int start, unsigned int sectors, void *buf)
 
 #ifdef CONFIG_AW_MTD_SPINAND
 	if (support_spinand())
-		return spinand_mtd_read(start, sectors, buf);
+		return spinand_mtd_read_ubi(start, sectors, buf);
 #endif
 
 #ifdef CONFIG_AW_MTD_RAWNAND
 	if (support_rawnand())
-		return rawnand_mtd_read(start, sectors, buf);
+		return rawnand_mtd_read_ubi(start, sectors, buf);
 #endif
 	return ret;
 }

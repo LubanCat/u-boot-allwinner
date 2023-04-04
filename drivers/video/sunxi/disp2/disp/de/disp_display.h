@@ -18,6 +18,8 @@
 #define __DISP_DISPLAY_H__
 
 #include "disp_private.h"
+#include "../dev_disp.h"
+#include "disp_lcd.h"
 
 typedef struct
 {
@@ -106,6 +108,8 @@ s32 bsp_disp_lcd_tcon_enable(u32 disp);
 s32 bsp_disp_lcd_tcon_disable(u32 disp);
 s32 bsp_disp_lcd_pin_cfg(u32 disp, u32 en);
 s32 bsp_disp_lcd_gpio_set_value(u32 disp, u32 io_index, u32 value);
+/**** add for lcd read gpio level id by lxm 20220310 ***/
+s32 bsp_disp_lcd_gpio_get_value(u32 disp, u32 io_index);
 s32 bsp_disp_lcd_gpio_set_direction(u32 disp, unsigned int io_index, u32 direction);
 disp_lcd_flow * bsp_disp_lcd_get_open_flow(u32 disp);
 disp_lcd_flow * bsp_disp_lcd_get_close_flow(u32 disp);
@@ -113,6 +117,20 @@ s32 bsp_disp_get_panel_info(u32 disp, disp_panel_para *info);
 disp_lcd_flow * bsp_disp_lcd_get_open_flow(u32 disp);
 disp_lcd_flow * bsp_disp_lcd_get_close_flow(u32 disp);
 s32 bsp_disp_lcd_switch_compat_panel(u32 disp, u32 index);
+
+/* edp */
+s32 bsp_disp_edp_set_panel_funs(char *name, disp_lcd_panel_fun *lcd_cfg);
+s32 bsp_disp_edp_backlight_enable(u32 disp);
+s32 bsp_disp_edp_backlight_disable(u32 disp);
+s32 bsp_disp_edp_pwm_enable(u32 disp);
+s32 bsp_disp_edp_pwm_disable(u32 disp);
+s32 bsp_disp_edp_power_enable(u32 disp, u32 power_id);
+s32 bsp_disp_edp_power_disable(u32 disp, u32 power_id);
+s32 bsp_disp_edp_set_bright(u32 disp, u32 bright);
+s32 bsp_disp_edp_get_bright(u32 disp);
+s32 bsp_disp_edp_pin_cfg(u32 disp, u32 en);
+s32 bsp_disp_edp_gpio_set_value(u32 disp, u32 io_index, u32 value);
+s32 bsp_disp_edp_gpio_set_direction(u32 disp, unsigned int io_index, u32 direction);
 
 s32 bsp_disp_vsync_event_enable(u32 disp, bool enable);
 s32 bsp_disp_tv_suspend(void);

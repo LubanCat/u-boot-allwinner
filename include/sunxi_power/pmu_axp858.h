@@ -68,4 +68,12 @@
 #define   PMU_IRQ_STATU1                    (0x48)
 #define   PMU_IRQ_STATU2                    (0x49)
 
+#define   AXP858_DCDC_MODESET				(0x1B)
+#define   AXP858_DCDC1_PWM_BIT				(0)
+#define   AXP858_DCDC2_PWM_BIT				(1)
+#define   AXP858_DCDC3_PWM_BIT				(2)
+#define   AXP858_DCDC4_PWM_BIT				(3)
+#define   AXP858_DCDC5_PWM_BIT				(4)
+#define   AXP858_DCDC6_PWM_BIT				(5)
+
 #endif /* __AXP858_REGS_H__ */

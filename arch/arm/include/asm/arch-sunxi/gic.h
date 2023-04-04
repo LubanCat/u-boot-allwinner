@@ -80,6 +80,20 @@
 #define AW_IRQ_NMI                     135
 #define GIC_IRQ_NUM                    (191)
 
+#elif defined(CONFIG_MACH_SUN60IW1)
+#define AW_IRQ_GIC_START    (32)
+#define AW_IRQ_NAND                    73
+#define AW_IRQ_USB_OTG                 224
+#define AW_IRQ_USB_EHCI0               225
+#define AW_IRQ_USB_OHCI0               226
+#define AW_IRQ_USB_EHCI1               227
+#define AW_IRQ_USB_OHCI1               228
+#define AW_IRQ_DMA                     83
+#define AW_IRQ_TIMER0                  88
+#define AW_IRQ_TIMER1                  89
+#define AW_IRQ_NMI                     343
+#define GIC_IRQ_NUM                    (410)
+
 #elif defined(CONFIG_MACH_SUN55IW3)
 #define AW_IRQ_GIC_START    (32)
 #define AW_IRQ_NAND                    70
@@ -100,6 +114,8 @@
 #define AW_IRQ_USB_OTG					61
 #define AW_IRQ_USB_EHCI0				62
 #define AW_IRQ_USB_OHCI0				63
+#define AW_IRQ_USB_EHCI1				65
+#define AW_IRQ_USB_OHCI1				66
 #define AW_IRQ_DMA						82
 #define AW_IRQ_TIMER0					91
 #define AW_IRQ_TIMER1					92
@@ -246,6 +262,20 @@
 #define EDGE_TRIGERRED       (1)
 #define GIC_IRQ_TYPE_CFG(_n)	(GIC_DIST_BASE + 0xc00 + 4 * (_n))
 #define GIC_IRQ_MOD_CFG(_n)	(GIC_DIST_BASE + 0xd00 + 4 * (_n))
+
+#elif defined(CONFIG_MACH_SUN60IW1)
+#define GIC_DIST_BASE        (SUNXI_GIC600_BASE)
+#define GIC_IROUTR(_n)       (GIC_DIST_BASE + 0x80 + 4 * (_n))
+#define GICR_LPI_BASE(n)     (GIC_DIST_BASE + 0x80000 + n*0x20000)
+#define GICR_WAKER(m)        (GICR_LPI_BASE(m) + 0x0014)
+#define GICR_PWRR(m)         (GICR_LPI_BASE(m) + 0x0024)
+#define put_wvalue(addr, v)  (*((volatile int *)(addr)) = (unsigned int)(v))
+#define get_wvalue(addr)     (*((volatile int *)(addr)))
+#define LEVEL_TRIGERRED      (0)
+#define EDGE_TRIGERRED       (1)
+#define GIC_IRQ_TYPE_CFG(_n)	(GIC_DIST_BASE + 0xc00 + 4 * (_n))
+#define GIC_IRQ_MOD_CFG(_n)	(GIC_DIST_BASE + 0xd00 + 4 * (_n))
+
 #else
 /* GIC registers */
 #define GIC_DIST_BASE       (SUNXI_GIC400_BASE+0x1000)

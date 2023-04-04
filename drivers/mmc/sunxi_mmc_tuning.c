@@ -13,6 +13,7 @@
 #include <memalign.h>
 #include <linux/list.h>
 #include <div64.h>
+#include <sunxi_flashmap.h>
 
 #include "mmc_private.h"
 #include "sunxi_mmc.h"
@@ -420,7 +421,7 @@ static int sunxi_tuning_method_0(struct mmc *mmc, int retry_times)
 
 	for (j = 0; j < retry_times; j++) {
 		ret = sunxi_read_tuning(mmc->cfg->host_no,
-						TUNING_ADD,
+						sunxi_flashmap_offset(FLASHMAP_SDMMC, MMC_TUNING),
 						pat_blk_cnt,
 						rcv_pat);
 		if (ret != pat_blk_cnt) {
@@ -439,6 +440,11 @@ static int sunxi_tuning_method_0(struct mmc *mmc, int retry_times)
 				mmc_send_manual_stop(mmc);
 			#endif
 			break;
+		}
+		if ((pat_blk_cnt*512) > (TUNING_LEN * 512)) {
+			MMCINFO("%s: pattern compare length over memalign length\n", __FUNCTION__);
+			ret = -1;
+			goto OUT;
 		}
 		ret = memcmp(std_pat, rcv_pat, pat_blk_cnt*512);
 		if (ret) {
@@ -870,7 +876,7 @@ int write_tuning_try_freq_tm5(struct mmc *mmc)
 	}
 
 	ret = mmc_bwrite(mmc_get_blk_desc(mmc),
-			TUNING_ADD,
+			sunxi_flashmap_offset(FLASHMAP_SDMMC, MMC_TUNING),
 			pat_blk_cnt,
 			std_pattern);
 	MMCDBG("Write pattern ret = %d\n", ret);
@@ -887,7 +893,7 @@ int write_tuning_try_freq_tm5(struct mmc *mmc)
 
 		/* read pattern and compare with the pattern show sent*/
 		ret = mmc_bread(mmc_get_blk_desc(mmc),
-				TUNING_ADD,
+				sunxi_flashmap_offset(FLASHMAP_SDMMC, MMC_TUNING),
 				pat_blk_cnt,
 				rcv_pattern);
 		if (ret != pat_blk_cnt) {
@@ -901,10 +907,16 @@ int write_tuning_try_freq_tm5(struct mmc *mmc)
 			ret = -1;
 			goto out;
 		} else {
+			if ((pat_blk_cnt * 512) > (TUNING_LEN*512)) {
+				MMCINFO("%s: pattern compare length over memalign length\n", __FUNCTION__);
+				ret = -1;
+				goto out;
+			}
 			ret = memcmp(std_pattern, rcv_pattern, pat_blk_cnt * 512);
 			if (ret) {
 				MMCDBG("pattern compare fail\n");
-				return -1;
+				ret = -1;
+				goto out;
 			} else {
 				MMCDBG("Pattern compare ok\n");
 				MMCDBG("Write tuning pattern ok\n");
@@ -916,7 +928,7 @@ out:
 	free(std_pattern);
 out1:
 	free(rcv_pattern);
-	return 0;
+	return ret;
 }
 
 static int sunxi_tuning_speed_mode_tm5(struct mmc *mmc, int speed_mode, int tuning_mode, int retry_times)
@@ -1210,7 +1222,7 @@ int write_tuning_try_freq(struct mmc *mmc, u32 clk)
 	do {
 		mmc_set_clock(mmc, clk, false);
 		ret = mmc_bwrite(mmc_get_blk_desc(mmc),
-						TUNING_ADD,
+						sunxi_flashmap_offset(FLASHMAP_SDMMC, MMC_TUNING),
 						pat_blk_cnt,
 						std_pattern);
 		MMCDBG("Write pattern ret = %d\n", ret);
@@ -1227,7 +1239,7 @@ int write_tuning_try_freq(struct mmc *mmc, u32 clk)
 
 			/* read pattern and compare with the pattern show sent*/
 			ret = mmc_bread(mmc_get_blk_desc(mmc),
-							TUNING_ADD,
+							sunxi_flashmap_offset(FLASHMAP_SDMMC, MMC_TUNING),
 							pat_blk_cnt,
 							rcv_pattern);
 			if (ret != pat_blk_cnt) {
@@ -1241,6 +1253,11 @@ int write_tuning_try_freq(struct mmc *mmc, u32 clk)
 					mmc_send_manual_stop(mmc);
 				}
 			} else {
+				if ((pat_blk_cnt * 512) > (TUNING_LEN*512)) {
+					MMCINFO("%s: pattern compare length over memalign length\n", __FUNCTION__);
+					ret = -1;
+					goto out;
+				}
 				ret = memcmp(std_pattern, rcv_pattern, pat_blk_cnt * 512);
 				if (ret) {
 					MMCINFO("pattern compare fail\n");
@@ -1797,8 +1814,8 @@ int mmc_read_info(int dev_num, void *buffer, u32 buffer_size, void *info)
 
 mmc_read_retry:
 
-	ret = mmc_bread(mmc_get_blk_desc(mmc), SUNXI_SDMMC_PARAMETER_REGION_LBA_START,
-			SUNXI_SDMMC_PARAMETER_REGION_SIZE_BYTE >> 9, pregion_r);
+	ret = mmc_bread(mmc_get_blk_desc(mmc), sunxi_flashmap_offset(FLASHMAP_SDMMC, BOOT_PARAM),
+			sunxi_flashmap_size(FLASHMAP_SDMMC, BOOT_PARAM), pregion_r);
 	if (ret < 0) {
 		MMCINFO("%s %d mmc read parameter region fail %s \n", __func__, __LINE__,
 				(retry_write < 3) ? "retry more time" : "go err");
@@ -1979,8 +1996,8 @@ int mmc_write_info(int dev_num, void *buffer, u32 buffer_size)
 
 retry:
 
-		ret = mmc_bwrite(mmc_get_blk_desc(mmc), SUNXI_SDMMC_PARAMETER_REGION_LBA_START,
-				SUNXI_SDMMC_PARAMETER_REGION_SIZE_BYTE >> 9, pregion);
+		ret = mmc_bwrite(mmc_get_blk_desc(mmc), sunxi_flashmap_offset(FLASHMAP_SDMMC, BOOT_PARAM),
+				sunxi_flashmap_size(FLASHMAP_SDMMC, BOOT_PARAM), pregion);
 		if (ret < 0) {
 			MMCINFO("%s %d mmc write parameter region fail %s \n", __func__, __LINE__,
 					(retry_write < 3) ? "retry more time" : "go err");
@@ -1991,8 +2008,8 @@ retry:
 				goto err1;
 		}
 
-		ret = mmc_bread(mmc_get_blk_desc(mmc), SUNXI_SDMMC_PARAMETER_REGION_LBA_START,
-				SUNXI_SDMMC_PARAMETER_REGION_SIZE_BYTE >> 9, pregion_r);
+		ret = mmc_bread(mmc_get_blk_desc(mmc), sunxi_flashmap_offset(FLASHMAP_SDMMC, BOOT_PARAM),
+				sunxi_flashmap_size(FLASHMAP_SDMMC, BOOT_PARAM), pregion_r);
 		if (ret < 0) {
 			MMCINFO("%s %d mmc read parameter region fail %s \n", __func__, __LINE__,
 					(retry_write < 3) ? "retry more time" : "go err");

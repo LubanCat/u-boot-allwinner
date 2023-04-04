@@ -160,7 +160,6 @@
 #define CPUS_PPU_GATE       0x017C
 #define CPUS_UART_GATE	    0x018C
 #define CPUS_TWI_GATE       0x019C
-#define CPUS_CAN_GATE       0x01AC
 #define CPUS_RSB_GATE       0x01BC
 #define CPUS_CIR_CFG        0x01C0
 #define CPUS_CIR_GATE       0x01CC

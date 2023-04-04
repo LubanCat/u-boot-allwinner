@@ -807,3 +807,340 @@ int rawnand_mtd_download_boot0(unsigned int len, void *buf)
 	rawnand_mtd_download_boot0_exit();
 	return ret;
 }
+
+static int rawnand_read_phy_block(int blk, uint8_t *data, unsigned int *retlen)
+{
+	struct aw_nand_chip *chip = get_rawnand();
+	struct mtd_info *mtd = awnand_chip_to_mtd(chip);
+	struct aw_rawnand_boot0 *boot0 = get_rawnand_boot0();
+	int pages_per_blk = (1 << chip->pages_per_blk_shift);
+	int page = 0, ret = 0;
+	int mlen = 0;
+	uint8_t *sdata = NULL;
+	int slen = BOOT0_OOB_LEN;
+	uint8_t *mdata = data;
+
+	rawnand_mtd_download_boot0_init();
+	sdata = boot0->oob;
+	mlen = boot0->mdata_len;
+	*retlen = 0;
+
+	page = blk << chip->pages_per_blk_shift;
+	if (blk < boot0->boundary) {
+		for (; page < ((blk << chip->pages_per_blk_shift) + pages_per_blk);
+				page++) {
+			ret = chip->read_boot0_page(mtd, chip, mdata, mlen, sdata, slen, page);
+			if (ret) {
+				awrawnand_err("read fail in page-%d\n\n", page);
+				return ret;
+			}
+			mdata += SLC_MDATA_IO;
+			*retlen += SLC_MDATA_IO;
+		}
+	} else {
+		for (; page < ((blk << chip->pages_per_blk_shift) + pages_per_blk);
+				page++) {
+			ret = chip->read_page(mtd, chip, mdata, chip->pagesize, sdata, slen, page);
+			if (ret) {
+				awrawnand_err("read fail in page-%d\n\n", page);
+				return ret;
+			}
+			mdata += chip->pagesize;
+			*retlen += chip->pagesize;
+		}
+	}
+
+	return 0;
+}
+
+static int rawnand_write_phy_block(int blk, uint8_t *data, unsigned int *retlen)
+{
+	struct aw_nand_chip *chip = get_rawnand();
+	struct mtd_info *mtd = awnand_chip_to_mtd(chip);
+	struct aw_rawnand_boot0 *boot0 = get_rawnand_boot0();
+	int pages_per_blk = (1 << chip->pages_per_blk_shift);
+	int page = 0, ret = 0;
+	int mlen = 0;
+	uint8_t *sdata = NULL;
+	int slen = BOOT0_OOB_LEN;
+	uint8_t *mdata = data;
+
+	rawnand_mtd_download_boot0_init();
+	sdata = boot0->oob;
+	mlen = boot0->mdata_len;
+	*retlen = 0;
+
+	page = blk << chip->pages_per_blk_shift;
+	if (blk < boot0->boundary) {
+		for (; page < ((blk << chip->pages_per_blk_shift) + pages_per_blk);
+				page++) {
+			ret = chip->write_boot0_page(mtd, chip, mdata, mlen, sdata, slen, page);
+			if (ret) {
+				awrawnand_err("write fail in page-%d\n\n", page);
+				return ret;
+			}
+			mdata += SLC_MDATA_IO;
+			*retlen += SLC_MDATA_IO;
+		}
+	} else {
+		for (; page < ((blk << chip->pages_per_blk_shift) + pages_per_blk);
+				page++) {
+			ret = chip->write_page(mtd, chip, mdata, chip->pagesize, sdata, slen, page);
+			if (ret) {
+				awrawnand_err("write fail in page-%d\n\n", page);
+				return ret;
+			}
+			mdata += chip->pagesize;
+			*retlen += chip->pagesize;
+		}
+	}
+
+	return 0;
+}
+
+int aw_rawnand_phy_write(unsigned int start, unsigned int sectors, void *buf)
+{
+	struct aw_nand_chip *chip = get_rawnand();
+	struct mtd_info *mtd = awnand_chip_to_mtd(chip);
+	int pages_per_blk = (1 << chip->pages_per_blk_shift);
+	int block_size = pages_per_blk * chip->pagesize;
+	unsigned int data_len = sectors << 9, retlen;
+	int page = 0, ret = 0, blk = start / block_size;;
+	unsigned char *align_buf = NULL;
+	unsigned int uboot_start;
+
+	awrawnand_dbg("start:%x  len:%x\n", start, data_len);
+	rawnand_uboot_blknum(&uboot_start, NULL);
+
+	align_buf = malloc_align(block_size, 64);
+	if (!align_buf) {
+		awrawnand_err("%s: malloc error\n", __func__);
+		return 0;
+	}
+
+	if (blk < uboot_start)
+		block_size = pages_per_blk * chip->pagesize / 2;
+	else
+		block_size = pages_per_blk * chip->pagesize;
+
+	chip->select_chip(mtd, 0);
+
+	if (start % block_size) {
+		u32 erase_align_ofs = 0;
+		u32 erase_align_size = 0;
+retry:
+		if (blk >= uboot_start && chip->block_bad(mtd, blk)) {
+			awrawnand_info("block@%d is bad,skip it\n", blk);
+			blk++;
+			start += (pages_per_blk * chip->pagesize);
+			if (blk < uboot_start)
+				block_size = pages_per_blk * chip->pagesize / 2;
+			else
+				block_size = pages_per_blk * chip->pagesize;
+			goto retry;
+		}
+
+		/*
+		|-------|-------|---------|
+		     |<----data---->|
+		    offset          end
+		*/
+		erase_align_ofs = start % block_size;
+		erase_align_size = block_size - erase_align_ofs;
+		erase_align_size = erase_align_size > data_len ?
+						data_len : erase_align_size;
+
+		ret = rawnand_read_phy_block(blk, align_buf, &retlen);
+		if (ret)
+			goto exit;
+
+		page = blk << chip->pages_per_blk_shift;
+		ret = chip->erase(mtd, page);
+		if (ret) {
+			awrawnand_err("erase block-%d fail\n", blk);
+			goto exit;
+		}
+
+		/*fill data to write*/
+		memcpy(align_buf + erase_align_ofs, buf, erase_align_size);
+
+		ret = rawnand_write_phy_block(blk, align_buf, &retlen);
+		if (ret)
+			goto exit;
+		/* update info */
+		data_len -= erase_align_size;
+		start += erase_align_size;
+		buf += erase_align_size;
+		blk++;
+		if (blk < uboot_start)
+			block_size = pages_per_blk * chip->pagesize / 2;
+		else
+			block_size = pages_per_blk * chip->pagesize;
+	}
+
+	while (data_len) {
+		if (blk >= uboot_start && chip->block_bad(mtd, blk)) {
+			awrawnand_info("block@%d is bad,skip it\n", blk);
+			blk++;
+			start += (pages_per_blk * chip->pagesize);
+			if (blk < uboot_start)
+				block_size = pages_per_blk * chip->pagesize / 2;
+			else
+				block_size = pages_per_blk * chip->pagesize;
+			continue;
+		}
+
+		if (data_len < block_size) {
+			ret = rawnand_read_phy_block(blk, align_buf, &retlen);
+			if (ret)
+				goto exit;
+			if (retlen != block_size) {
+				ret = -EIO;
+				goto exit;
+			}
+
+			/* Erase the entire sector */
+			page = blk << chip->pages_per_blk_shift;
+			ret = chip->erase(mtd, page);
+			if (ret) {
+				awrawnand_err("erase block-%d fail\n", blk);
+				goto exit;
+			}
+
+			/*fill data to write*/
+			memcpy(align_buf, buf, data_len);
+
+			ret = rawnand_write_phy_block(blk, align_buf, &retlen);
+			if (ret)
+				goto exit;
+			if (retlen != block_size) {
+				ret = -EIO;
+				goto exit;
+			}
+
+			goto exit;
+		}
+
+		page = blk << chip->pages_per_blk_shift;
+		ret = chip->erase(mtd, page);
+		if (ret) {
+			awrawnand_err("erase block-%d fail\n", blk);
+			goto exit;
+		}
+
+		ret = rawnand_write_phy_block(blk, buf, &retlen);
+		if (ret)
+			goto exit;
+		/* update info */
+		data_len -= (pages_per_blk * chip->pagesize);
+		start += (pages_per_blk * chip->pagesize);
+		buf += retlen;
+		blk++;
+		if (blk < uboot_start)
+			block_size = pages_per_blk * chip->pagesize / 2;
+		else
+			block_size = pages_per_blk * chip->pagesize;
+	}
+exit:
+	chip->select_chip(mtd, -1);
+	rawnand_mtd_download_boot0_exit();
+	free_align(align_buf);
+	return ret;
+}
+
+int aw_rawnand_phy_read(unsigned int start, unsigned int sectors, void *buf)
+{
+	struct aw_nand_chip *chip = get_rawnand();
+	struct mtd_info *mtd = awnand_chip_to_mtd(chip);
+	int pages_per_blk = (1 << chip->pages_per_blk_shift);
+	int block_size = pages_per_blk * chip->pagesize;
+	unsigned int len = sectors << 9, retlen;
+	int ret = 0, blk = start / block_size;
+	unsigned char *align_buf = NULL;
+	unsigned int uboot_start;
+
+	awrawnand_dbg("start:%x  len:%x\n", start, len);
+	rawnand_uboot_blknum(&uboot_start, NULL);
+
+	align_buf = malloc_align(block_size, 64);
+	if (!align_buf) {
+		awrawnand_err("%s: malloc error\n", __func__);
+		return 0;
+	}
+
+	if (blk < uboot_start)
+		block_size = pages_per_blk * chip->pagesize / 2;
+	else
+		block_size = pages_per_blk * chip->pagesize;
+
+	chip->select_chip(mtd, 0);
+	do {
+		if (blk >= uboot_start && chip->block_bad(mtd, blk)) {
+			awrawnand_info("block@%d is bad,skip it\n", blk);
+			blk++;
+			start += (pages_per_blk * chip->pagesize);
+			if (blk < uboot_start)
+				block_size = pages_per_blk * chip->pagesize / 2;
+			else
+				block_size = pages_per_blk * chip->pagesize;
+			continue;
+		}
+		if (start % block_size) {
+			u32 align_ofs = start & (block_size - 1);
+			u32 op_len = min(len, block_size - align_ofs);
+
+			ret = rawnand_read_phy_block(blk, align_buf, &retlen);
+			if (ret)
+				goto exit;
+			if (retlen != block_size) {
+				ret = -EIO;
+				goto exit;
+			}
+
+			memcpy(buf, align_buf + align_ofs, op_len);
+
+			buf += op_len;
+			len -= op_len;
+			blk++;
+			start = blk * pages_per_blk * chip->pagesize;
+			continue;
+		} else if (len < block_size) {
+			ret = rawnand_read_phy_block(blk, align_buf, &retlen);
+			if (ret)
+				goto exit;
+			if (retlen != block_size) {
+				ret = -EIO;
+				goto exit;
+			}
+
+			memcpy(buf, align_buf, len);
+
+			buf += len;
+			len -= len;
+			goto exit;
+		}
+
+		ret = rawnand_read_phy_block(blk, buf, &retlen);
+		if (ret)
+			goto exit;
+		if (retlen != block_size) {
+			ret = -EIO;
+			goto exit;
+		}
+
+		buf += retlen;
+		len -= (pages_per_blk * chip->pagesize);
+		start += (pages_per_blk * chip->pagesize);
+		blk++;
+		if (blk < uboot_start)
+			block_size = pages_per_blk * chip->pagesize / 2;
+		else
+			block_size = pages_per_blk * chip->pagesize;
+	} while (len);
+
+exit:
+	chip->select_chip(mtd, -1);
+	free_align(align_buf);
+	return ret;
+}
+

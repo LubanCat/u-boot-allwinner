@@ -68,3 +68,94 @@ int sunxi_gpio_set_pull(u32 pin, u32 val)
 
 	return 0;
 }
+
+#if defined(PIOC_REG_POW_MS_CTL) && \
+	defined (PIOC_REG_POW_MOD_SEL) && \
+	defined (PIOC_REG_POW_VAL)
+
+__weak int get_group_bit_offset(enum pin_e port_group)
+{
+	return -1;
+}
+
+void io_pow_mode_disable(enum pin_e port_group)
+{
+	uint32_t reg;
+	uint8_t group_bit_offset = get_group_bit_offset(port_group);
+	if (group_bit_offset < 0)
+		return;
+	//disable auto mode
+	reg = readl(PIOC_REG_POW_MS_CTL);
+	reg &= ~(1 << group_bit_offset);
+	reg |= (PIOC_CTL_Px_DISABLE << group_bit_offset);
+	writel(reg, PIOC_REG_POW_MS_CTL);
+}
+
+enum io_pow_mode_e io_get_volt_val(enum pin_e port_group)
+{
+	uint32_t reg;
+	uint8_t group_bit_offset = get_group_bit_offset(port_group);
+	if (group_bit_offset < 0)
+		return IO_MODE_DEFAULT;
+
+	reg = readl(PIOC_REG_POW_VAL);
+	return ((reg & (1 << group_bit_offset)) != PIOC_VAL_Px_3_3V_VOL) ?
+		       IO_MODE_1_8_V :
+		       IO_MODE_3_3_V;
+}
+
+void io_set_pow_mode(enum pin_e port_group, enum io_pow_mode_e volt_mode)
+{
+	uint32_t reg;
+	uint8_t group_bit_offset = get_group_bit_offset(port_group);
+	if (group_bit_offset < 0)
+		return;
+	if (volt_mode == IO_MODE_DEFAULT) {
+		//default vaule in spec
+		reg = readl(PIOC_REG_POW_MS_CTL);
+		reg &= ~(1 << group_bit_offset);
+		reg |= (PIOC_CTL_Px_DEFUALT << group_bit_offset);
+		writel(reg, PIOC_REG_POW_MS_CTL);
+
+		reg = readl(PIOC_REG_POW_MOD_SEL);
+		reg &= ~(1 << group_bit_offset);
+		reg |= (PIOC_SEL_Px_DEFAULT << group_bit_offset);
+		writel(reg, PIOC_REG_POW_MOD_SEL);
+	} else if (volt_mode == IO_MODE_AUTO) {
+		//one specific combination is auto
+		reg = readl(PIOC_REG_POW_MS_CTL);
+		reg &= ~(1 << group_bit_offset);
+		reg |= (PIOC_CTL_Px_ENABLE << group_bit_offset);
+		writel(reg, PIOC_REG_POW_MS_CTL);
+
+		reg = readl(PIOC_REG_POW_MOD_SEL);
+		reg &= ~(1 << group_bit_offset);
+		reg |= (PIOC_SEL_Px_3_3V_VOL << group_bit_offset);
+		writel(reg, PIOC_REG_POW_MOD_SEL);
+	} else {
+		if (volt_mode == IO_MODE_1_8_V) {
+			reg = readl(PIOC_REG_POW_MOD_SEL);
+			reg &= ~(1 << group_bit_offset);
+			reg |= (PIOC_SEL_Px_1_8V_VOL << group_bit_offset);
+			writel(reg, PIOC_REG_POW_MOD_SEL);
+		} else {
+			reg = readl(PIOC_REG_POW_MOD_SEL);
+			reg &= ~(1 << group_bit_offset);
+			reg |= (PIOC_SEL_Px_3_3V_VOL << group_bit_offset);
+			writel(reg, PIOC_REG_POW_MOD_SEL);
+		}
+	}
+}
+void sunxi_io_set_pow_mode_on_actual_val(enum pin_e port_group)
+{
+	io_pow_mode_disable(port_group);
+
+	io_set_pow_mode(port_group, io_get_volt_val(port_group));
+}
+
+void sunxi_io_set_pow_mode_to_default(enum pin_e port_group)
+{
+	io_set_pow_mode(port_group, IO_MODE_DEFAULT);
+}
+
+#endif

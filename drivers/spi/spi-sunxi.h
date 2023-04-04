@@ -18,9 +18,11 @@
 #ifndef _SUNXI_SPI_H_
 #define _SUNXI_SPI_H_
 
+#include <linux/mtd/mtd.h>
 #include <spi.h>
 
 #define SPI_MODULE_NUM		(4)
+#define SPI_MAX_BUS			(4)
 #define SPI_FIFO_DEPTH		(128)
 #define MAX_FIFU		64
 #define BULK_DATA_BOUNDARY	64	 /* can modify to adapt the application */
@@ -211,13 +213,18 @@ struct sunxi_spi_slave {
 	struct spi_slave	slave;
 	uint32_t		max_hz;
 	uint32_t		mode;
-	int             cs_bitmap;/* cs0- 0x1; cs1-0x2, cs0&cs1-0x3. */
-	uint32_t        cdr;
-	uint32_t	    base_addr;
-	unsigned int right_sample_delay;
-	unsigned int right_sample_mode;
+	int			cs_bitmap;/* cs0- 0x1; cs1-0x2, cs0&cs1-0x3. */
+	uint32_t		cdr;
+	uint32_t		bus;
+	uint32_t		base_addr;
+	unsigned int		right_sample_delay;
+	unsigned int		right_sample_mode;
+	unsigned int		rx_dtr_en;
+	unsigned int		tx_dtr_en;
 };
 
-struct sunxi_spi_slave *get_sspi(void);
+struct sunxi_spi_slave *get_sspi(unsigned int bus);
+void sunxi_update_right_delay_para(struct mtd_info *mtd);
+int sunxi_set_right_delay_para(struct mtd_info *mtd);
 
 #endif

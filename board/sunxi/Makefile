@@ -40,6 +40,11 @@ obj-$(CONFIG_SUNXI_IMAGE_HEADER) += sunxi_image_header.o
 obj-$(CONFIG_SUNXI_ANTI_COPY_BOARD) += sunxi_anti_copy_board.o
 obj-$(CONFIG_SUNXI_MEM_INFO) += sunxi_mem_info.o
 
+obj-$(CONFIG_SUNXI_RKP) += sunxi_rkp.o
+CFLAGS_sunxi_rkp.o = -I$(srctree)/lib/libmbedtls/include \
+	-I$(srctree)/lib/open-dice/include/\
+
 obj-y += sunxi_challenge.o
+obj-y += sunxi_cmdline_helper.o
 
 subdir-ccflags-$(CONFIG_SUNXI_TRACE) += -finstrument-functions

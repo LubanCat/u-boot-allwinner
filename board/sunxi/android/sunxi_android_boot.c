@@ -26,6 +26,10 @@ __weak int sunxi_board_shutdown(void)
 {
 	return 0;
 }
+__weak int sunxi_board_shutdown_charge(void)
+{
+	return 0;
+}
 
 #ifdef CONFIG_SUNXI_AVB
 static int android_vbmeta_avb_verify(char *lock_state)
@@ -124,9 +128,15 @@ int sunxi_android_boot(const char *image_name, ulong os_load_addr)
 				ret = sunxi_avb_read_vbmeta_data(&vb_meta_data,
 								 &vb_len);
 				if (ret == 0) {
+					//image size from avbfooter have higher priority
 					total_len =
-						android_image_get_end(fb_hdr) -
-						(ulong)fb_hdr;
+						android_image_get_end_by_avbfooter();
+					if (!total_len) {
+						total_len =
+							android_image_get_end(
+								fb_hdr) -
+							(ulong)fb_hdr;
+					}
 					ret = verify_image_by_vbmeta(
 						image_name,
 						(uint8_t *)os_load_addr,

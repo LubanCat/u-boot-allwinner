@@ -16,29 +16,46 @@
 
 static int do_sunxi_clk_test(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[])
 {
-	int i;
-	int node;
+	int i = 0;
 	struct clk *clk;
+	int ret;
+	struct clk *parent_clk;
+	unsigned long rate;
+	char *test_clk[1024] = {"hosc", "pll_periph0_2x", "pll_periph1_2x", "pll_periph1_800m", "pll_periph1_600m", "pll_periph0_300m", "sdmmc0_mod", "sdmmc2_mod"};
 
-	node = fdt_path_offset(working_fdt, "/soc/clk_test");
-	if (node < 0) {
-		printf("not find the node:/soc/clk_test\n");
-		return -1;
+	for (i = 0; i < 9; i++) {
+		/* 获得时钟 */
+		clk = clk_get(NULL, test_clk[i]);
+		if (!clk) {
+			printf("error to get clk: %s\n", test_clk[i]);
+		} else {
+			printf("success get clk: %s\n", test_clk[i]);
+		}
+
+		ret = clk_prepare_enable(clk);
+		if (ret)
+			printf("enable clk: %s failed!\n", clk->name);
+		else
+			printf("enable clk: %s \n", clk->name);
+
+		/* 获得父时钟 */
+		parent_clk = clk_get_parent(clk);
+		if (!parent_clk || IS_ERR(parent_clk)) {
+			printf("error to get clk: %s parent_name: %s\n", test_clk[i], parent_clk->name);
+		} else {
+			printf("success to get clk: %s parent_name: %s\n", test_clk[i], parent_clk->name);
+		}
+
+		/* 获得当前频率 */
+		rate = clk_get_rate(clk);
+		printf("success to get clk: %s parent_name: %s\n rate: %ld\n", test_clk[i], parent_clk->name, rate);
 	}
 
-	of_periph_clk_config_setup(node);
-	for (i = 0; i < 4; i++) {
-		clk = of_clk_get(node, i);
-		if (IS_ERR(clk))
-			printf("fail to get clk for eink\n");
-	}
-
-	printf("clk test end\n");
 	return 0;
 }
 
 U_BOOT_CMD(
-	sunxi_clk,	3,	1,	do_sunxi_clk_test,
-	"do clk test",
-	"sunxi_clk test_cmd"
-);
+		sunxi_clk,	3,	1,	do_sunxi_clk_test,
+		"do clk test",
+		"sunxi_clk test_cmd"
+	  );

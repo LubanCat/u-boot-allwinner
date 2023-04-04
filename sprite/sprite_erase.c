@@ -56,6 +56,19 @@ int sunxi_sprite_erase_flash(void *img_mbr_buffer)
 	fdt_getprop_u32(working_fdt, nodeoffset, "eraseflag", &need_erase_flag);
 
 	printf("need erase flash: %d\n", need_erase_flag);
+#ifdef CONFIG_SUNXI_SECURE_STORAGE
+	char boot_slot = 0;
+	int ret = -1;
+	if (need_erase_flag != 0x12) {
+		ret = sunxi_secure_storage_write_or_read("set-active-boot-slot",
+							 &boot_slot, 1, 1);
+		if (ret >= 0) {
+			boot_slot = 0x31;
+			sunxi_secure_storage_write_or_read(
+				"set-active-boot-slot", &boot_slot, 1, 0);
+		}
+	}
+#endif
 
 	if (need_erase_flag == 0x12) {
 #ifdef CONFIG_SUNXI_UBIFS
@@ -64,7 +77,7 @@ int sunxi_sprite_erase_flash(void *img_mbr_buffer)
 			ubi_nand_attach_mtd();
 		}
 #endif
-		sunxi_flash_force_erase();
+		sunxi_sprite_force_erase();
 #if CONFIG_SUNXI_SECURE_STORAGE
 		sunxi_secure_storage_erase_all();
 #endif
@@ -85,7 +98,7 @@ int sunxi_sprite_erase_flash(void *img_mbr_buffer)
 
 	if (get_boot_storage_type() == STORAGE_NAND ? sunxi_sprite_init(1) : 0) {
 		debug("sunxi sprite pre init fail, we have to erase it\n");
-		goto __ERROR_END;
+		return -1;
 	}
 
 	if (get_boot_storage_type() == STORAGE_NOR)

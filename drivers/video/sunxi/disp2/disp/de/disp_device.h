@@ -32,6 +32,6 @@ struct disp_device* disp_device_get(int disp, enum disp_output_type output_type)
 struct disp_device* disp_device_find(int disp, enum disp_output_type output_type);
 struct list_head* disp_device_get_list_head(void);
 void disp_device_show_builtin_patten(struct disp_device *dispdev, u32 patten);
-
+u32 disp_device_get_num(void);
 
 #endif

@@ -29,6 +29,13 @@
 #include <asm/arch/clock.h>
 #include <asm/io.h>
 
+#if 0
+#define dma_dbg(fmt, arg...)	printf("[%s:%d] " fmt "\n", __FUNCTION__, __LINE__, ##arg)
+#define sunxi_boot_dma_debug
+#else
+#define dma_dbg(fmt, arg...)
+#endif
+
 #ifdef CONFIG_MACH_SUN8IW18
 #define SUNXI_DMA_MAX     10
 #else
@@ -86,10 +93,27 @@ void sunxi_dma_init(void)
 
 	/* dma gating */
 	setbits_le32(&ccm->dma_gate_reset, 1 << DMA_GATING_OFS);
+
+#if defined(CONFIG_SOUND_SUNXI_DSP_DMAC)
+
+	sunxi_dsp_ccu_reg *const dsp_ccm = (sunxi_dsp_ccu_reg *)SUNXI_DSP_CCM_BASE;
+
+	/* dma : mbus clock gating */
+	setbits_le32(&dsp_ccm->mclk_gating_cfg_reg, 1 << 0);  // dma mclk enable
+
+	setbits_le32(&dsp_ccm->mclk_gating_cfg_reg, 1 << 1);  // dsp mclk enable
+
+	/* dma reset */
+	setbits_le32(&dsp_ccm->dsp_dma_brg_reg, 1 << DMA_RST_OFS);
+
+	/* dma gating */
+	setbits_le32(&dsp_ccm->dsp_dma_brg_reg, 1 << DMA_GATING_OFS);
+#endif
+
 #endif
 
 	writel(0, &dma_reg->irq_en0);
-	writel(0, &dma_reg->irq_en0);
+	writel(0, &dma_reg->irq_en1);
 
 	writel(0xffffffff, &dma_reg->irq_pending0);
 	writel(0xffffffff, &dma_reg->irq_pending1);
@@ -149,6 +173,8 @@ void sunxi_dma_exit(void)
 #endif
 
 	dma_init--;
+
+	dma_dbg("dma exit\n");
 
 }
 
@@ -221,6 +247,8 @@ int sunxi_dma_setting(ulong hdma, sunxi_dma_set *cfg)
 	writel(commit_para, &desc->commit_para);
 	writel(readl((volatile void __iomem *)(ulong)channal_addr), &desc->config);
 
+	dma_dbg("config [%x] commit_para[%x] \n", readl(&desc->config), readl(&desc->commit_para));
+
 	return 0;
 }
 
@@ -242,9 +270,32 @@ int sunxi_dma_start(ulong hdma, uint saddr, uint daddr, uint bytes)
 	flush_cache((ulong)desc,
 		    ALIGN(sizeof(sunxi_dma_desc), CONFIG_SYS_CACHELINE_SIZE));
 
+	dma_dbg("source_addr [%x] dest_addr [%x]  byte_count [%x]\n", readl(&desc->source_addr), readl(&desc->dest_addr), readl(&desc->byte_count));
+
 	/* start dma */
 	writel((ulong)(desc), &channal->desc_addr);
 	writel(1, &channal->enable);
+
+#if defined(sunxi_boot_dma_debug)
+
+	sunxi_dma_reg *const dma_reg = (sunxi_dma_reg *)SUNXI_DMA_BASE;
+
+	int i = 0;
+
+	for (i = 0; i < 5; i++) {
+
+		dma_dbg("desc [%p], channal [%p],  dma_reg [%p], auto_gate addr [%p], desc_addr addr [%p] \n \
+				irq_en0 [%x], irq_pending0 [%x], auto_gate [%x], status [%x] \n  \
+				enable [%x], desc_addr [%x], config [%x], cur_src_addr [%x]   \n  \
+				cur_dst_addr [%x], left_bytes [%x], parameters [%x], mode [%x]\n", \
+				desc,  channal, dma_reg, &dma_reg->auto_gate, &channal->desc_addr, \
+				readl(&dma_reg->irq_en0), readl(&dma_reg->irq_pending0), readl(&dma_reg->auto_gate), readl(&dma_reg->status), \
+				readl(&channal->enable), readl(&channal->desc_addr), readl(&channal->config), readl(&channal->cur_src_addr), \
+				readl(&channal->cur_dst_addr), readl(&channal->left_bytes), readl(&channal->parameters), readl(&channal->mode));
+
+		mdelay(200);
+	}
+#endif
 
 	return 0;
 }
@@ -257,6 +308,8 @@ int sunxi_dma_stop(ulong hdma)
 	if (!dma_source->used)
 		return -1;
 	writel(0, &channal->enable);
+
+	dma_dbg("dma stop\n");
 
 	return 0;
 }
@@ -386,7 +439,7 @@ int sunxi_dma_free_int(ulong hdma)
 		dma_channal->dma_func.m_func = NULL;
 		dma_channal->dma_func.m_data = NULL;
 	} else {
-		debug("dma 0x%lx int is free, you do not need to free it again\n", hdma);
+		dma_dbg("dma 0x%lx int is free, you do not need to free it again\n", hdma);
 		return -1;
 	}
 

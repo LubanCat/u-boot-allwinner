@@ -151,5 +151,7 @@ sunxi_usb_burn_main_info_t;
 #define   SUNXI_PBURN_RECV_MEM_SIZE   (512 * 1024)
 #define   SUNXI_PBURN_SEND_MEM_SIZE   (512 * 1024)
 
+#define USB_BURN_SET_NEXTWORK_REBOOT      9
+#define USB_BURN_ANDROID_RECOVERY         10
 #endif
 

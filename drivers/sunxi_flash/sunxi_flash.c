@@ -20,7 +20,6 @@
 #include "sprite_download.h"
 #include "sprite_verify.h"
 
-
 __attribute__((section(".data"))) static sunxi_flash_desc *current_flash;
 
 __attribute__((section(".data"))) static sunxi_flash_desc *sprite_flash;
@@ -210,6 +209,11 @@ int sunxi_sprite_download_toc(unsigned char *buf, int len, unsigned int ext)
 	return sprite_flash->download_toc(buf, len, ext);
 }
 
+int sunxi_sprite_upload_toc(void *buf, uint len)
+{
+	return sprite_flash->upload_toc(buf, len);
+}
+
 int sunxi_sprite_init(int boot_mode)
 {
 	return sprite_flash->init(boot_mode, 2);
@@ -249,8 +253,9 @@ int sunxi_flash_hook_init(void)
 		current_flash = &sunxi_nand_desc;
 
 	return 0;
-#endif
+#else
 	return -1;
+#endif
 }
 
 int sunxi_flash_boot_init(int storage_type, int workmode)
@@ -373,12 +378,106 @@ int sunxi_flash_probe(void)
 	return 0;
 }
 
+char global_boardflash;
+/*
+bit 0 -- nand exist
+	1 -- emmc exist
+	2 -- nor exist
+	[3,7]resvere
+*/
+#define BAORD_NAND_MASK 0x1
+#define BAORD_EMMC_MASK 0x2
+#define BAORD_NOR_MASK 0x4
+
+void set_board_flash_type(SUNXI_BOOT_STORAGE boardflash)
+{
+	switch (boardflash) {
+	case STORAGE_NAND:
+		global_boardflash |= BAORD_NAND_MASK;
+		break;
+	case STORAGE_EMMC:
+		global_boardflash |= BAORD_EMMC_MASK;
+		break;
+	case STORAGE_NOR:
+		global_boardflash |= BAORD_NOR_MASK;
+		break;
+	default:
+		printf("no support board flash");
+	}
+}
+
+int get_board_flash_type_exist(SUNXI_BOOT_STORAGE boardflash)
+{
+	switch (boardflash) {
+	case STORAGE_NAND:
+		return global_boardflash & BAORD_NAND_MASK;
+	case STORAGE_EMMC:
+		return global_boardflash & BAORD_EMMC_MASK;
+	case STORAGE_NOR:
+		return global_boardflash & BAORD_NOR_MASK;
+	default:
+		return 0;
+	}
+}
+
+int sunxi_board_flash_probe(void)
+{
+	int record_workmode	= 0;
+	int record_storage_type = 0;
+	int state		= 0;
+	sunxi_flash_desc *board_flash;
+
+	record_workmode	    = get_boot_work_mode();
+	record_storage_type = get_boot_storage_type();
+
+	set_boot_work_mode(WORK_MODE_CARD_PRODUCT);
+
+	do {
+#ifdef CONFIG_SUNXI_SDMMC
+		board_flash = &sunxi_sdmmcs_desc;
+		state	    = board_flash->probe();
+		if (state == 0) {
+			set_board_flash_type(STORAGE_EMMC);
+		}
+		printf("try emmc fail\n");
+#endif
+
+#ifdef CONFIG_SUNXI_NAND
+		board_flash = &sunxi_nand_desc;
+		state	    = board_flash->probe();
+		if (state == 0) {
+			set_board_flash_type(STORAGE_NAND);
+		}
+		printf("try nand fail\n");
+#endif
+
+#ifdef CONFIG_SUNXI_SPINOR
+		board_flash = &sunxi_spinor_desc;
+		state	    = board_flash->probe();
+		if (state == 0) {
+			set_board_flash_type(STORAGE_NOR);
+		}
+
+		printf("try spinor fail\n");
+#endif
+
+		if (state != 0) {
+			printf("try flash fail\n");
+		}
+
+	} while (0);
+
+	set_boot_work_mode(record_workmode);
+	set_boot_storage_type(record_storage_type);
+	return 0;
+}
+
 int sunxi_flash_init_ext(void)
 {
 	int workmode     = 0;
 	int storage_type = 0;
 	int state	= 0;
-
+	uint32_t uboot_dragon_board_test = 0;
 	workmode     = get_boot_work_mode();
 	storage_type = get_boot_storage_type();
 
@@ -389,6 +488,15 @@ int sunxi_flash_init_ext(void)
 	} else if (workmode == WORK_MODE_BOOT ||
 		   workmode == WORK_MODE_SPRITE_RECOVERY) {
 		state = sunxi_flash_boot_init(storage_type, workmode);
+		if (storage_type == STORAGE_SD) {
+			extern int get_dragonboard_test(
+				struct fdt_header *point_fdt,
+				uint32_t *dragon_board_test);
+			get_dragonboard_test(working_fdt,
+					     &uboot_dragon_board_test);
+			if (uboot_dragon_board_test == 1)
+				sunxi_board_flash_probe();
+		}
 	} else if ((workmode & WORK_MODE_PRODUCT) || (workmode == 0x30)) {
 		state = sunxi_flash_probe();
 	} else if (workmode & WORK_MODE_UPDATE) {
@@ -584,12 +692,19 @@ int read_boot_package(int storage_type, void *package_buf)
 	int ret = 0;
 	sbrom_toc1_head_info_t *toc1_head = NULL;
 
-	debug("boot package size: 0x%x\n", read_len);
+#ifndef CONFIG_SUNXI_UBIFS
 	extern  int nand_read_uboot_data(unsigned char *buf, unsigned int len);
+#endif
+	debug("boot package size: 0x%x\n", read_len);
+
 	switch (storage_type) {
 #ifdef CONFIG_SUNXI_NAND
 	case STORAGE_NAND:
+#ifdef CONFIG_SUNXI_UBIFS
+		ret = sunxi_sprite_upload_uboot(package_buf, read_len);
+#else
 		ret = nand_read_uboot_data(package_buf, read_len);
+#endif
 		break;
 #endif
 #ifdef CONFIG_SUNXI_SDMMC
@@ -597,12 +712,12 @@ int read_boot_package(int storage_type, void *package_buf)
 	case STORAGE_EMMC0:
 	case STORAGE_SD:
 	case STORAGE_EMMC3:
-		ret = sunxi_flash_phyread(UBOOT_START_SECTOR_IN_SDMMC, read_len/512, package_buf);
+		ret = sunxi_flash_phyread(sunxi_flashmap_offset(FLASHMAP_SDMMC, TOC1), read_len/512, package_buf);
 		break;
 #endif
 #ifdef CONFIG_SUNXI_SPINOR
 	case STORAGE_NOR:
-		ret = sunxi_flash_phyread(CONFIG_SPINOR_UBOOT_OFFSET, read_len/512, package_buf);
+		ret = sunxi_flash_phyread(sunxi_flashmap_offset(FLASHMAP_SPI_NOR, TOC1), read_len/512, package_buf);
 		break;
 #endif
 	default:

@@ -25,6 +25,8 @@
 #define EFUSE_LCJS				(0xF4)
 #define EFUSE_CHIP_CONFIG       (0xFC)
 
+#define EFUSE_CHIPID (0x0)
+#define SID_CHIPID_SIZE (128)
 /* write protect */
 #define EFUSE_WRITE_PROTECT	EFUSE_CHIP_CONFIG
 /* read  protect */

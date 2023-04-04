@@ -167,6 +167,22 @@ struct aw_spinand_phy_info gigadevice[] =
 		.EccProtectedType = SIZE16_OFF4_LEN12,
 		.BadBlockFlag	= BAD_BLK_FLAG_FRIST_1_PAGE,
 	},
+	{
+		.Model		= "GD5F2GM7UEYI",
+		.NandID		= {0xc8, 0x92, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+		.DieCntPerChip  = 1,
+		.SectCntPerPage = 4,
+		.PageCntPerBlk  = 64,
+		.BlkCntPerDie	= 2048,
+		.OobSizePerPage = 64,
+		.OperationOpt	= SPINAND_QUAD_READ | SPINAND_QUAD_PROGRAM |
+			SPINAND_DUAL_READ,
+		.MaxEraseTimes  = 50000,
+		.EccFlag	= HAS_EXT_ECC_SE01,
+		.EccType	= BIT4_LIMIT5_TO_7_ERR8_LIMIT_12,
+		.EccProtectedType = SIZE16_OFF0_LEN16,
+		.BadBlockFlag	= BAD_BLK_FLAG_FRIST_1_PAGE,
+	},
 };
 
 struct aw_spinand_phy_info micron[] =
@@ -232,7 +248,8 @@ struct aw_spinand_phy_info xtx[] =
 		.PageCntPerBlk  = 64,
 		.BlkCntPerDie	= 1024,
 		.OobSizePerPage = 64,
-		.OperationOpt	= SPINAND_DUAL_READ,
+		.OperationOpt	= SPINAND_QUAD_READ | SPINAND_QUAD_PROGRAM |
+			SPINAND_DUAL_READ,
 		.MaxEraseTimes  = 50000,
 		.ecc_status_shift = ECC_STATUS_SHIFT_2,
 		.EccType	= BIT4_LIMIT5_TO_7_ERR8_LIMIT_12,
@@ -248,7 +265,8 @@ struct aw_spinand_phy_info xtx[] =
 		.PageCntPerBlk  = 64,
 		.BlkCntPerDie	= 1024,
 		.OobSizePerPage = 64,
-		.OperationOpt	= SPINAND_DUAL_READ,
+		.OperationOpt	= SPINAND_QUAD_READ | SPINAND_QUAD_PROGRAM |
+			SPINAND_DUAL_READ,
 		.MaxEraseTimes  = 50000,
 		.ecc_status_shift = ECC_STATUS_SHIFT_4,
 		.EccType	= BIT4_LIMIT5_TO_8_ERR9_TO_15,
@@ -264,7 +282,8 @@ struct aw_spinand_phy_info xtx[] =
 		.PageCntPerBlk  = 64,
 		.BlkCntPerDie	= 2048,
 		.OobSizePerPage = 64,
-		.OperationOpt	= SPINAND_DUAL_READ,
+		.OperationOpt	= SPINAND_QUAD_READ | SPINAND_QUAD_PROGRAM |
+			SPINAND_DUAL_READ,
 		.MaxEraseTimes  = 50000,
 		.ecc_status_shift = ECC_STATUS_SHIFT_2,
 		.EccType	= BIT4_LIMIT5_TO_7_ERR8_LIMIT_12,
@@ -280,7 +299,8 @@ struct aw_spinand_phy_info xtx[] =
 		.PageCntPerBlk  = 64,
 		.BlkCntPerDie	= 2048,
 		.OobSizePerPage = 64,
-		.OperationOpt	= SPINAND_DUAL_READ,
+		.OperationOpt	= SPINAND_QUAD_READ | SPINAND_QUAD_PROGRAM |
+			SPINAND_DUAL_READ,
 		.MaxEraseTimes  = 50000,
 		.ecc_status_shift = ECC_STATUS_SHIFT_4,
 		.EccType	= BIT4_LIMIT5_TO_8_ERR9_TO_15,
@@ -301,6 +321,21 @@ struct aw_spinand_phy_info fm[] = {
 		.OobSizePerPage = 64,
 		.OperationOpt	= SPINAND_QUAD_READ | SPINAND_QUAD_PROGRAM |
 			SPINAND_DUAL_READ | SPINAND_QUAD_NO_NEED_ENABLE,
+		.MaxEraseTimes  = 65000,
+		.EccType	= BIT2_LIMIT1_ERR2,
+		.EccProtectedType = SIZE16_OFF0_LEN16,
+		.BadBlockFlag = BAD_BLK_FLAG_FIRST_2_PAGE,
+	},
+	{
+		.Model		= "FM25S01A",
+		.NandID		= {0xa1, 0xe4, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+		.DieCntPerChip  = 1,
+		.SectCntPerPage = 4,
+		.PageCntPerBlk  = 64,
+		.BlkCntPerDie	= 1024,
+		.OobSizePerPage = 64,
+		.OperationOpt	= SPINAND_QUAD_READ | SPINAND_QUAD_PROGRAM |
+			SPINAND_DUAL_READ,
 		.MaxEraseTimes  = 65000,
 		.EccType	= BIT2_LIMIT1_ERR2,
 		.EccProtectedType = SIZE16_OFF0_LEN16,
@@ -383,6 +418,36 @@ struct aw_spinand_phy_info winbond[] =
 		.EccProtectedType = SIZE16_OFF4_LEN4_OFF8,
 		.BadBlockFlag = BAD_BLK_FLAG_FRIST_1_PAGE,
 	},
+	{
+		.Model		= "W25N02KVZEIR",
+		.NandID 	= {0xef, 0xaa, 0x22, 0xff, 0xff, 0xff, 0xff, 0xff},
+		.DieCntPerChip	= 1,
+		.SectCntPerPage = 4,
+		.PageCntPerBlk	= 64,
+		.BlkCntPerDie	= 2048,
+		.OobSizePerPage = 64,
+		.OperationOpt	= SPINAND_QUAD_READ | SPINAND_QUAD_PROGRAM |
+			SPINAND_DUAL_READ | SPINAND_QUAD_NO_NEED_ENABLE,
+		.MaxEraseTimes	= 60000,
+		.EccType	= BIT2_ERR2_LIMIT3,
+		.EccProtectedType = SIZE16_OFF4_LEN12,
+		.BadBlockFlag = BAD_BLK_FLAG_FRIST_1_PAGE,
+	},
+	{
+		.Model		= "W25M02GV",
+		.NandID 	= {0xef, 0xab, 0x21, 0xff, 0xff, 0xff, 0xff, 0xff},
+		.DieCntPerChip	= 1,
+		.SectCntPerPage = 4,
+		.PageCntPerBlk	= 64,
+		.BlkCntPerDie	= 1024,
+		.OobSizePerPage = 64,
+		.OperationOpt	= SPINAND_QUAD_READ | SPINAND_DUAL_READ |
+			 SPINAND_QUAD_PROGRAM,
+		.MaxEraseTimes	= 65000,
+		.EccType	= BIT2_LIMIT1_ERR2,
+		.EccProtectedType = SIZE16_OFF4_LEN4_OFF8,
+		.BadBlockFlag	= BAD_BLK_FLAG_FRIST_1_PAGE,
+	},
 };
 
 struct aw_spinand_phy_info dosilicon[] =
@@ -413,6 +478,22 @@ struct aw_spinand_phy_info dosilicon[] =
 		.OperationOpt	= SPINAND_QUAD_READ | SPINAND_QUAD_PROGRAM |
 			SPINAND_DUAL_READ | SPINAND_TWO_PLANE_SELECT,
 		.MaxEraseTimes  = 65000,
+		.EccType	= BIT3_LIMIT5_ERR2,
+		.EccProtectedType = SIZE16_OFF0_LEN16,
+		.BadBlockFlag = BAD_BLK_FLAG_FIRST_2_PAGE,
+	},
+	{
+		.Model		= "DS35X4GMXXX",
+		.NandID 	= {0xe5, 0xf4, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+		.DieCntPerChip	= 1,
+		.SectCntPerPage = 4,
+		.PageCntPerBlk	= 64,
+		.BlkCntPerDie	= 4096,
+		.OobSizePerPage = 64,
+		.OperationOpt	= SPINAND_QUAD_READ | SPINAND_QUAD_PROGRAM |
+			SPINAND_DUAL_READ | SPINAND_TWO_PLANE_SELECT,
+		.MaxEraseTimes	= 65000,
+		.ecc_status_shift = ECC_STATUS_SHIFT_4,
 		.EccType	= BIT3_LIMIT5_ERR2,
 		.EccProtectedType = SIZE16_OFF0_LEN16,
 		.BadBlockFlag = BAD_BLK_FLAG_FIRST_2_PAGE,

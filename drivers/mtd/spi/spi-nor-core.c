@@ -27,6 +27,7 @@
 #include <private_boot0.h>
 #include <boot_param.h>
 #include "../../spi/spi-sunxi.h"
+#include "../../spi/spif-sunxi.h"
 
 /* Define max times to check status register before we give up. */
 
@@ -149,9 +150,17 @@ static int spi_nor_read_reg(struct spi_nor *nor, u8 code, u8 *val, int len)
 {
 	struct spi_mem_op op = SPI_MEM_OP(SPI_MEM_OP_CMD(code, 1),
 					  SPI_MEM_OP_NO_ADDR,
+					  SPI_MEM_OP_NO_MODE,
 					  SPI_MEM_OP_NO_DUMMY,
 					  SPI_MEM_OP_DATA_IN(len, NULL, 1));
 	int ret;
+
+	op.cmd.buswidth = spi_nor_get_protocol_inst_nbits(nor->read_proto);
+	op.dummy.buswidth = 1;
+	op.data.buswidth = op.cmd.buswidth;
+
+	if (op.cmd.buswidth == 8)
+		op.dummy.cycle = 8;
 
 	ret = spi_nor_read_write_reg(nor, &op, val);
 	if (ret < 0)
@@ -161,15 +170,90 @@ static int spi_nor_read_reg(struct spi_nor *nor, u8 code, u8 *val, int len)
 	return ret;
 }
 
+#ifdef CONFIG_SUNXI_SPIF
+static int spif_nor_write_reg(struct spi_nor *nor, u8 opcode, u8 *buf, int len)
+{
+	struct spi_mem_op op =
+			SPI_MEM_OP(SPI_MEM_OP_CMD(opcode, 1),
+				   SPI_MEM_OP_NO_ADDR,
+				   SPI_MEM_OP_MODE(buf, 1),
+				   SPI_MEM_OP_NO_DUMMY,
+				   SPI_MEM_OP_NO_DATA);
+
+	/* get transfer protocols. */
+	op.cmd.buswidth = spi_nor_get_protocol_inst_nbits(nor->write_proto);
+	op.mode.buswidth = op.cmd.buswidth;
+
+	return spi_mem_exec_op(nor->spi, &op);
+}
+
+static int spif_nor_write_reg_2byte(struct spi_nor *nor, u8 opcode, u8 *buf)
+{
+	loff_t cmd_sr_cr = (opcode << 16) | (buf[0] << 8) | buf[1];
+	struct spi_mem_op op =
+			SPI_MEM_OP(SPI_MEM_OP_NO_CMD,
+				   SPI_MEM_OP_ADDR(3, cmd_sr_cr, 1),
+				   SPI_MEM_OP_NO_MODE,
+				   SPI_MEM_OP_NO_DUMMY,
+				   SPI_MEM_OP_NO_DATA);
+
+	/* The command line width is the same as the address line width. */
+	op.addr.buswidth = spi_nor_get_protocol_inst_nbits(nor->write_proto);
+
+	return spi_mem_exec_op(nor->spi, &op);
+}
+
+static ssize_t spi_nor_io_read_data(struct spi_nor *nor, loff_t from, size_t len,
+				 u_char *buf)
+{
+	struct spi_mem_op op =
+			SPI_MEM_OP(SPI_MEM_OP_CMD(nor->read_opcode, 1),
+				   SPI_MEM_OP_ADDR(nor->addr_width, from, 1),
+				   SPI_MEM_OP_MODE(&nor->mode, 1),
+				   SPI_MEM_OP_DUMMY(nor->read_dummy, 1),
+				   SPI_MEM_OP_DATA_IN(len, buf, 1));
+	size_t remaining = len;
+	int ret;
+
+	/* get transfer protocols. */
+	op.cmd.buswidth = spi_nor_get_protocol_inst_nbits(nor->read_proto);
+	op.addr.buswidth = spi_nor_get_protocol_addr_nbits(nor->read_proto);
+	op.mode.buswidth = op.addr.buswidth;
+	op.dummy.buswidth = op.addr.buswidth;
+	op.data.buswidth = spi_nor_get_protocol_data_nbits(nor->read_proto);
+
+	while (remaining) {
+		op.data.nbytes = remaining < UINT_MAX ? remaining : UINT_MAX;
+		ret = spi_mem_adjust_op_size(nor->spi, &op);
+		if (ret)
+			return ret;
+
+		ret = spi_mem_exec_op(nor->spi, &op);
+		if (ret)
+			return ret;
+
+		op.addr.val += op.data.nbytes;
+		remaining -= op.data.nbytes;
+		op.data.buf.in += op.data.nbytes;
+	}
+
+	return len;
+}
+#else
 static int spi_nor_write_reg(struct spi_nor *nor, u8 opcode, u8 *buf, int len)
 {
 	struct spi_mem_op op = SPI_MEM_OP(SPI_MEM_OP_CMD(opcode, 1),
 					  SPI_MEM_OP_NO_ADDR,
+					  SPI_MEM_OP_NO_MODE,
 					  SPI_MEM_OP_NO_DUMMY,
 					  SPI_MEM_OP_DATA_OUT(len, NULL, 1));
 
+	op.cmd.buswidth = spi_nor_get_protocol_inst_nbits(nor->read_proto);
+	op.data.buswidth = spi_nor_get_protocol_data_nbits(nor->read_proto);
+
 	return spi_nor_read_write_reg(nor, &op, buf);
 }
+#endif
 
 static ssize_t spi_nor_read_data(struct spi_nor *nor, loff_t from, size_t len,
 				 u_char *buf)
@@ -177,6 +261,7 @@ static ssize_t spi_nor_read_data(struct spi_nor *nor, loff_t from, size_t len,
 	struct spi_mem_op op =
 			SPI_MEM_OP(SPI_MEM_OP_CMD(nor->read_opcode, 1),
 				   SPI_MEM_OP_ADDR(nor->addr_width, from, 1),
+				   SPI_MEM_OP_NO_MODE,
 				   SPI_MEM_OP_DUMMY(nor->read_dummy, 1),
 				   SPI_MEM_OP_DATA_IN(len, buf, 1));
 	size_t remaining = len;
@@ -187,9 +272,6 @@ static ssize_t spi_nor_read_data(struct spi_nor *nor, loff_t from, size_t len,
 	op.addr.buswidth = spi_nor_get_protocol_addr_nbits(nor->read_proto);
 	op.dummy.buswidth = op.addr.buswidth;
 	op.data.buswidth = spi_nor_get_protocol_data_nbits(nor->read_proto);
-
-	/* convert the dummy cycles to the number of bytes */
-	op.dummy.nbytes = (nor->read_dummy * op.dummy.buswidth) / 8;
 
 	while (remaining) {
 		op.data.nbytes = remaining < UINT_MAX ? remaining : UINT_MAX;
@@ -215,6 +297,7 @@ static ssize_t spi_nor_write_data(struct spi_nor *nor, loff_t to, size_t len,
 	struct spi_mem_op op =
 			SPI_MEM_OP(SPI_MEM_OP_CMD(nor->program_opcode, 1),
 				   SPI_MEM_OP_ADDR(nor->addr_width, to, 1),
+				   SPI_MEM_OP_NO_MODE,
 				   SPI_MEM_OP_NO_DUMMY,
 				   SPI_MEM_OP_DATA_OUT(len, buf, 1));
 	int ret;
@@ -389,6 +472,7 @@ static u8 spi_nor_convert_3to4_read(u8 opcode)
 		{ SPINOR_OP_READ_1_1_2,	SPINOR_OP_READ_1_1_2_4B },
 		{ SPINOR_OP_READ_1_2_2,	SPINOR_OP_READ_1_2_2_4B },
 		{ SPINOR_OP_READ_1_1_4,	SPINOR_OP_READ_1_1_4_4B },
+		{ SPINOR_OP_READ_1_1_8,	SPINOR_OP_READ_1_1_8_4B },
 		{ SPINOR_OP_READ_1_4_4,	SPINOR_OP_READ_1_4_4_4B },
 
 		{ SPINOR_OP_READ_1_1_1_DTR,	SPINOR_OP_READ_1_1_1_DTR_4B },
@@ -405,6 +489,7 @@ static u8 spi_nor_convert_3to4_program(u8 opcode)
 	static const u8 spi_nor_3to4_program[][2] = {
 		{ SPINOR_OP_PP,		SPINOR_OP_PP_4B },
 		{ SPINOR_OP_PP_1_1_4,	SPINOR_OP_PP_1_1_4_4B },
+		{ SPINOR_OP_PP_1_1_8,	SPINOR_OP_PP_1_1_8_4B },
 		{ SPINOR_OP_PP_1_4_4,	SPINOR_OP_PP_1_4_4_4B },
 	};
 
@@ -652,7 +737,11 @@ static int write_sr_cr(struct spi_nor *nor, u8 *sr_cr)
 
 	write_enable(nor);
 
+#ifdef CONFIG_SUNXI_SPIF
+	ret = spif_nor_write_reg_2byte(nor, SPINOR_OP_WRSR, sr_cr);
+#else
 	ret = nor->write_reg(nor, SPINOR_OP_WRSR, sr_cr, 2);
+#endif
 	if (ret < 0) {
 		dev_dbg(nor->dev,
 			"error while writing configuration register\n");
@@ -823,7 +912,7 @@ static int gd_read_cr_quad_enable(struct spi_nor *nor)
 {
 	int ret, val;
 
-	val = read_sr(nor);
+	val = read_cr(nor);
 	if (val < 0)
 		return val;
 	if (val & CR_QUAD_EN_GD)
@@ -941,6 +1030,35 @@ static int read_bar(struct spi_nor *nor, const struct flash_info *info)
 }
 #endif
 
+static int sunxi_select_die(struct spi_nor *nor, u8 select_die)
+{
+	int ret;
+
+	nor->cmd_buf[0] = select_die;
+
+	if (select_die != nor->active_stack_die) {
+		write_enable(nor);
+		ret = nor->write_reg(nor, SPINOR_OP_SDS, nor->cmd_buf, 1);
+		if (ret < 0) {
+			dev_dbg(nor->dev,
+				"error while writing configuration register\n");
+			return -EINVAL;
+		}
+
+		ret = spi_nor_wait_till_ready(nor);
+		if (ret) {
+			dev_dbg(nor->dev,
+				"timeout while writing configuration register\n");
+			return ret;
+		}
+
+		write_disable(nor);
+		nor->active_stack_die = select_die;
+	}
+
+	return 0;
+}
+
 /*
  * Initiate the erasure of a single sector
  */
@@ -949,8 +1067,12 @@ static int spi_nor_erase_sector(struct spi_nor *nor, u32 addr)
 	struct spi_mem_op op =
 		SPI_MEM_OP(SPI_MEM_OP_CMD(nor->erase_opcode, 1),
 			   SPI_MEM_OP_ADDR(nor->addr_width, addr, 1),
+			   SPI_MEM_OP_NO_MODE,
 			   SPI_MEM_OP_NO_DUMMY,
 			   SPI_MEM_OP_NO_DATA);
+
+	op.cmd.buswidth = spi_nor_get_protocol_inst_nbits(nor->write_proto);
+	op.addr.buswidth = op.cmd.buswidth;
 
 	if (nor->erase)
 		return nor->erase(nor, addr);
@@ -970,7 +1092,8 @@ static int spi_nor_erase(struct mtd_info *mtd, struct erase_info *instr)
 {
 	struct spi_nor *nor = mtd_to_spi_nor(mtd);
 	u32 addr, len, rem;
-	int ret;
+	int ret  = 0;
+	u32 single_die_size = 0;
 
 	dev_dbg(nor->dev, "at 0x%llx, len %lld\n", (long long)instr->addr,
 		(long long)instr->len);
@@ -981,6 +1104,20 @@ static int spi_nor_erase(struct mtd_info *mtd, struct erase_info *instr)
 
 	addr = instr->addr;
 	len = instr->len;
+
+	if (nor->info->flags & SPI_NOR_STACK_DIE) {
+		u8 total_stack_die = 2; //FIXME
+		u8 select_die;
+
+		single_die_size = nor->info->sector_size * nor->info->n_sectors / total_stack_die;
+		select_die = addr / single_die_size;
+
+		ret = sunxi_select_die(nor, select_die);
+		if (ret)
+			goto erase_err;
+
+		addr %= single_die_size;
+	}
 
 	while (len) {
 #ifdef CONFIG_SPI_FLASH_BAR
@@ -1000,6 +1137,14 @@ static int spi_nor_erase(struct mtd_info *mtd, struct erase_info *instr)
 		ret = spi_nor_wait_till_ready(nor);
 		if (ret)
 			goto erase_err;
+
+		if ((nor->info->flags & SPI_NOR_STACK_DIE) && addr >= single_die_size && len) {
+			u8 select_die = ++nor->active_stack_die;
+			ret = sunxi_select_die(nor, select_die);
+			if (ret)
+				goto erase_err;
+			addr = 0;
+		}
 	}
 
 erase_err:
@@ -1007,7 +1152,6 @@ erase_err:
 	ret = clean_bar(nor);
 #endif
 	write_disable(nor);
-
 	return ret;
 }
 
@@ -1038,22 +1182,44 @@ static int spi_nor_force_erase(struct mtd_info *mtd)
 	struct spi_mem_op op =
 		SPI_MEM_OP(SPI_MEM_OP_CMD(SPINOR_OP_CHIP_ERASE, 1),
 			   SPI_MEM_OP_NO_ADDR,
+			   SPI_MEM_OP_NO_MODE,
 			   SPI_MEM_OP_NO_DUMMY,
 			   SPI_MEM_OP_NO_DATA);
 
-	write_enable(nor);
+	if (nor->info->flags & SPI_NOR_STACK_DIE) {
+		u8 total_stack_die = 2; //FIXME
+		s8 select_die = --total_stack_die;
+		while (select_die >= 0) {
+			ret = sunxi_select_die(nor, select_die);
+			if (ret)
+				goto force_erase_err;
 
-	ret = spi_mem_exec_op(nor->spi, &op);
-	if (ret)
-		goto force_erase_err;
+			write_enable(nor);
 
-	ret = spi_nor_wait_till_ready_with_timeout(nor, timeout);
-	if (ret)
-		goto force_erase_err;
+			ret = spi_mem_exec_op(nor->spi, &op);
+			if (ret)
+				goto force_erase_err;
+
+			ret = spi_nor_wait_till_ready_with_timeout(nor, timeout);
+			if (ret)
+				goto force_erase_err;
+
+			select_die--;
+		}
+	} else {
+		write_enable(nor);
+
+		ret = spi_mem_exec_op(nor->spi, &op);
+		if (ret)
+			goto force_erase_err;
+
+		ret = spi_nor_wait_till_ready_with_timeout(nor, timeout);
+		if (ret)
+			goto force_erase_err;
+	}
 
 force_erase_err:
 	write_disable(nor);
-
 	return ret;
 }
 
@@ -1344,8 +1510,173 @@ static int stm_is_locked(struct spi_nor *nor, loff_t ofs, uint64_t len)
 	return stm_is_locked_sr(nor, ofs, len, status);
 }
 #endif /* CONFIG_SPI_FLASH_STMICRO */
+#if 0
+static int upper_lock_para_check(loff_t flash_size, loff_t ofs, uint64_t len)
+{
+	return (ofs <= flash_size) && (len <= flash_size) &&
+		(ofs + len <= flash_size) ? 0 : -1;
+}
 
+static loff_t ofs_of_uplocked(struct spi_nor *nor, u8 sr_val, u8 cr_val)
+{
+	u8 dummy_mask;
+	u8 bp_mask;
+	int pow;
+	u8 mask = SR_BP2 |SR_BP1 |SR_BP0;
+	/* lock none */
+	if ((cr_val & GENERAL_CMP && ((sr_val & mask) == mask))
+			|| (!(cr_val & GENERAL_CMP) && ((sr_val & mask) == 0)))
+		return nor->mtd.size;
+	/* lock all */
+	if ((cr_val & GENERAL_CMP && (sr_val & mask) == 0)
+			|| (!(cr_val & GENERAL_CMP) && ((sr_val & mask) == mask)))
+		return 0;
+	/* dummy_mask composed of CMP SEC BP */
+	dummy_mask = ((cr_val & GENERAL_CMP) << 1) | (sr_val & (SR_SEC |SR_TB));
+	/* get BP[0:2] */
+	bp_mask = sr_val & mask;
+	/*
+	 * According to the flash manual,
+	 * there are four sections in the upper lock area,
+	 * using dummy_ Mask to row,return locked offset;
+	 */
+	switch (dummy_mask) {
+	case SR_CMP |SR_SEC |SR_TB:
+		if (bp_mask > SR_BP2)
+			bp_mask = SR_BP2;
+		pow = (bp_mask - SR_BP0) >> ilog2(SR_BP0);
+		return BP_SZ_4K << pow;
+	case SR_CMP |SR_TB:
+		pow = (bp_mask - SR_BP0) >> ilog2(SR_BP0);
+		return nor->mtd.size >> (6 - pow);
+	case 0:
+		pow = (bp_mask - SR_BP0) >> ilog2(SR_BP0);
+		return nor->mtd.size - (nor->mtd.size >> (6 - pow));
+	case SR_SEC:
+		if (bp_mask > SR_BP2)
+			bp_mask = SR_BP2;
+		pow = (bp_mask - SR_BP0) >> ilog2(SR_BP0);
+		return nor->mtd.size - (BP_SZ_4K << pow);
+	}
+	return -EINVAL;
+}
 
+static int sunxi_upper_lock(struct spi_nor *nor, loff_t ofs, uint64_t len, int lock)
+{
+	loff_t target_addr;
+	int status_old = 0, status_new = 0;
+	int config = 0;
+	int pow = 0, mask_new = 0;
+	u8 mask = SR_BP2 |SR_BP1 |SR_BP0;
+	u8 quarter_mask = SR_BP2 |SR_BP0;
+	u8 block_mask = SR_BP2 |SR_BP1;
+	u8 sector_mask = SR_BP2;
+	uint64_t flash_size = nor->mtd.size - 1;
+	int ret;
+	loff_t upper_locked_ofs;
+
+	ret = upper_lock_para_check(nor->mtd.size, ofs, len);
+	if (ret < 0) {
+		dev_err(nor->dev, "%s, invalid address!\n", __func__);
+		return -EINVAL;
+	}
+	target_addr = lock ? ofs : ofs + len;
+
+	config = read_cr(nor);
+	if (config < 0)
+		return config;
+
+	status_old = read_sr(nor);
+	if (status_old < 0)
+		return status_old;
+
+	upper_locked_ofs = ofs_of_uplocked(nor, status_old, config);
+	if (upper_locked_ofs < 0) {
+		dev_err(nor->dev, "Upper lock mode is not used\n");
+		return upper_locked_ofs;
+	}
+	dev_err(nor->dev, "target_addr: %lld, locked_addr: %lld", target_addr, upper_locked_ofs);
+	dev_err(nor->dev, "config_old:0x%x, status_old: 0x%x\n", config, status_old);
+
+	switch (JEDEC_MFR(nor->info)) {
+
+	case SNOR_MFR_GIGADEVICE:
+		/* reserve */
+		break;
+
+	default:
+		dev_err(nor->dev, "not support upper lock!\n");
+		return 0;
+	}
+
+	if (lock) {
+		/* It's locked, don't need to do anythings */
+		if (upper_locked_ofs <= target_addr) {
+			dev_dbg(nor->dev, "don't need to do anythings\n");
+			return 0;
+		}
+		/* Segment the flash and process target_addr in the corresponding segment */
+		if (target_addr < BP_SZ_4K) {
+			config |= GENERAL_CMP;
+			status_old |= SR_SEC |SR_TB;
+			mask_new = 0;
+		} else if (target_addr >= BP_SZ_4K
+				&& target_addr <= (flash_size >> 6)) {
+			pow = ilog2(BP_SZ_32K) - ilog2(target_addr);
+			if (pow < 0)
+				pow = 0;
+			mask_new = sector_mask - (pow << ilog2(SR_BP0));
+			config |= GENERAL_CMP;
+			status_old |= SR_SEC |SR_TB;
+		} else if ((target_addr > (flash_size >> 6))
+					&& (target_addr <= (flash_size / 2))) {
+			pow = ilog2(flash_size / 2) - ilog2(target_addr);
+			mask_new = quarter_mask - (pow << ilog2(SR_BP0));
+			config |= GENERAL_CMP;
+			status_old = (status_old |SR_TB) & (~SR_SEC);
+		} else if ((target_addr > (flash_size / 2))
+					&& (target_addr <= (flash_size - BP_SZ_32K))) {
+			pow = ilog2(flash_size / 2) - ilog2(flash_size - target_addr);
+			if ((pow << ilog2(SR_BP0)) > block_mask)
+				pow = block_mask >> ilog2(SR_BP0);
+			mask_new = block_mask - (pow << ilog2(SR_BP0));
+			config &= ~GENERAL_CMP;
+			status_old &= ~(SR_SEC |SR_TB);
+		} else {
+			pow = ilog2(BP_SZ_32K) - (ilog2(flash_size - target_addr) + 1);
+			if ((pow << ilog2(SR_BP0)) >= sector_mask)
+				pow = sector_mask >> ilog2(SR_BP0);
+			mask_new = sector_mask - (pow << ilog2(SR_BP0));
+			config &= GENERAL_CMP;
+			status_old = (status_old |SR_SEC) & ~SR_TB;
+		}
+	} else {
+		/* It's locked, don't need to do anythings */
+		if (upper_locked_ofs >= target_addr) {
+			dev_dbg(nor->dev, "don't need to do anythings\n");
+			return 0;
+		}
+		status_old &= ~(SR_SEC |SR_TB);
+		config &= ~SR_CMP;
+		pow = ilog2(flash_size) - ilog2(flash_size - target_addr);
+		if (pow << ilog2(SR_BP0) >= block_mask)
+			pow = block_mask >> ilog2(SR_BP0);
+		mask_new = block_mask - (pow << ilog2(SR_BP0));
+	}
+
+	status_new = (status_old & ~mask) |mask_new;
+	dev_dbg(nor->dev, "config_new: 0x%x, status_new:0x%x\n", config, status_new);
+
+	write_sr2(nor, config);
+	spi_nor_wait_till_ready(nor);
+
+	write_enable(nor);
+	write_sr(nor, status_new);
+	spi_nor_wait_till_ready(nor);
+
+	return 0;
+}
+#endif
 static void sunxi_get_locked_range(struct spi_nor *nor, u8 sr, u8 cr,
 		loff_t *ofs, uint64_t *len)
 {
@@ -1470,6 +1801,11 @@ static int sunxi_handle_lock(struct spi_nor *nor, loff_t ofs,
 		if (config_old < 0)
 			return config_old;
 	} else if (JEDEC_MFR(nor->info) == SNOR_MFR_EON) {
+		if (JEDEC_ID(nor->info) == GM_64A_ID) {
+			dev_err(nor->dev, "not support lock 0x%x\n",
+					JEDEC_ID(nor->info));
+			return 0;
+		}
 		if (mtd->size == BP_SZ_16M) {
 			flash_protection = esmt_protection;
 			flash_protection_size = ARRAY_SIZE(esmt_protection);
@@ -1501,6 +1837,11 @@ static int sunxi_handle_lock(struct spi_nor *nor, loff_t ofs,
 		if (sunxi_is_locked_sr_cr(nor, ofs, len,
 					status_old, config_old))
 			return 0;
+	} else if (ofs + len == mtd->size) {
+		val = flash_protection[0].bp << shift;
+		status_new = (status_old & ~mask) | (val & mask);
+		status_new &= (~SR_SRWD);
+		goto set_status;
 	} else {
 		/* If nothing in our range is locked, we don't need to do anything */
 		if (sunxi_is_unlocked_sr_cr(nor, ofs, len,
@@ -1547,6 +1888,7 @@ static int sunxi_handle_lock(struct spi_nor *nor, loff_t ofs,
 	}
 #endif
 
+set_status:
 	if (JEDEC_MFR(nor->info) == SNOR_MFR_MACRONIX) {
 		if (protect_flag & SET_TB)
 			config_new = config_old | CR_TB_MX;
@@ -1604,7 +1946,6 @@ static int sunxi_handle_lock(struct spi_nor *nor, loff_t ofs,
 static int sunxi_lock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 {
 	return sunxi_handle_lock(nor, ofs, len, true);
-
 }
 static int sunxi_unlock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 {
@@ -2083,6 +2424,106 @@ static int spi_nor_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len)
 	return nor->flash_is_locked(nor, ofs, len);
 }
 
+#ifdef CONFIG_SPI_FLASH_SR
+static int security_regiser_is_locked(struct mtd_info *mtd, u8 sr_num)
+{
+	u8 val, mask;
+	struct spi_nor *nor = mtd_to_spi_nor(mtd);
+
+	if (sr_num <= 0 || sr_num >= 4) {
+		dev_dbg(nor->dev, "%s, error security register num %d\n", __func__, sr_num);
+		return -1;
+	}
+
+	val = read_sr2(nor);
+	mask = 1 << (LB_OFS + sr_num);
+
+	return val & mask;
+}
+
+static int security_register_lock(struct mtd_info *mtd, u8 sr_num)
+{
+	u8 val, mask;
+	struct spi_nor *nor = mtd_to_spi_nor(mtd);
+
+	if (sr_num <= 0 || sr_num >= 4) {
+		dev_dbg(nor->dev, "%s, error security register num %d\n", __func__, sr_num);
+		return -1;
+	}
+
+	val = read_sr2(nor);
+	mask = 1 << (LB_OFS + sr_num);
+	val |= mask;
+	write_sr2(nor, val);
+
+	return 0;
+}
+
+static int security_regiser_read_data(struct mtd_info *mtd,
+					loff_t addr, loff_t len, u_char *buf)
+{
+	u8 read_opcode;
+	u8 read_dummy;
+	u8 addr_width;
+	int ret;
+	struct spi_nor *nor = mtd_to_spi_nor(mtd);
+
+	read_opcode = nor->read_opcode;
+	read_dummy = nor->read_dummy;
+	addr_width = nor->addr_width;
+
+	nor->read_opcode = SR_OP_READ;
+	nor->read_dummy = 8;
+	nor->addr_width = 3;
+
+	ret = nor->read(nor, addr, len, buf);
+
+	nor->read_opcode = read_opcode;
+	nor->read_dummy = read_dummy;
+	nor->addr_width = addr_width;
+	return ret;
+
+}
+
+static int security_regiser_write_data(struct mtd_info *mtd,
+					loff_t addr, loff_t len, u_char *buf)
+{
+	u8 program_opcode;
+	u8 addr_width;
+	int ret;
+	struct spi_nor *nor = mtd_to_spi_nor(mtd);
+
+	program_opcode = nor->program_opcode;
+	addr_width = nor->addr_width;
+
+	nor->program_opcode = SR_OP_PROGRAM;
+	nor->addr_width = 3;
+
+	write_enable(nor);
+	ret = nor->write(nor, addr, len, buf);
+
+	nor->program_opcode = program_opcode;
+	nor->addr_width = addr_width;
+	return ret;
+}
+
+static int security_regiser_erase(struct mtd_info *mtd, loff_t addr)
+{
+	u8 program_opcode;
+	int ret;
+	struct spi_nor *nor = mtd_to_spi_nor(mtd);
+
+	program_opcode = nor->program_opcode;
+	nor->program_opcode = SR_OP_ERASE;
+
+	write_enable(nor);
+	ret = nor->write(nor, addr, 0, NULL);
+
+	nor->program_opcode = program_opcode;
+	return ret;
+}
+#endif
+
 static const struct flash_info *spi_nor_read_id(struct spi_nor *nor)
 {
 	int			tmp;
@@ -2092,7 +2533,7 @@ static const struct flash_info *spi_nor_read_id(struct spi_nor *nor)
 	tmp = nor->read_reg(nor, SPINOR_OP_RDID, id, SPI_NOR_MAX_ID_LEN);
 	if (tmp < 0) {
 		dev_dbg(nor->dev, "error %d reading JEDEC ID\n", tmp);
-		return ERR_PTR(tmp);
+		return NULL;
 	}
 
 	info = spi_nor_ids;
@@ -2105,16 +2546,30 @@ static const struct flash_info *spi_nor_read_id(struct spi_nor *nor)
 
 	dev_err(nor->dev, "unrecognized JEDEC id bytes: %02x, %02x, %02x\n",
 		id[0], id[1], id[2]);
-	return ERR_PTR(-ENODEV);
+	return NULL;
 }
 
 static int spi_nor_read(struct mtd_info *mtd, loff_t from, size_t len,
 			size_t *retlen, u_char *buf)
 {
 	struct spi_nor *nor = mtd_to_spi_nor(mtd);
-	int ret;
+	int ret = 0;
+	u32 single_die_size = 0;
 
 	dev_dbg(nor->dev, "from 0x%08x, len %zd\n", (u32)from, len);
+
+	if (nor->info->flags & SPI_NOR_STACK_DIE) {
+		u8 total_stack_die = 2; //FIXME
+		u8 select_die;
+		single_die_size = nor->info->sector_size * nor->info->n_sectors / total_stack_die;
+		select_die = (u32)from / single_die_size;
+
+		ret = sunxi_select_die(nor, select_die);
+		if (ret)
+			goto read_err;
+
+		from = (u32)from % single_die_size;
+	}
 
 	while (len) {
 		loff_t addr = from;
@@ -2133,8 +2588,15 @@ static int spi_nor_read(struct mtd_info *mtd, loff_t from, size_t len,
 		else
 			read_len = remain_len;
 #endif
-
-		ret = nor->read(nor, addr, read_len, buf);
+		if (nor->info->flags & SPI_NOR_STACK_DIE)
+			read_len = from + read_len > single_die_size ? single_die_size - from : read_len;
+#ifdef CONFIG_SUNXI_SPIF
+		read_len = min_t(size_t, 4 * 1024, len);
+		if (nor->info->flags & USE_IO_MODE)
+			ret = spi_nor_io_read_data(nor, addr, read_len, buf);
+		else
+#endif
+			ret = nor->read(nor, addr, read_len, buf);
 		if (ret == 0) {
 			/* We shouldn't see 0-length reads */
 			ret = -EIO;
@@ -2147,6 +2609,14 @@ static int spi_nor_read(struct mtd_info *mtd, loff_t from, size_t len,
 		buf += ret;
 		from += ret;
 		len -= ret;
+
+		if ((nor->info->flags & SPI_NOR_STACK_DIE) && from >= single_die_size && len > 0) {
+			u8 select_die = ++nor->active_stack_die;
+			ret = sunxi_select_die(nor, select_die);
+			if (ret)
+				goto read_err;
+			from = 0;
+		}
 	}
 	ret = 0;
 
@@ -2156,7 +2626,6 @@ read_err:
 #endif
 	return ret;
 }
-
 #ifdef CONFIG_SPI_FLASH_SST
 static int sst_write_byteprogram(struct spi_nor *nor, loff_t to, size_t len,
 				 size_t *retlen, const u_char *buf)
@@ -2264,13 +2733,30 @@ static int spi_nor_write(struct mtd_info *mtd, loff_t to, size_t len,
 {
 	struct spi_nor *nor = mtd_to_spi_nor(mtd);
 	size_t page_offset, page_remain, i;
-	ssize_t ret;
+	ssize_t ret = 0;
+	size_t addr_offset = 0;
+	u32 single_die_size = 0;
 
-	dev_dbg(nor->dev, "to 0x%08x, len %zd\n", (u32)to, len);
+	if (nor->info->flags & SPI_NOR_STACK_DIE) {
+		u8 total_stack_die = 2; //FIXME
+		u8 select_die;
+		single_die_size = nor->info->sector_size * nor->info->n_sectors / total_stack_die;
+		select_die = (u32)to / single_die_size;
+
+		ret = sunxi_select_die(nor, select_die);
+		if (ret)
+			goto write_err;
+
+		to = (u32)to % single_die_size;
+	}
 
 	for (i = 0; i < len; ) {
 		ssize_t written;
-		loff_t addr = to + i;
+		loff_t addr = 0;
+		if (nor->info->flags & SPI_NOR_STACK_DIE)
+			addr = to + addr_offset;
+		else
+			addr = to + i;
 
 		/*
 		 * If page_size is a power of two, the offset can be quickly
@@ -2300,6 +2786,7 @@ static int spi_nor_write(struct mtd_info *mtd, loff_t to, size_t len,
 		ret = nor->write(nor, addr, page_remain, buf + i);
 		if (ret < 0)
 			goto write_err;
+
 		written = ret;
 
 		ret = spi_nor_wait_till_ready(nor);
@@ -2307,6 +2794,19 @@ static int spi_nor_write(struct mtd_info *mtd, loff_t to, size_t len,
 			goto write_err;
 		*retlen += written;
 		i += written;
+
+		if (nor->info->flags & SPI_NOR_STACK_DIE) {
+			addr_offset += written;
+			if (to + addr_offset >= single_die_size && i < len) {
+				u8 select_die = ++nor->active_stack_die;
+
+				ret = sunxi_select_die(nor, select_die);
+				if (ret)
+					goto write_err;
+				to = 0;
+				addr_offset = 0;
+			}
+		}
 	}
 
 write_err:
@@ -3184,6 +3684,21 @@ static int spi_nor_init_params(struct spi_nor *nor,
 		spi_nor_set_read_settings(&params->reads[SNOR_CMD_READ_1_1_2],
 					  0, 8, SPINOR_OP_READ_1_1_2,
 					  SNOR_PROTO_1_1_2);
+#ifdef CONFIG_SUNXI_SPIF
+		if (info->flags & USE_IO_MODE) {
+			if (info->flags & USE_RX_DTR) {
+				params->hwcaps.mask |= SNOR_HWCAPS_READ_1_2_2_DTR;
+				spi_nor_set_read_settings(&params->reads[SNOR_CMD_READ_1_2_2_DTR],
+							  0, 0, SPINOR_OP_READ_1_2_2_DTR,
+							  SNOR_PROTO_1_2_2_DTR);
+			} else {
+				params->hwcaps.mask |= SNOR_HWCAPS_READ_1_2_2;
+				spi_nor_set_read_settings(&params->reads[SNOR_CMD_READ_1_2_2],
+							  0, 0, SPINOR_OP_READ_1_2_2,
+							  SNOR_PROTO_1_2_2);
+			}
+		}
+#endif
 	}
 
 	if (info->flags & SPI_NOR_QUAD_READ) {
@@ -3191,6 +3706,21 @@ static int spi_nor_init_params(struct spi_nor *nor,
 		spi_nor_set_read_settings(&params->reads[SNOR_CMD_READ_1_1_4],
 					  0, 8, SPINOR_OP_READ_1_1_4,
 					  SNOR_PROTO_1_1_4);
+#ifdef CONFIG_SUNXI_SPIF
+		if (info->flags & USE_IO_MODE) {
+			if (info->flags & USE_RX_DTR) {
+				params->hwcaps.mask |= SNOR_HWCAPS_READ_1_4_4_DTR;
+				spi_nor_set_read_settings(&params->reads[SNOR_CMD_READ_1_4_4_DTR],
+							  0, 7, SPINOR_OP_READ_1_4_4_DTR,
+							  SNOR_PROTO_1_4_4_DTR);
+			} else {
+				params->hwcaps.mask |= SNOR_HWCAPS_READ_1_4_4;
+				spi_nor_set_read_settings(&params->reads[SNOR_CMD_READ_1_4_4],
+							  0, 4, SPINOR_OP_READ_1_4_4,
+							  SNOR_PROTO_1_4_4);
+			}
+		}
+#endif
 	}
 
 	/* Page Program settings. */
@@ -3228,8 +3758,15 @@ static int spi_nor_init_params(struct spi_nor *nor,
 #endif
 #ifdef CONFIG_SPI_FLASH_EON
 		case SNOR_MFR_EON:
-			params->quad_enable = Eon_quad_enable;
-			break;
+			switch (JEDEC_ID(info)) {
+			case GM_64A_ID:
+			case GM_128A_ID:
+				params->quad_enable = gd_read_cr_quad_enable;
+				break;
+			default:
+				params->quad_enable = Eon_quad_enable;
+				break;
+			}
 #endif
 //		case SNOR_MFR_ST:
 		case SNOR_MFR_MICRON:
@@ -3253,7 +3790,6 @@ static int spi_nor_init_params(struct spi_nor *nor,
 	}
 
 	/* Override the parameters with data read from SFDP tables. */
-	nor->addr_width = 0;
 	nor->mtd.erasesize = 0;
 	if ((info->flags & (SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ)) &&
 	    !(info->flags & SPI_NOR_SKIP_SFDP)) {
@@ -3261,7 +3797,6 @@ static int spi_nor_init_params(struct spi_nor *nor,
 
 		memcpy(&sfdp_params, params, sizeof(sfdp_params));
 		if (spi_nor_parse_sfdp(nor, &sfdp_params)) {
-			nor->addr_width = 0;
 			nor->mtd.erasesize = 0;
 		} else {
 			memcpy(params, &sfdp_params, sizeof(*params));
@@ -3417,9 +3952,7 @@ static int spi_nor_setup(struct spi_nor *nor, const struct flash_info *info,
 	/* SPI n-n-n protocols are not supported yet. */
 	ignored_mask = (SNOR_HWCAPS_READ_2_2_2 |
 			SNOR_HWCAPS_READ_4_4_4 |
-			SNOR_HWCAPS_READ_8_8_8 |
-			SNOR_HWCAPS_PP_4_4_4 |
-			SNOR_HWCAPS_PP_8_8_8);
+			SNOR_HWCAPS_PP_4_4_4);
 	if (shared_mask & ignored_mask) {
 		dev_dbg(nor->dev,
 			"SPI n-n-n protocols are not supported yet.\n");
@@ -3458,6 +3991,9 @@ static int spi_nor_setup(struct spi_nor *nor, const struct flash_info *info,
 	else
 		nor->quad_enable = NULL;
 
+	if (nor->addr_width == 4 && (JEDEC_MFR(info) == SNOR_MFR_SPANSION ||
+			info->flags & SPI_NOR_4B_OPCODES))
+		spi_nor_set_4byte_opcodes(nor, info);
 	return 0;
 }
 
@@ -3571,8 +4107,6 @@ static int spi_nor_init(struct spi_nor *nor)
 	return 0;
 }
 
-void sunxi_update_right_delay_para(struct mtd_info *mtd);
-int sunxi_set_right_delay_para(struct mtd_info *mtd);
 int spi_nor_scan(struct spi_nor *nor)
 {
 	struct spi_nor_flash_parameter params;
@@ -3585,6 +4119,7 @@ int spi_nor_scan(struct spi_nor *nor)
 	};
 	struct spi_slave *spi = nor->spi;
 	int ret;
+	u8 total_stack_die = 2; //FIXME
 
 	/* Reset SPI protocol for all commands. */
 	nor->reg_proto = SNOR_PROTO_1_1_1;
@@ -3593,26 +4128,37 @@ int spi_nor_scan(struct spi_nor *nor)
 	nor->read = spi_nor_read_data;
 	nor->write = spi_nor_write_data;
 	nor->read_reg = spi_nor_read_reg;
+#ifdef CONFIG_SUNXI_SPIF
+	nor->write_reg = spif_nor_write_reg;
+#else
 	nor->write_reg = spi_nor_write_reg;
+#endif
 
 	info = spi_nor_read_id(nor);
-
-	if (spi->mode & SPI_RX_QUAD && info->flags & SPI_NOR_QUAD_READ) {
-			hwcaps.mask |= SNOR_HWCAPS_READ_1_1_4;
-
-			if (spi->mode & SPI_TX_QUAD)
-				hwcaps.mask |= (SNOR_HWCAPS_READ_1_4_4 |
-						SNOR_HWCAPS_PP_1_1_4 |
-						SNOR_HWCAPS_PP_1_4_4);
-		} else if (spi->mode & SPI_RX_DUAL && info->flags & SPI_NOR_DUAL_READ) {
-			hwcaps.mask |= SNOR_HWCAPS_READ_1_1_2;
-
-			if (spi->mode & SPI_TX_DUAL)
-				hwcaps.mask |= SNOR_HWCAPS_READ_1_2_2;
-		}
-
 	if (IS_ERR_OR_NULL(info))
 		return -ENOENT;
+
+	if (spi->mode & SPI_RX_QUAD && info->flags & SPI_NOR_QUAD_READ) {
+		hwcaps.mask |= (SNOR_HWCAPS_READ_1_1_4 |
+				SNOR_HWCAPS_READ_1_4_4 |
+				SNOR_HWCAPS_READ_1_4_4_DTR);
+
+		if (spi->mode & SPI_TX_QUAD)
+			hwcaps.mask |= (SNOR_HWCAPS_PP_1_1_4 |
+					SNOR_HWCAPS_PP_1_4_4);
+	} else if (spi->mode & SPI_RX_DUAL && info->flags & SPI_NOR_DUAL_READ) {
+		hwcaps.mask |= SNOR_HWCAPS_READ_1_1_2;
+
+		if (spi->mode & SPI_TX_DUAL)
+			hwcaps.mask |= SNOR_HWCAPS_READ_1_2_2;
+	}
+	if (info->flags & SPI_NOR_OCTAL_READ) {
+		hwcaps.mask |= (SNOR_HWCAPS_READ_1_1_8 |
+				SNOR_HWCAPS_PP_1_1_8 |
+				SNOR_HWCAPS_READ_8_8_8 |
+				SNOR_HWCAPS_PP_8_8_8);
+	}
+
 	/* Parse the Serial Flash Discoverable Parameters table. */
 	ret = spi_nor_init_params(nor, info, &params);
 	if (ret)
@@ -3652,21 +4198,6 @@ int spi_nor_scan(struct spi_nor *nor)
 	nor->page_size = params.page_size;
 	mtd->writebufsize = nor->page_size;
 
-	/* Some devices cannot do fast-read, no matter what DT tells us */
-	if ((info->flags & SPI_NOR_NO_FR) || (spi->mode & SPI_RX_SLOW))
-		params.hwcaps.mask &= ~SNOR_HWCAPS_READ_FAST;
-
-	/*
-	 * Configure the SPI memory:
-	 * - select op codes for (Fast) Read, Page Program and Sector Erase.
-	 * - set the number of dummy cycles (mode cycles + wait states).
-	 * - set the SPI protocols for register and memory accesses.
-	 * - set the Quad Enable bit if needed (required by SPI x-y-4 protos).
-	 */
-	ret = spi_nor_setup(nor, info, &params, &hwcaps);
-	if (ret)
-		return ret;
-
 	if (nor->addr_width) {
 		/* already configured from SFDP */
 	} else if (info->addr_width) {
@@ -3675,9 +4206,6 @@ int spi_nor_scan(struct spi_nor *nor)
 #ifndef CONFIG_SPI_FLASH_BAR
 		/* enable 4-byte addressing if the device exceeds 16MiB */
 		nor->addr_width = 4;
-		if (JEDEC_MFR(info) == SNOR_MFR_SPANSION ||
-		    info->flags & SPI_NOR_4B_OPCODES)
-			spi_nor_set_4byte_opcodes(nor, info);
 #else
 	/* Configure the BAR - discover bank cmds and read current bank */
 	nor->addr_width = 3;
@@ -3694,9 +4222,15 @@ int spi_nor_scan(struct spi_nor *nor)
 			nor->addr_width);
 		return -EINVAL;
 	}
-	/* Send all the required SPI flash commands to initialize device */
-	nor->info = info;
-	ret = spi_nor_init(nor);
+
+	/*
+	 * Configure the SPI memory:
+	 * - select op codes for (Fast) Read, Page Program and Sector Erase.
+	 * - set the number of dummy cycles (mode cycles + wait states).
+	 * - set the SPI protocols for register and memory accesses.
+	 * - set the Quad Enable bit if needed (required by SPI x-y-4 protos).
+	 */
+	ret = spi_nor_setup(nor, info, &params, &hwcaps);
 	if (ret)
 		return ret;
 
@@ -3704,9 +4238,43 @@ int spi_nor_scan(struct spi_nor *nor)
 	nor->size = mtd->size;
 	nor->erase_size = mtd->erasesize;
 	nor->sector_size = mtd->erasesize;
+	nor->info = info;
+
+	if (info->flags & SPI_NOR_STACK_DIE) {
+		ret = sunxi_select_die(nor, 0);
+		if (ret)
+			return ret;
+	}
+
+init_die:
+	/* Send all the required SPI flash commands to initialize device */
+	ret = spi_nor_init(nor);
+	if (ret)
+		return ret;
 
 	sunxi_lock_init(nor);
 
+	total_stack_die--;
+
+	if ((info->flags & SPI_NOR_STACK_DIE) && total_stack_die) {
+		s8 select_die = total_stack_die;
+		ret = sunxi_select_die(nor, select_die);
+		if (ret)
+			return ret;
+		else
+			goto init_die;
+	}
+
+#if defined(CONFIG_SUNXI_SPIF) && defined(CONFIG_SUNXI_SPINOR)
+	spif_init_dtr(nor->info->flags);
+
+	if (get_boot_work_mode() == WORK_MODE_USB_PRODUCT ||
+			get_boot_work_mode() == WORK_MODE_CARD_PRODUCT) {
+		spif_update_right_delay_para(mtd);
+	} else {
+		spif_set_right_delay_para(mtd);
+	}
+#else
 #if defined(CONFIG_SPI_SAMP_DL_EN) && defined(CONFIG_SUNXI_SPINOR)
 	if (get_boot_work_mode() == WORK_MODE_USB_PRODUCT ||
 			get_boot_work_mode() == WORK_MODE_CARD_PRODUCT)
@@ -3717,9 +4285,13 @@ int spi_nor_scan(struct spi_nor *nor)
 #else
 	spi_init_clk(spi);
 #endif
+#endif /* CONFIG_SUNXI_SPIF */
 
 #ifndef CONFIG_SPL_BUILD
-	printf("SF: Detected %s with page size ", nor->name);
+	printf("SF: Detected %s(%s %s) with page size ",
+			nor->name,
+			info->flags & USE_IO_MODE ? "IO" : "",
+			info->flags & USE_RX_DTR ? "DTR" : "");
 	print_size(nor->page_size, ", erase size ");
 	print_size(nor->erase_size, ", total ");
 	print_size(nor->size, "");

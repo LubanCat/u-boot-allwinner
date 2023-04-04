@@ -176,8 +176,6 @@ int sunxi_deal_hdcp_key_hash(char *keydata, char *buffer_convert)
 {
 	int ret;
 	hdcp_object *obj = (hdcp_object *)keydata;
-	sunxi_efuse_key_info_t efuse_key_info;
-	const char *name = "hdcphash";
 
 	if (obj->md5 == NULL) {
 		pr_err("hdcp key file md5 is NULL\n");
@@ -189,6 +187,10 @@ int sunxi_deal_hdcp_key_hash(char *keydata, char *buffer_convert)
 		pr_err("verify_hdcp_key_sha: failed\n");
 		return -1;
 	}
+
+#if CONFIG_HDCP_DEBUG
+	sunxi_efuse_key_info_t efuse_key_info;
+	const char *name = "hdcphash";
 	memset(&efuse_key_info, 0, sizeof(sunxi_efuse_key_info_t));
 	strcpy(efuse_key_info.name, name);
 	efuse_key_info.len      = HDCP_MD5_LEN;
@@ -199,11 +201,12 @@ int sunxi_deal_hdcp_key_hash(char *keydata, char *buffer_convert)
 			return -1;
 		}
 	} else {
-		if (arm_svc_efuse_write(&efuse_key_info)) {
+		/*return 0 is burn sucess, return 1 is already burnd*/
+		if (arm_svc_efuse_write(&efuse_key_info) < 0) {
 			return -1;
 		}
 	}
-
+#endif
 	return 0;
 }
 #endif

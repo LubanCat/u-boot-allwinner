@@ -48,6 +48,7 @@ extern struct sunxi_mmc_priv mmc_host[4];
 int sunxi_auto_pow_mode(unsigned int bit)
 {
 	int ret = 0, val = 0;
+#ifndef CONFIG_MACH_SUN55IW3
 	val = readl(IOMEM_ADDR(SUNXI_PIO_BASE + GPIO_POW_MODE_VAL_REG));
 	if (val & (1 << bit)) {
 		val = readl(IOMEM_ADDR(SUNXI_PIO_BASE + GPIO_POW_MODE_REG));
@@ -59,6 +60,27 @@ int sunxi_auto_pow_mode(unsigned int bit)
 		//cfg->io_is_1v8 = 0;
 		ret = 0;
 	}
+#else
+	/* enable withstand voltage */
+	val = readl(IOMEM_ADDR(SUNXI_PIO_BASE + GPIO_POW_MS_CTL));
+	val |= (1 << bit);
+	writel(val, IOMEM_ADDR(SUNXI_PIO_BASE + GPIO_POW_MS_CTL));
+
+	/* GPIO_POW_MODE_VAL_REG and GPIO_POW_MODE_REG their reg is contrary meanings */
+	/* GPIO_POW_MODE_VAL_REG -- 0:3.3v 1:1.8v */
+	val = readl(IOMEM_ADDR(SUNXI_PIO_BASE + GPIO_POW_MODE_VAL_REG));
+	if (val & (1 << bit)) {
+		val = readl(IOMEM_ADDR(SUNXI_PIO_BASE + GPIO_POW_MODE_REG));
+		val &= ~(1 << bit);
+		ret = 1;
+	} else {
+		val = readl(IOMEM_ADDR(SUNXI_PIO_BASE + GPIO_POW_MODE_REG));
+		val |= (1 << bit);
+		ret = 0;
+	}
+#endif
+
+	/* GPIO_POW_MODE_REG -- 0:1.8v 1:3.3v */
 	writel(val, IOMEM_ADDR(SUNXI_PIO_BASE + GPIO_POW_MODE_REG));
 	return ret;
 }
@@ -352,6 +374,7 @@ static int sunxi_mmc_host_init(int sdc_no)
 static void mmc_get_para_from_fex(int sdc_no)
 {
 	int rval, ret = 0;
+	char *ret_p = NULL;
 	//int rval_ker, ret1 = 0;
 	struct sunxi_mmc_priv *mmcpriv = &mmc_host[sdc_no];
 	struct mmc_config *cfg = &mmcpriv->cfg;
@@ -705,6 +728,38 @@ static void mmc_get_para_from_fex(int sdc_no)
 			else
 				cfg->tune_limit_kernel_timing = 0x1;
 			MMCDBG("get sdc0 sdc_kernel_no_limit 0x%x, limit 0x%x.\n", rval, cfg->tune_limit_kernel_timing);
+		}
+
+		ret_p = (void *)fdt_getprop(working_fdt, nodeoffset, "clk_mmc", &rval);
+		if (ret_p == NULL || strlen(ret_p) > MMC_MAX_PLL_STRING_LEN) {
+			MMCINFO("get clk_mmc_name string failed\n");
+		} else {
+			memcpy(cfg->clk_mmc_name, ret_p, strlen(ret_p));
+			MMCDBG("get clk_mmc_name = %s\n", cfg->clk_mmc_name);
+		}
+
+		ret_p = (void *)fdt_getprop(working_fdt, nodeoffset, "pll-0", &rval);
+		if (ret_p == NULL || strlen(ret_p) > MMC_MAX_PLL_STRING_LEN) {
+			MMCINFO("get pll0 string failed\n");
+		} else {
+			memcpy(cfg->pll0, ret_p, strlen(ret_p));
+			MMCDBG("get pll0 = %s\n", cfg->pll0);
+		}
+
+		ret_p = (void *)fdt_getprop(working_fdt, nodeoffset, "pll-1", &rval);
+		if (ret_p == NULL || strlen(ret_p) > MMC_MAX_PLL_STRING_LEN) {
+			MMCINFO("get pll1 string failed\n");
+		} else {
+			memcpy(cfg->pll1, ret_p, strlen(ret_p));
+			MMCDBG("get pll1 = %s\n", cfg->pll1);
+		}
+
+		ret_p = (void *)fdt_getprop(working_fdt, nodeoffset, "pll-2", &rval);
+		if (ret_p == NULL || strlen(ret_p) > MMC_MAX_PLL_STRING_LEN) {
+			MMCINFO("get pll2 string failed\n");
+		} else {
+			memcpy(cfg->pll2, ret_p, strlen(ret_p));
+			MMCDBG("get pll2 = %s\n", cfg->pll2);
 		}
 
 	} else if (sdc_no == 2) {
@@ -1143,6 +1198,38 @@ static void mmc_get_para_from_fex(int sdc_no)
 				cfg->ffu_dest_fw_version = ((u64)rval_64bit_H32) << 32 | rval_64bit_L32 ;
 				MMCDBG("get sdc2 ffu_dest_fw_version 0x%llx.\n", cfg->ffu_dest_fw_version);
 			}
+		}
+
+		ret_p = (void *)fdt_getprop(working_fdt, nodeoffset, "clk_mmc", &rval);
+		if (ret_p == NULL || strlen(ret_p) > MMC_MAX_PLL_STRING_LEN) {
+			MMCINFO("get clk_mmc_name string failed\n");
+		} else {
+			memcpy(cfg->clk_mmc_name, ret_p, strlen(ret_p));
+			MMCDBG("get clk_mmc_name = %s\n", cfg->clk_mmc_name);
+		}
+
+		ret_p = (void *)fdt_getprop(working_fdt, nodeoffset, "pll-0", &rval);
+		if (ret_p == NULL || strlen(ret_p) > MMC_MAX_PLL_STRING_LEN) {
+			MMCINFO("get pll0 string failed\n");
+		} else {
+			memcpy(cfg->pll0, ret_p, strlen(ret_p));
+			MMCDBG("get pll0 = %s\n", cfg->pll0);
+		}
+
+		ret_p = (void *)fdt_getprop(working_fdt, nodeoffset, "pll-1", &rval);
+		if (ret_p == NULL || strlen(ret_p) > MMC_MAX_PLL_STRING_LEN) {
+			MMCINFO("get pll1 string failed\n");
+		} else {
+			memcpy(cfg->pll1, ret_p, strlen(ret_p));
+			MMCDBG("get pll1 = %s\n", cfg->pll1);
+		}
+
+		ret_p = (void *)fdt_getprop(working_fdt, nodeoffset, "pll-2", &rval);
+		if (ret_p == NULL || strlen(ret_p) > MMC_MAX_PLL_STRING_LEN) {
+			MMCINFO("get pll2 string failed\n");
+		} else {
+			memcpy(cfg->pll2, ret_p, strlen(ret_p));
+			MMCDBG("get pll2 = %s\n", cfg->pll2);
 		}
 
 		//dumphex32("gpio_config", (char *)SUNXI_PIO_BASE + 0x48, 0x10);

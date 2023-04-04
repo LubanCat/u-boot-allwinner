@@ -25,17 +25,31 @@ int do_poweroff(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	return 0;
 }
 
+int axp_reg_debug(void)
+{
+	int ret = 0;
+#ifdef CONFIG_SUNXI_PMU
+	ret = pmu_reg_debug();
+#endif
+#ifdef CONFIG_SUNXI_BMU
+	if (ret < 0)
+		ret = bmu_reg_debug();
+#endif
+	return ret;
+}
+
 int axp_probe(void)
 {
 	int ret = 0;
 #ifdef CONFIG_SUNXI_PMU
-		ret = pmu_probe();
+	ret = pmu_probe();
 #else
 	#error "NO FOUND PMU"
 #endif
 #ifdef CONFIG_SUNXI_BMU
-		ret = bmu_probe();
+	ret = bmu_probe();
 #endif
+	axp_reg_debug();
 	return ret;
 }
 

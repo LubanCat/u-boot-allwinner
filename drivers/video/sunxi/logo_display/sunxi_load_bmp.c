@@ -21,7 +21,7 @@
 
 static void *bmp_addr;
 extern int sunxi_partition_get_partno_byname(const char *part_name);
-
+int disp_fat_load(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
 static int malloc_bmp_mem(char **buff, int size)
 {
 	*buff = memalign(CONFIG_SYS_CACHELINE_SIZE, (size + 512 + 0x1000));
@@ -107,7 +107,7 @@ int fat_read_logo_to_kernel(char *name)
 	argv[4] = bmp_name;
 	argv[5] = NULL;
 
-	if (do_fat_fsload(0, 0, 5, argv)) {
+	if (disp_fat_load(0, 0, 5, argv)) {
 		pr_error("sunxi bmp info error : unable to open logo file %s\n",
 		       argv[4]);
 		return -1;

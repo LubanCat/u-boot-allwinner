@@ -26,6 +26,7 @@
 #endif
 
 /* define AXP21 REGISTER */
+#define   AXP2202_COMM_STATUS0          (0x00)
 #define   AXP2202_MODE_CHGSTATUS		(0x01)
 #define   AXP2202_CHIP_ID         	 	(0x03)
 #define   AXP2202_VERSION			(0x04)
@@ -33,6 +34,8 @@
 #define   AXP2202_CHIP_ID_EXT			(0x0e)
 
 #define   AXP2202_IIN_LIM			(0x17)
+#define   AXP2202_PWRON_STATUS          (0x20)
+#define   AXP2202_PWROFF_STATUS         (0x21)
 
 #define   AXP2202_DCDC_CFG0    	   		(0x80)
 #define   AXP2202_DCDC_CFG1    	 	 	(0x81)
@@ -59,6 +62,7 @@
 #define   AXP2202_CLDO4_CFG				(0x9e)
 #define   AXP2202_CPUSLDO_CFG				(0x9f)
 
+#define   AXP2202_BC_CFG3             (0xd3)
 
 #define   AXP2202_COMM_CFG	        	(0x10)
 #define   AXP2202_VBUS_VOL_SET         	(0x16)

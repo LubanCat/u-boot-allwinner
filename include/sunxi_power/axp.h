@@ -54,6 +54,7 @@ int (*get_key_irq)(void); /*Get the button length interrupt*/
 int (*set_bus_vol_limit)(int vol_value); /*Set limit total voltage*/
 unsigned char (*get_reg_value)(unsigned char reg_addr);/*get register value*/
 unsigned char (*set_reg_value)(unsigned char reg_addr, unsigned char reg_value);/*set register value*/
+int (*reg_debug)(void); /*Get debug message*/
 };
 
 
@@ -77,7 +78,9 @@ int (*set_charge_current_limit)(int current); /*Set the current charge size*/
 int (*reset_capacity)(void);
 unsigned char (*get_reg_value)(unsigned char reg_addr);/*get register value*/
 unsigned char (*set_reg_value)(unsigned char reg_addr, unsigned char reg_value);/*set register value*/
-int (*set_ntc_onoff)(int onoff); /* set ntc onoff, default on */
+int (*set_ntc_onoff)(int onoff, int ntc_cur); /* set ntc onoff, default on */
+int (*get_ntc_temp)(int param[]); /* get ntc temp */
+int (*reg_debug)(void); /*Get debug message*/
 };
 
 #define U_BOOT_AXP_BMU_INIT(_name)                                             \
@@ -102,6 +105,7 @@ int pmu_get_key_irq(void);
 int pmu_set_bus_vol_limit(int vol_value);
 unsigned char pmu_get_reg_value(unsigned char reg_addr);
 unsigned char pmu_set_reg_value(unsigned char reg_addr, unsigned char reg_value);
+int pmu_reg_debug(void);
 
 int bmu_probe(void);
 int bmu_set_power_off(void);
@@ -117,7 +121,9 @@ int bmu_set_charge_current_limit(int current);
 int bmu_reset_capacity(void);
 unsigned char bmu_get_reg_value(unsigned char reg_addr);
 unsigned char bmu_set_reg_value(unsigned char reg_addr, unsigned char reg_value);
-int bmu_set_ntc_onoff(int onoff);
+int bmu_set_ntc_onoff(int onoff, int ntc_cur);
+int bmu_get_ntc_temp(int param[]);
+int bmu_reg_debug(void);
 int axp_probe(void);
 
 #endif /* __AXP_H__ */

@@ -14,7 +14,7 @@
 
 
 
-struct aw_nand_flash_dev giga[] = {
+struct aw_nand_flash_dev giga_raw[] = {
 	{
 		.name = "GD9FU2G8F2A",
 		.id = {0xc8, 0xda, 0x90, 0x95, 0x46},
@@ -73,7 +73,7 @@ struct aw_nand_flash_dev giga[] = {
 	},
 };
 
-struct aw_nand_flash_dev mxic[] = {
+struct aw_nand_flash_dev mxic_raw[] = {
 	{
 		.name = "MX30LF2G18AC",
 		.id = {0xc2, 0xda, 0x90, 0x95, 0x06},
@@ -88,9 +88,23 @@ struct aw_nand_flash_dev mxic[] = {
 		.pe_cycles = PE_CYCLES_100K,
 		.options = RAWNAND_ITF_SDR | RAWNAND_NFC_RANDOM | RAWNAND_MULTI_WRITE | RAWNAND_MULTI_ONFI_ERASE,
 	},
+	{
+		.name = "MX30LF1G18AC",
+		.id = {0xc2, 0xf1, 0x80, 0x95, 0x02},
+		.id_len = 5,
+		.dies_per_chip = 1,
+		.pagesize = SZ_2K,
+		.sparesize = 64,
+		.pages_per_blk = 64,
+		.blks_per_die = 1024,
+		.access_freq = 50,
+		.badblock_flag_pos = PST_FIRST_TWO_PAGES,
+		.pe_cycles = PE_CYCLES_100K,
+		.options = RAWNAND_ITF_SDR | RAWNAND_NFC_RANDOM,
+	},
 };
 
-struct aw_nand_flash_dev mircon[] = {
+struct aw_nand_flash_dev mircon_raw[] = {
 	{
 		.name = "MT29F1G08ABAEA",
 		.id = {0x2c, 0xf1, 0x80, 0x95, 0x04},
@@ -119,9 +133,37 @@ struct aw_nand_flash_dev mircon[] = {
 		.pe_cycles = PE_CYCLES_100K,
 		.options = RAWNAND_ITF_SDR | RAWNAND_NFC_RANDOM | RAWNAND_MULTI_WRITE | RAWNAND_MULTI_ONFI_ERASE,
 	},
+	{
+		.name = "MT29F32G08ABAAA",
+		.id = {0x2c, 0x68, 0x00, 0x27, 0xa9},
+		.id_len = 5,
+		.dies_per_chip = 1,
+		.pagesize = SZ_8K,
+		.sparesize = 448,
+		.pages_per_blk = 128,
+		.blks_per_die = 4096,
+		.access_freq = 40,
+		.badblock_flag_pos = PST_FIRST_PAGE,
+		.pe_cycles = PE_CYCLES_100K,
+		.options = RAWNAND_ITF_SDR | RAWNAND_NFC_RANDOM | RAWNAND_MULTI_WRITE | RAWNAND_MULTI_ONFI_ERASE,
+	},
+	{
+		.name = "MT29F32G08CBADA",
+		.id = {0x2c, 0x44, 0x44, 0x4b, 0xa9},
+		.id_len = 5,
+		.dies_per_chip = 1,
+		.pagesize = SZ_8K,
+		.sparesize = 744,
+		.pages_per_blk = 256,
+		.blks_per_die = 2128,
+		.access_freq = 40,
+		.badblock_flag_pos = PST_FIRST_PAGE,
+		.pe_cycles = PE_CYCLES_5K,
+		.options = RAWNAND_ITF_SDR | RAWNAND_NFC_RANDOM | RAWNAND_MULTI_WRITE | RAWNAND_MULTI_ONFI_ERASE,
+	},
 };
 
-struct aw_nand_flash_dev windbond[] = {
+struct aw_nand_flash_dev windbond_raw[] = {
 	{
 		.name = "W29N02KV",
 		.id = {0xef, 0xda, 0x10, 0x95, 0x06},
@@ -166,7 +208,7 @@ struct aw_nand_flash_dev windbond[] = {
 	},
 };
 
-struct aw_nand_flash_dev foresee[] = {
+struct aw_nand_flash_dev foresee_raw[] = {
 	{
 		.name = "FS33ND01GS1",
 		.id = {0xec, 0xf1, 0x00, 0x95, 0x42},
@@ -197,7 +239,7 @@ struct aw_nand_flash_dev foresee[] = {
 	},
 };
 
-struct aw_nand_flash_dev foresee_1[] = {
+struct aw_nand_flash_dev foresee_raw_1[] = {
 	{
 		.name = "FSNS8A001G",
 		.id = {0xcd, 0xf1, 0x00, 0x95, 0x40},
@@ -212,9 +254,23 @@ struct aw_nand_flash_dev foresee_1[] = {
 		.pe_cycles = PE_CYCLES_100K,
 		.options = RAWNAND_ITF_SDR | RAWNAND_NFC_RANDOM,
 	},
+	{
+		.name = "FSNS8A002G",
+		.id = {0xcd, 0xda, 0x00, 0x95, 0x44},
+		.id_len = 5,
+		.dies_per_chip = 1,
+		.pagesize = SZ_2K,
+		.sparesize = 64,
+		.pages_per_blk = 64,
+		.blks_per_die = 2048,
+		.access_freq = 40,
+		.badblock_flag_pos = PST_FIRST_TWO_PAGES,
+		.pe_cycles = PE_CYCLES_100K,
+		.options = RAWNAND_ITF_SDR | RAWNAND_NFC_RANDOM,
+	},
 };
 
-struct aw_nand_flash_dev spansion[] = {
+struct aw_nand_flash_dev spansion_raw[] = {
 	{
 		.name = "S34ML04G2",
 		.id = {0x01, 0xdc, 0x90, 0x95, 0x56},
@@ -273,7 +329,7 @@ struct aw_nand_flash_dev spansion[] = {
 	},
 };
 
-struct aw_nand_flash_dev toshiba[] = {
+struct aw_nand_flash_dev toshiba_raw[] = {
 	{
 		.name = "TC58NVG1S3HTA00",
 		.id = {0x98, 0xda, 0x90, 0x15, 0x76},
@@ -288,9 +344,23 @@ struct aw_nand_flash_dev toshiba[] = {
 		.pe_cycles = PE_CYCLES_100K,
 		.options = RAWNAND_ITF_SDR | RAWNAND_NFC_RANDOM | RAWNAND_JEDEC_MULTI_WRITE | RAWNAND_MULTI_ERASE,
 	},
+	{
+		.name = "TC58NVG5H2HTAI0",
+		.id = {0x98, 0xd7, 0xa0, 0x32, 0x76},
+		.id_len = 5,
+		.dies_per_chip = 1,
+		.pagesize = SZ_8K,
+		.sparesize = 1024,
+		.pages_per_blk = 128,
+		.blks_per_die = 4156,
+		.access_freq = 40,
+		.badblock_flag_pos = PST_FIRST_PAGE,
+		.pe_cycles = PE_CYCLES_100K,
+		.options = RAWNAND_ITF_SDR | RAWNAND_NFC_RANDOM | RAWNAND_JEDEC_MULTI_WRITE | RAWNAND_MULTI_ERASE,
+	},
 };
 
-struct aw_nand_flash_dev fidelix[] = {
+struct aw_nand_flash_dev fidelix_raw[] = {
 	{
 		.name = "FMND1G08U3J",
 		.id = {0xad, 0xf1, 0x80, 0x1d},
@@ -307,7 +377,7 @@ struct aw_nand_flash_dev fidelix[] = {
 	},
 };
 
-struct aw_nand_flash_dev unilc[] = {
+struct aw_nand_flash_dev unilc_raw[] = {
 	{
 		.name = "SCN00SA1T1AI6A",
 		.id = {0xc8, 0xd1, 0x80, 0x95, 0x42},
@@ -338,7 +408,7 @@ struct aw_nand_flash_dev unilc[] = {
 	},
 };
 
-struct aw_nand_flash_dev jsc[] = {
+struct aw_nand_flash_dev jsc_raw[] = {
 	{
 		.name = "JS27HU2G08SCN",
 		.id = {0xad, 0xda, 0x90, 0x95, 0x46},
@@ -355,7 +425,7 @@ struct aw_nand_flash_dev jsc[] = {
 	},
 };
 
-struct aw_nand_flash_dev dosilicon[] = {
+struct aw_nand_flash_dev dosilicon_raw[] = {
 	{
 		.name = "FMND4G08U3C",
 		.id = {0xf8, 0xdc, 0x90, 0x95, 0x46},
@@ -372,20 +442,37 @@ struct aw_nand_flash_dev dosilicon[] = {
 	},
 };
 
+struct aw_nand_flash_dev dosilicon_raw_1[] = {
+	{
+		.name = "DSND4G08U3C",
+		.id = {0xe5, 0xdc, 0x90, 0x95, 0x57},
+		.id_len = 5,
+		.dies_per_chip = 1,
+		.pagesize = SZ_2K,
+		.sparesize = 128,
+		.pages_per_blk = 64,
+		.blks_per_die = 4096,
+		.access_freq = 40,
+		.badblock_flag_pos = PST_FIRST_TWO_PAGES,
+		.pe_cycles = PE_CYCLES_100K,
+		.options = RAWNAND_ITF_SDR | RAWNAND_NFC_RANDOM | RAWNAND_MULTI_WRITE | RAWNAND_MULTI_ONFI_ERASE,
+	},
+};
 
 struct rawnand_manufacture aw_manuf_tbl[] = {
-	RAWNAND_MANUFACTURE(RAWNAND_MFR_GIGA, GIGA_NAME, giga),
-	RAWNAND_MANUFACTURE(RAWNAND_MFR_MXIC, MXIC_NAME, mxic),
-	RAWNAND_MANUFACTURE(RAWNAND_MFR_MICRON, MICRON_NAME, mircon),
-	RAWNAND_MANUFACTURE(RAWNAND_MFR_WINBOND, WINBOND_NAME, windbond),
-	RAWNAND_MANUFACTURE(RAWNAND_MFR_FORESEE, FORESEE_NAME, foresee),
-	RAWNAND_MANUFACTURE(RAWNAND_MFR_SPANSION, SPANSION_NAME, spansion),
-	RAWNAND_MANUFACTURE(RAWNAND_MFR_TOSHIBA, TOSHIBA_NAME, toshiba),
-	RAWNAND_MANUFACTURE(RAWNAND_MFR_FIDELIX, FIDELIX_NAME, fidelix),
-	RAWNAND_MANUFACTURE(RAWNAND_MFR_UNILC, UNILC_NAME, unilc),
-	RAWNAND_MANUFACTURE(RAWNAND_MFR_JSC, JSC_NAME, jsc),
-	RAWNAND_MANUFACTURE(RAWNAND_MFR_DOSILICON, DOSILICON_NAME, dosilicon),
-	RAWNAND_MANUFACTURE(RAWNAND_MFR_FORESEE_1, FORESEE_NAME, foresee_1),
+	RAWNAND_MANUFACTURE(RAWNAND_MFR_GIGA, GIGA_NAME, giga_raw),
+	RAWNAND_MANUFACTURE(RAWNAND_MFR_MXIC, MXIC_NAME, mxic_raw),
+	RAWNAND_MANUFACTURE(RAWNAND_MFR_MICRON, MICRON_NAME, mircon_raw),
+	RAWNAND_MANUFACTURE(RAWNAND_MFR_WINBOND, WINBOND_NAME, windbond_raw),
+	RAWNAND_MANUFACTURE(RAWNAND_MFR_FORESEE, FORESEE_NAME, foresee_raw),
+	RAWNAND_MANUFACTURE(RAWNAND_MFR_SPANSION, SPANSION_NAME, spansion_raw),
+	RAWNAND_MANUFACTURE(RAWNAND_MFR_TOSHIBA, TOSHIBA_NAME, toshiba_raw),
+	RAWNAND_MANUFACTURE(RAWNAND_MFR_FIDELIX, FIDELIX_NAME, fidelix_raw),
+	RAWNAND_MANUFACTURE(RAWNAND_MFR_UNILC, UNILC_NAME, unilc_raw),
+	RAWNAND_MANUFACTURE(RAWNAND_MFR_JSC, JSC_NAME, jsc_raw),
+	RAWNAND_MANUFACTURE(RAWNAND_MFR_DOSILICON, DOSILICON_NAME, dosilicon_raw),
+	RAWNAND_MANUFACTURE(RAWNAND_MFR_FORESEE_1, FORESEE_NAME, foresee_raw_1),
+	RAWNAND_MANUFACTURE(RAWNAND_MFR_DOSILICON_1, DOSILICON_NAME, dosilicon_raw_1),
 };
 
 AW_NAND_MANUFACTURE(aw_nand_manufs, aw_manuf_tbl);

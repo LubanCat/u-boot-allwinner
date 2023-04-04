@@ -12,6 +12,8 @@
 #include <config.h>
 #include <asm/arch/cpu.h>
 
+#ifdef CONFIG_SUNXI_CE_DRIVER
+
 #if defined(CONFIG_SUNXI_CE_20)
 #include "ce_2.0.h"
 #elif defined(CONFIG_SUNXI_CE_10)
@@ -23,6 +25,8 @@
 #else
 #error "Unsupported plat"
 #endif
+
+#endif /* CONFIG_SUNXI_CE_DRIVER*/
 
 #ifndef __ASSEMBLY__
 /*aes*/

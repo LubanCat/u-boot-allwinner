@@ -58,10 +58,14 @@ static int sunxi_flash_read_part(struct blk_desc *desc, disk_partition_t *info,
 		rbytes = load_size;
 #ifdef CONFIG_ANDROID_BOOT_IMAGE
 	else if (!memcmp(fb_hdr->magic, ANDR_BOOT_MAGIC, 8)) {
-		rbytes = android_image_get_end(fb_hdr) - (ulong)fb_hdr;
+		rbytes = android_image_get_end_by_avbfooter();
+		//image size from avbfooter have higher priority
+		if (!rbytes) {
+			rbytes = android_image_get_end(fb_hdr) - (ulong)fb_hdr;
 
-		/*secure boot img may attached with an embbed cert*/
-		rbytes += sunxi_boot_image_get_embbed_cert_len(fb_hdr);
+			/*secure boot img may attached with an embbed cert*/
+			rbytes += sunxi_boot_image_get_embbed_cert_len(fb_hdr);
+		}
 	}
 #endif
 	else if (image_check_magic(uz_hdr)) {
@@ -98,66 +102,89 @@ void reset_boot_dram_update_flag(u32 *dram_para);
 int do_sunxi_flash_boot0(cmd_tbl_t *cmdtp, int flag, int argc,
 			 char *const argv[])
 {
-	if (!strcmp(argv[1], "force_dram_update_flag")) {
-		int flag_new_value = 0;
-		uint8_t *boot0_buffer;
-		uint32_t len;
-		uint32_t *dram_para;
-		uint32_t *check_sum;
-		if (argc != 3)
-			return -1;
-		boot0_buffer = malloc(1 * 1024 * 1024);
-		if (!boot0_buffer) {
-			pr_err("failed to malloc for boot0\n");
-			return -1;
-		}
-		sunxi_flash_upload_boot0((char *)boot0_buffer, 1 * 1024 * 1024,
-					 0);
-		if (sunxi_get_secureboard() == 0) {
-			boot0_file_head_t *boot0 =
-				(boot0_file_head_t *)boot0_buffer;
-			if (strncmp((const char *)boot0->boot_head.magic,
-				    BOOT0_MAGIC, MAGIC_SIZE)) {
-				printf("sunxi sprite: boot0 magic is error\n");
-				return -1;
-			}
-			len	  = boot0->boot_head.length;
-			dram_para = boot0->prvt_head.dram_para;
-			check_sum = &boot0->boot_head.check_sum;
-		} else {
-			toc0_private_head_t *toc0 =
-				(toc0_private_head_t *)boot0_buffer;
-			sbrom_toc0_config_t *toc0_config = NULL;
-			if (strncmp((const char *)toc0->name, TOC0_MAGIC,
-				    MAGIC_SIZE)) {
-				printf("sunxi sprite: toc0 magic is error, need secure image\n");
 
-				return -1;
-			}
-			len = toc0->length;
-			if (toc0->items_nr == 3)
-				toc0_config =
-					(sbrom_toc0_config_t *)(boot0_buffer +
-								0xa0);
-			else
-				toc0_config =
-					(sbrom_toc0_config_t *)(boot0_buffer +
-								0x80);
-			dram_para = toc0_config->dram_para;
-			check_sum = &toc0->check_sum;
-		}
-
-		flag_new_value = simple_strtoul(argv[2], NULL, 16);
-		if (flag_new_value) {
-			set_boot_dram_update_flag(dram_para);
-		} else {
-			reset_boot_dram_update_flag(dram_para);
-		}
-		*check_sum =
-			sunxi_generate_checksum(boot0_buffer, len, 1, *check_sum);
-		return sunxi_sprite_download_spl(boot0_buffer, len,
-						 get_boot_storage_type());
+	if (argc != 3)
+		return -1;
+	uint8_t *boot0_buffer;
+	uint32_t len;
+	uint32_t *ptr_newval;
+	uint32_t new_val;
+	uint32_t *check_sum;
+	boot0_file_head_t *boot0 = NULL;
+	sbrom_toc0_config_t *toc0_config = NULL;
+	boot0_buffer = malloc(1 * 1024 * 1024);
+	if (!boot0_buffer) {
+		pr_err("failed to malloc for boot0\n");
+		return -1;
 	}
+	sunxi_flash_upload_boot0((char *)boot0_buffer, 1 * 1024 * 1024,
+					0);
+
+	/* Check the legitimacy of boot0/sboot */
+	if (sunxi_get_secureboard() == 0) {
+		boot0 = (boot0_file_head_t *)boot0_buffer;
+		if (strncmp((const char *)boot0->boot_head.magic,
+				BOOT0_MAGIC, MAGIC_SIZE)) {
+			printf("sunxi sprite: boot0 magic is error\n");
+			return -1;
+		}
+		len = boot0->boot_head.length;
+		check_sum = &boot0->boot_head.check_sum;
+	} else {
+		toc0_private_head_t *toc0 =
+			(toc0_private_head_t *)boot0_buffer;
+		if (strncmp((const char *)toc0->name, TOC0_MAGIC,
+				MAGIC_SIZE)) {
+			printf("sunxi sprite: toc0 magic is error, need secure image\n");
+			return -1;
+		}
+		len = toc0->length;
+		if (toc0->items_nr == 3)
+			toc0_config =
+				(sbrom_toc0_config_t *)(boot0_buffer +
+							0xa0);
+		else
+			toc0_config =
+				(sbrom_toc0_config_t *)(boot0_buffer +
+							0x80);
+		check_sum = &toc0->check_sum;
+	}
+
+	/* get set value */
+	new_val = simple_strtoul(argv[2], NULL, 16);
+
+	/* Get the location that needs to be modified */
+	if (!strcmp(argv[1], "force_dram_update_flag")) {
+		if (sunxi_get_secureboard() == 0) {
+			ptr_newval = boot0->prvt_head.dram_para;
+		} else {
+			ptr_newval = toc0_config->dram_para;
+		}
+		if (new_val) {
+			printf("set dram flag\n");
+			set_boot_dram_update_flag(ptr_newval);
+		} else {
+			printf("reset dram flag\n");
+			reset_boot_dram_update_flag(ptr_newval);
+		}
+	} else if (!strcmp(argv[1], "force_dram_update_size")) {
+		if (sunxi_get_secureboard() == 0) {
+			ptr_newval = &boot0->dram_size;
+		} else {
+			ptr_newval = &toc0_config->dram_size;
+		}
+		*ptr_newval = new_val;
+		printf("set dram %dM\n", *ptr_newval);
+	} else {
+		printf("do_sunxi_flash_boot0:no command\n");
+		return -1;
+	}
+
+	*check_sum =
+		sunxi_generate_checksum(boot0_buffer, len, 1, *check_sum);
+	return sunxi_sprite_download_spl(boot0_buffer, len,
+						get_boot_storage_type());
+
 	return -1;
 }
 
@@ -210,7 +237,18 @@ int do_sunxi_flash(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[])
 			!strncmp(part_name, "toc0", strlen("toc0"))) {
 			return sunxi_sprite_download_boot0((void *)load_addr, get_boot_storage_type());
 		}
+#if defined(CONFIG_AW_MTD_SPINAND) || defined(CONFIG_AW_MTD_RAWNAND)
+		if (strncmp(cmd, "write_mtd", strlen("write_mtd")) == 0) {
+			ret = sunxi_partition_parse(part_name, &info);
+			if (ret < 0)
+				return -1;
 
+			info.size = (info.size + 511) / 512;
+			ret = sunxi_flash_phywrite(info.start, info.size, (void *)load_addr);
+			sunxi_flash_flush();
+			return ret;
+		}
+#endif
 		/* write size: indecated on partemeter 1 */
 		if (sunxi_partition_get_info_byname(part_name, (uint *)&info.start, (uint *)&info.size))
 			goto usage;
@@ -243,7 +281,17 @@ int do_sunxi_flash(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[])
 	else {
 		goto usage;
 	}
-
+#if defined(CONFIG_AW_MTD_SPINAND) || defined(CONFIG_AW_MTD_RAWNAND)
+	if (strncmp(cmd, "read_mtd", strlen("read_mtd")) == 0) {
+		ret = sunxi_partition_parse(part_name, &info);
+		if (ret < 0)
+			return -1;
+		if (load_size)
+			info.size = load_size;
+		info.size = (info.size + 511) / 512;
+		return sunxi_flash_phyread(info.start, info.size, (void *)load_addr);
+	}
+#endif
 	desc = blk_get_devnum_by_typename("sunxi_flash", 0);
 	if (desc == NULL)
 		return -ENODEV;
@@ -261,6 +309,9 @@ usage:
 
 U_BOOT_CMD(sunxi_flash, 6, 1, do_sunxi_flash, "sunxi_flash sub-system",
 	   "sunxi_flash read mem_addr part_name [size]\n"
+	   "sunxi_flash read_mtd mem_addr part_name [size]\n"
 	   "sunxi_flash write <mem_addr> <part_name> [size]\n"
 	   "sunxi_flash write <mem_addr> <part_name> [offset] [size]\n"
+	   "sunxi_flash write_mtd <mem_addr> <part_name>\n"
+	   "sunxi_flash boot0 force_dram_update_size <new_val> \n"
 	   "sunxi_flash boot0 force_dram_update_flag <new_val> \n");

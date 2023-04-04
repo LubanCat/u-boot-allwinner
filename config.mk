@@ -71,7 +71,7 @@ PLATFORM_CPPFLAGS += -DFTRACE
 PLATFORM_CPPFLAGS += -finstrument-functions-exclude-file-list=arch/arm/cpu/
 PLATFORM_CPPFLAGS += -finstrument-functions-exclude-file-list=arch/riscv/cpu/
 # serial command line may contaminate trace result, so dont trace those function
-PLATFORM_CPPFLAGS += -finstrument-functions-exclude-file-list=common/cli
+PLATFORM_CPPFLAGS += -finstrument-functions-exclude-file-list=common/console,common/cli,common/stdio
 endif
 
 # Allow use of stdint.h if available

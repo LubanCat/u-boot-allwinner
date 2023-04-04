@@ -16,7 +16,6 @@
  *
  */
 
-#include <asm/arch-sunxi/cpu_ncat_v2.h>
 #include <asm/io.h>
 #include <common.h>
 #include <sys_config.h>
@@ -149,7 +148,7 @@ unsigned long set_img_va_to_pa(unsigned long vaddr,
 	for (i = 0; i < size; i++) {
 		if (vaddr >= map[i].vstart
 				&& vaddr <= map[i].vend) {
-			paddr += map[i].offset;
+			paddr = vaddr - map[i].vstart + map[i].pstart;
 			break;
 		}
 	}

@@ -280,7 +280,7 @@ int update_tftp(ulong addr, char *interface, char *devstring)
 got_update_file:
 	fit = (void *)addr;
 
-	if (!fit_check_format((void *)fit)) {
+	if (fit_check_format((void *)fit, IMAGE_SIZE_INVAL)) {
 		printf("Bad FIT format of the update file, aborting "
 							"auto-update\n");
 		return 1;
@@ -333,3 +333,71 @@ next_node:
 
 	return ret;
 }
+#endif /* CONFIG_DFU_UPDATE || CONFIG_UPDATE_TFTP */
+
+#ifdef CONFIG_UPDATE_FIT
+/**
+ * fit_update - update storage with FIT image
+ * @fit:	Pointer to FIT image
+ *
+ * Update firmware on storage using FIT image as input.
+ * The storage area to be update will be identified by the name
+ * in FIT and matching it to "dfu_alt_info" variable.
+ *
+ * Return:      0 - on success, non-zero - otherwise
+ */
+int fit_update(const void *fit)
+{
+	char *fit_image_name;
+	ulong update_addr, update_fladdr, update_size;
+	int images_noffset, ndepth, noffset;
+	int ret = 0;
+
+	if (!fit)
+		return -EINVAL;
+
+	if (fit_check_format((void *)fit, IMAGE_SIZE_INVAL)) {
+		printf("Bad FIT format of the update file, aborting auto-update\n");
+		return -EINVAL;
+	}
+
+	/* process updates */
+	images_noffset = fdt_path_offset(fit, FIT_IMAGES_PATH);
+
+	ndepth = 0;
+	noffset = fdt_next_node(fit, images_noffset, &ndepth);
+	while (noffset >= 0 && ndepth > 0) {
+		if (ndepth != 1)
+			goto next_node;
+
+		fit_image_name = (char *)fit_get_name(fit, noffset, NULL);
+		printf("Processing update '%s' :", fit_image_name);
+
+		if (!fit_image_verify(fit, noffset)) {
+			printf("Error: invalid update hash, aborting\n");
+			ret = 1;
+			goto next_node;
+		}
+
+		printf("\n");
+		if (update_fit_getparams(fit, noffset, &update_addr,
+					 &update_fladdr, &update_size)) {
+			printf("Error: can't get update parameters, aborting\n");
+			ret = 1;
+			goto next_node;
+		}
+
+		if (fit_image_check_type(fit, noffset, IH_TYPE_FIRMWARE)) {
+			ret = dfu_write_by_name(fit_image_name,
+						(void *)update_addr,
+						update_size, NULL, NULL);
+			if (ret)
+				return ret;
+		}
+next_node:
+		noffset = fdt_next_node(fit, noffset, &ndepth);
+	}
+
+	return ret;
+}
+#endif /* CONFIG_UPDATE_FIT */

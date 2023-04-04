@@ -20,6 +20,7 @@ int sunxi_codec_probe(void);
 int sunxi_codec_hw_params(u32 sb, u32 sr, u32 ch);
 int sunxi_codec_playback_prepare(void);
 int sunxi_codec_playback_start(ulong handle, u32 *srcBuf, u32 cnt);
+int sunxi_codec_playback_debug(void);
 
 void sunxi_codec_fill_txfifo(u32 *data);
 void sunxi_codec_dump_reg(void);

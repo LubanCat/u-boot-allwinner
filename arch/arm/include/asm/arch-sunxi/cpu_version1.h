@@ -90,7 +90,9 @@
 #endif
 
 #define SUNXI_EHCI2_BASE		(0x01c1c000L)
+#if !defined(CONFIG_MACH_SUN8IW11)
 #define SUNXI_EHCI3_BASE		(0x01c1d000L)
+#endif
 
 #define SUNXI_CCM_BASE			0x01c20000
 #define SUNXI_PIO_BASE			0x01c20800

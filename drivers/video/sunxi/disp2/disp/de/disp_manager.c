@@ -248,7 +248,7 @@ s32 __disp_config2_transfer2inner(struct disp_layer_config_inner *config_inner,
 	if (config_inner->info.mode == LAYER_MODE_COLOR)
 		config_inner->info.color = config2->info.color;
 
-#if defined(DE_VERSION_V33X)
+#if defined(DE_VERSION_V33X) || defined(DE_VERSION_V35X)
 	config_inner->info.transform = config2->info.transform;
 	memcpy(&config_inner->info.snr, &config2->info.snr,
 	       sizeof(struct disp_snr_info));
@@ -360,7 +360,7 @@ s32 __disp_inner_transfer2config2(struct disp_layer_config2 *config2,
 	if (config2->info.mode == LAYER_MODE_COLOR)
 		config2->info.color = config_inner->info.color;
 
-#if defined(DE_VERSION_V33X)
+#if defined(DE_VERSION_V33X) || defined(DE_VERSION_V35X)
 	config2->info.transform = config_inner->info.transform;
 	memcpy(&config2->info.snr, &config_inner->info.snr,
 	       sizeof(struct disp_snr_info));
@@ -1811,5 +1811,6 @@ s32 disp_init_mgr(disp_bsp_init_para * para)
 	}
 
 	disp_init_lyr(para);
+
 	return 0;
 }

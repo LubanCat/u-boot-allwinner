@@ -21,6 +21,7 @@
 #include <fdt_support.h>
 #include <miiphy.h>
 #include <phy.h>
+#include <pwm.h>
 #if CONFIG_RTL8363_NB
 #include <rtk8363.h>
 #include <smi.h>
@@ -81,6 +82,7 @@
 #define CCMU_EPHY_GATING_BIT    31
 #define DISABLE_AUTONEG
 #if defined(CONFIG_MACH_SUN50IW9)
+#define NOT_SUPPORT_NOCACHED_ALLOC
 #define CONFIG_HARD_CHECKSUM
 #endif
 #define CONFIG_SUNXI_EXT_PHY
@@ -98,8 +100,10 @@
 #define CONFIG_SUNXI_EXT_PHY
 
 #ifdef CONFIG_MACH_SUN8IW21
-#define NOT_SUPPORT_NOCACHED_ALLOC
+#define EPHY_PWM_CHANNEL	11
+#define EPHY_PWM_LABEL		"sunxi_pwm11"
 #define CONFIG_HARD_CHECKSUM
+#define NOT_SUPPORT_NOCACHED_ALLOC
 #endif
 
 #ifdef CONFIG_MACH_SUN20IW1
@@ -465,9 +469,9 @@ static int geth_xmit(struct eth_device *dev, void *packet, int length)
 	tx_p->desc2 = (u32 *)packet;
 
 #ifdef NOT_SUPPORT_NOCACHED_ALLOC
-	flush_cache((unsigned long)tx_p, sizeof(*tx_p));
+	flush_cache((unsigned long)tx_p, ALIGN(sizeof(*tx_p), CACHE_LINE_SIZE));
 #endif
-	flush_cache((unsigned long)packet, length);
+	flush_cache((unsigned long)packet, ALIGN(128, CACHE_LINE_SIZE));
 	/* flush Transmit FIFO */
 	reg_val = readl((void *)(unsigned long)(dev->iobase + GETH_TX_CTL1));
 	reg_val |= 0x00000001;
@@ -589,16 +593,16 @@ static int geth_recv(struct eth_device *dev)
 
 		pkt_hex_dump("RX", (void *)rx_handle_buf, 64);
 
-		flush_cache((long unsigned int)rx_packet, 2048);
-
 		frm_len_check((uchar *)rx_handle_buf, &len);
+
+		flush_cache((long unsigned int)rx_packet, ALIGN(len, CACHE_LINE_SIZE));
 
 		net_process_received_packet((uchar *)rx_handle_buf, len);
 	} else {
 		/* Just need to clear 64 bits header */
 		memset(rx_packet, 0, 64);
 #ifdef NOT_SUPPORT_NOCACHED_ALLOC
-		flush_cache((unsigned long)rx_packet, 64);
+		flush_cache((unsigned long)rx_packet, ALIGN(64, CACHE_LINE_SIZE));
 #endif
 	}
 
@@ -638,7 +642,6 @@ static int geth_sys_init(void)
 	unsigned char i;
 	u32 tx_delay = 0;
 	u32 rx_delay = 0;
-	u32 use_ephy_clk = 0;
 
 /* it should be defined in uboot/include/configs/sun?iw?p?.h */
 #ifdef CONFIG_SUNXI_EXT_PHY
@@ -704,10 +707,6 @@ static int geth_sys_init(void)
 			printf("get rx-delay fail!");
 			return -1;
 		}
-
-		if (fdt_getprop_u32(working_fdt, geth_nodeoffset,
-					"use_ephy25m", &use_ephy_clk) < 0)
-			printf("use_ephy25m is unkown.\n");
 	}
 
 	/* Set PHY clock, depend on phy mode */
@@ -722,7 +721,7 @@ static int geth_sys_init(void)
 	 || phy_interface == PHY_INTERFACE_MODE_GMII)
 		value |= 0x00000002;
 	else if (phy_interface == PHY_INTERFACE_MODE_RMII)
-		value |= 0x00002001;
+		value |= 0x00002000;
 
 	/* Adjust Tx/Rx clock delay */
 	value &= ~(0x07 << 10);
@@ -753,20 +752,25 @@ static int geth_sys_init(void)
 #endif
 
 	/* enable ephy clk */
-	if (use_ephy_clk == 1) {
-		printf("gmac: *** using ephy_clk ***\n");
-		reg_val = readl((void *)(unsigned long)(CCMU_BASE + CCMU_EPHY_CLK_REG));
+#ifdef CCMU_EPHY_CLK_REG
+	printf("gmac: *** using ephy_clk ***\n");
+	reg_val = readl((void *)(unsigned long)(CCMU_BASE + CCMU_EPHY_CLK_REG));
 #if defined(CONFIG_MACH_SUN50IW9) || defined(CONFIG_MACH_SUN8IW19) || \
     defined(CONFIG_MACH_SUN8IW20) || defined(CONFIG_MACH_SUN20IW1) || \
     defined(CONFIG_MACH_SUN50IW10) || defined(CONFIG_MACH_SUN8IW21)
-		/* set CCMU_EPHY_CLK_REG's bit30 and bit31 to 1 */
-		reg_val |= (3 << (CCMU_EPHY_GATING_BIT - 1));
+	/* open ephy 25m clk */
+	reg_val |= (3 << (CCMU_EPHY_GATING_BIT - 1));
 #else
-		reg_val |= (1 << CCMU_EPHY_GATING_BIT);
+	reg_val |= (1 << CCMU_EPHY_GATING_BIT);
 #endif
-		writel(reg_val, (void *)(unsigned long)(CCMU_BASE + CCMU_EPHY_CLK_REG));
-	}
+	writel(reg_val, (void *)(unsigned long)(CCMU_BASE + CCMU_EPHY_CLK_REG));
+#endif
 
+#ifdef CONFIG_SUNXI_EPHY_AC300
+	int pwm_id = EPHY_PWM_CHANNEL;
+	pwm_request(pwm_id, EPHY_PWM_LABEL);
+	pwm_enable(pwm_id);
+#endif
 	return 0;
 }
 
@@ -844,11 +848,6 @@ static int mii_phy_init(struct eth_device *dev)
 		if (!(phy_val & BMCR_RESET))
 			break;
 	}
-#else
-	phy_val = geth_phy_read(dev, phy_addr, MII_BMCR);
-	geth_phy_write(dev, phy_addr, MII_BMCR, phy_val | BMCR_RESET);
-	while (geth_phy_read(dev, phy_addr, MII_BMCR) & BMCR_RESET)
-		;
 #endif
 	/* Reset phy chip */
 #if CONFIG_RTL8363_NB
@@ -859,11 +858,6 @@ static int mii_phy_init(struct eth_device *dev)
 		if (!(phy_val & BMCR_PDOWN))
 			break;
 	}
-#else
-	phy_val = geth_phy_read(dev, phy_addr, MII_BMCR);
-	geth_phy_write(dev, phy_addr, MII_BMCR, (phy_val & ~BMCR_PDOWN));
-	while (geth_phy_read(dev, phy_addr, MII_BMCR) & BMCR_PDOWN)
-		;
 #endif
 #ifdef PHY_RTL8211F
 	/* @TODO:
@@ -961,12 +955,32 @@ static int mii_phy_init(struct eth_device *dev)
 	return 0;
 }
 
+#ifdef CONFIG_SUNXI_EPHY_AC300
+#define AC300_DEV 0x10
+static void mii_ephy_enable(struct eth_device *dev)
+{
+	geth_phy_write(dev, AC300_DEV, 0x00, 0x1f40);	/* reset ephy */
+	geth_phy_write(dev, AC300_DEV, 0x00, 0x1f43);	/* de-reset ephy */
+
+	geth_phy_write(dev, AC300_DEV, 0x00, 0x1fb7);	/* open clk gate */
+	geth_phy_write(dev, AC300_DEV, 0x05, 0xa81f);	/* enable io */
+
+	mdelay(10);
+	geth_phy_write(dev, AC300_DEV, 0x06, 0x5811);	/* shutdown ephy */
+	mdelay(10);
+	geth_phy_write(dev, AC300_DEV, 0x06, 0x5810);	/* powerup ephy */
+}
+#endif
+
 static int geth_init(struct eth_device *dev, bd_t *bis)
 {
 	u32 reg_val;
 
+#ifdef CONFIG_SUNXI_EPHY_AC300
+	/* enable ephy */
+	mii_ephy_enable(dev);
+#endif
 	/* Reset all components */
-
 	reg_val = readl((void *)(unsigned long)(dev->iobase + GETH_BASIC_CTL1));
 	reg_val |= 0x01;
 	writel(reg_val, (void *)(unsigned long)(dev->iobase + GETH_BASIC_CTL1));
@@ -982,8 +996,10 @@ static int geth_init(struct eth_device *dev, bd_t *bis)
 	writel(reg_val, (void *)(unsigned long)(dev->iobase + GETH_TX_CTL0));
 
 	reg_val = readl((void *)(unsigned long)(dev->iobase + GETH_TX_CTL1));
-	/* Transmit COE type 2 cannot be done in cut-through mode. */
-	reg_val |= 0x02;
+	/* Some platform Tx fifo is 1K, but ethernet packet is 1500,
+	 * so set the dma trigger level to 128 to avoid Tx fifo overflow.
+	 */
+	reg_val |= 0x100;
 	writel(reg_val, (void *)(unsigned long)(dev->iobase + GETH_TX_CTL1));
 
 	reg_val = readl((void *)(unsigned long)(dev->iobase + GETH_RX_CTL0));
@@ -1073,11 +1089,9 @@ static int geth_bcast_addr (struct eth_device *dev, u32 bcast_mac, u8 set)
  * Some platform does not have noncached_* API supported, so lets fake it here...
  * And we will use flush_cache() to sync the cache.
  */
-static phys_addr_t noncached_alloc(size_t size, size_t align)
+static void *noncached_alloc(size_t size, size_t align)
 {
-	phys_addr_t addr = (phys_addr_t)memalign(64, size);
-	printf("%s(): addr = 0x%x\n", __func__, (unsigned int)addr);
-	return addr;
+	return memalign(CONFIG_SYS_CACHELINE_SIZE, size);
 }
 #endif
 
@@ -1088,7 +1102,6 @@ int geth_initialize(bd_t *bis)
 #else
        struct eth_device *dev;
 #endif
-
 	u32 buf_addr;
 
 	dev = (struct eth_device *)malloc(sizeof *dev);
@@ -1117,6 +1130,7 @@ int geth_initialize(bd_t *bis)
 	rx_handle_buf = (char *)(unsigned long)buf_addr;
 	if (rx_handle_buf == NULL)
 		goto err;
+
 #if 0
 	geth_phy_write(dev, 0, 31, 0x000E);
 	geth_phy_write(dev, 0, 23, 0x1b00);

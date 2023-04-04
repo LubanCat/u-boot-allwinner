@@ -377,13 +377,22 @@ int sunxi_usb_init(int delaytime)
 	reg_val &= ~(0x01<<1);
 	writel(reg_val, (volatile void __iomem *)(SUNXI_USBOTG_BASE+USBC_REG_o_PHYCTL));
 
-#if defined(CONFIG_SUNXI_NCAT) || defined(CONFIG_SUNXI_NCAT_V2)
+#if defined(CONFIG_SUNXI_NCAT) || defined(CONFIG_SUNXI_NCAT_V2) || defined(CONFIG_MACH_SUN55IW3)
 	reg_val = readl((const volatile void __iomem *)(SUNXI_USBOTG_BASE+USBC_REG_o_PHYCTL));
 	reg_val &= ~(0x01<<USBC_PHY_CTL_SIDDQ);
 	reg_val |= 0x01<<USBC_PHY_CTL_VBUSVLDEXT;
 	writel(reg_val, (volatile void __iomem *)(SUNXI_USBOTG_BASE+USBC_REG_o_PHYCTL));
 #endif
 	otg_phy_config();
+
+
+#ifdef CONFIG_MACH_SUN55IW3
+	setbits_le32(SUNXI_CCM_BASE + 0XA70, (0x01 << 29));
+	udelay(50);
+
+	setbits_le32(SUNXI_CCM_BASE + 0XA70, (0x01 << 30));
+	udelay(50);
+#endif
 
 	return 0;
 

@@ -21,5 +21,6 @@ obj-$(CONFIG_MACH_SUN50IW5) += clk-sun50iw5.o
 obj-$(CONFIG_MACH_SUN50IW6) += clk-sun50iw6.o
 obj-$(CONFIG_MACH_SUN50IW8) += clk-sun50iw8.o
 obj-$(CONFIG_MACH_SUN50IW9) += clk-sun50iw9.o
+obj-$(CONFIG_MACH_SUN55IW3) += clk-sun55iw3.o
 obj-$(CONFIG_MACH_SUN50IW10) += clk-sun50iw10.o
 obj-$(CONFIG_MACH_SUN20IW1) += clk-sun20iw1.o

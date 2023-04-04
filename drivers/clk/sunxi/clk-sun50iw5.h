@@ -158,7 +158,6 @@
 #define CPUS_APBS2_CFG      0x0010
 #define CPUS_TWDOG_GATE     0x012C
 #define CPUS_TWI_GATE       0x019C
-#define CPUS_CAN_GATE       0x01AC
 #define CPUS_RSB_GATE       0x01BC
 #define CPUS_CIR_CFG        0x01C0
 #define CPUS_CIR_GATE       0x01CC

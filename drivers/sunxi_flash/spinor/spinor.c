@@ -26,32 +26,10 @@
 #include "../flash_interface.h"
 #include "../../mtd/spi/sf_internal.h"
 #include "../../spi/spi-sunxi.h"
+#include "../../spi/spif-sunxi.h"
+#include "../../mtd/spi/spif_probe.h"
 
 static struct spi_flash *flash;
-
-static uint32_t _uboot_offset(void)
-{
-	//only usb burn need two different uboot bin
-	//work together, so unless is now doing usb product
-	//old OFFSET marco would be fine
-	if (sunxi_get_secureboard() &&
-	    (get_boot_work_mode() == WORK_MODE_USB_PRODUCT))
-		return CONFIG_SPINOR_UBOOT_SECURE_OFFSET;
-
-	return CONFIG_SPINOR_UBOOT_OFFSET;
-}
-
-static uint32_t _logical_offset(void)
-{
-	//only usb burn need two different uboot bin
-	//work together, so unless is now doing usb product
-	//old OFFSET marco would be fine
-	if (sunxi_get_secureboard() &&
-	    (get_boot_work_mode() == WORK_MODE_USB_PRODUCT))
-		return CONFIG_SPINOR_LOGICAL_SECURE_OFFSET;
-
-	return CONFIG_SPINOR_LOGICAL_OFFSET;
-}
 
 #define SPINOR_DEBUG 0
 
@@ -208,14 +186,14 @@ _sunxi_flash_spinor_read(uint start_block, uint nblock, void *buffer)
 static int
 sunxi_flash_spinor_read(uint start_block, uint nblock, void *buffer)
 {
-	return _sunxi_flash_spinor_read(CONFIG_SUNXI_RTOS_LOGICAL_OFFSET + start_block, nblock, buffer);
+	return _sunxi_flash_spinor_read(sunxi_flashmap_logical_offset(FLASHMAP_SPI_NOR, RTOS_LOGIC_OFFSET) + start_block, nblock, buffer);
 }
 
 #else
 static int
 sunxi_flash_spinor_read(uint start_block, uint nblock, void *buffer)
 {
-	return _sunxi_flash_spinor_read(_logical_offset() + start_block, nblock, buffer);
+	return _sunxi_flash_spinor_read(sunxi_flashmap_logical_offset(FLASHMAP_SPI_NOR, LINUX_LOGIC_OFFSET) + start_block, nblock, buffer);
 }
 #endif
 static int
@@ -322,13 +300,13 @@ __err:
 static int
 sunxi_flash_spinor_write(uint start_block, uint nblock, void *buffer)
 {
-	return _sunxi_flash_spinor_write(CONFIG_SUNXI_RTOS_LOGICAL_OFFSET + start_block, nblock, buffer);
+	return _sunxi_flash_spinor_write(sunxi_flashmap_logical_offset(FLASHMAP_SPI_NOR, RTOS_LOGIC_OFFSET) + start_block, nblock, buffer);
 }
 #else
 static int
 sunxi_flash_spinor_write(uint start_block, uint nblock, void *buffer)
 {
-	return _sunxi_flash_spinor_write(_logical_offset() + start_block, nblock, buffer);
+	return _sunxi_flash_spinor_write(sunxi_flashmap_logical_offset(FLASHMAP_SPI_NOR, LINUX_LOGIC_OFFSET) + start_block, nblock, buffer);
 }
 #endif
 
@@ -376,7 +354,7 @@ sunxi_flash_spinor_erase_area(uint start_block, uint nblock)
 		return -1;
 
 	/*section to byte*/
-	offset = (start_block + _logical_offset()) * 512;
+	offset = (start_block + sunxi_flashmap_logical_offset(FLASHMAP_SPI_NOR, LINUX_LOGIC_OFFSET)) * 512;
 	size   = nblock * 512;
 
 	sector_cnt = size/flash->sector_size;
@@ -405,8 +383,13 @@ sunxi_flash_spinor_probe(void)
 	if (spi_init())
 		return -1;
 
+#ifdef CONFIG_SUNXI_SPIF
+	flash = spif_flash_probe(CONFIG_SF_DEFAULT_BUS, CONFIG_SF_DEFAULT_CS,
+		CONFIG_SF_DEFAULT_SPEED, CONFIG_SF_DEFAULT_MODE);
+#else
 	flash = spi_flash_probe(CONFIG_SF_DEFAULT_BUS, CONFIG_SF_DEFAULT_CS,
 		CONFIG_SF_DEFAULT_SPEED, CONFIG_SF_DEFAULT_MODE);
+#endif
 
 	if (!flash) {
 		spinor_debug("Failed to initialize SPI flash at %u:%u\n", CONFIG_SF_DEFAULT_BUS, CONFIG_SF_DEFAULT_CS);
@@ -428,8 +411,13 @@ sunxi_flash_spinor_init(int boot_mode, int res)
 	if (spi_init())
 		return -1;
 
+#ifdef CONFIG_SUNXI_SPIF
+	flash = spif_flash_probe(CONFIG_SF_DEFAULT_BUS, CONFIG_SF_DEFAULT_CS,
+		CONFIG_SF_DEFAULT_SPEED, CONFIG_SF_DEFAULT_MODE);
+#else
 	flash = spi_flash_probe(CONFIG_SF_DEFAULT_BUS, CONFIG_SF_DEFAULT_CS,
 		CONFIG_SF_DEFAULT_SPEED, CONFIG_SF_DEFAULT_MODE);
+#endif
 
 	if (!flash) {
 		spinor_debug("Failed to initialize SPI flash at %u:%u\n", CONFIG_SF_DEFAULT_BUS, CONFIG_SF_DEFAULT_CS);
@@ -476,10 +464,14 @@ sunxi_flash_spinor_force_erase(void)
 int update_boot_param(struct spi_nor *nor)
 {
 	int ret = 0;
-	struct sunxi_spi_slave *sspi = get_sspi();
+#ifdef CONFIG_SUNXI_SPIF
+	struct sunxi_spif_slave *sspi = get_sspif();
+#else
+	struct sunxi_spi_slave *sspi = get_sspi(0);
+#endif
 	struct sunxi_boot_param_region *boot_param = NULL;
-	boot_param = malloc_align(BOOT_PARAM_SIZE, 64);
-	memset(boot_param, 0, BOOT_PARAM_SIZE);
+	boot_param = malloc_align(sunxi_flashmap_size(FLASHMAP_SPI_NOR, BOOT_PARAM) << 9, 64);
+	memset(boot_param, 0, sunxi_flashmap_size(FLASHMAP_SPI_NOR, BOOT_PARAM) << 9);
 	flash = nor;
 	struct mtd_info *mtd = &nor->mtd;
 	u8 erase_opcode = nor->erase_opcode;
@@ -499,6 +491,10 @@ int update_boot_param(struct spi_nor *nor)
 	boot_info->readcmd = flash->read_opcode;
 	boot_info->flash_size = flash->size / 1024 / 1024;
 	boot_info->erase_size = flash->erase_size;
+	boot_info->read_proto = flash->read_proto;
+	boot_info->write_proto = flash->write_proto;
+	boot_info->read_dummy = flash->read_dummy;
+
 	boot_info->frequency = sspi->max_hz;
 	boot_info->sample_mode = sspi->right_sample_mode;
 	boot_info->sample_delay = sspi->right_sample_delay;
@@ -528,9 +524,8 @@ int update_boot_param(struct spi_nor *nor)
 	flash->erase_size = 4096;
 	flash->sector_size = flash->erase_size;
 
-	ret = _sunxi_flash_spinor_write(_uboot_offset() -
-			(BOOT_PARAM_SIZE >> 9), BOOT_PARAM_SIZE >> 9,
-			boot_param);
+	ret = _sunxi_flash_spinor_write(sunxi_flashmap_offset(FLASHMAP_SPI_NOR, BOOT_PARAM),
+				sunxi_flashmap_size(FLASHMAP_SPI_NOR, BOOT_PARAM), boot_param);
 
 	nor->erase_opcode = erase_opcode;
 	mtd->erasesize = erasesize;
@@ -539,19 +534,19 @@ int update_boot_param(struct spi_nor *nor)
 
 	dump_spinor_info(boot_info);
 	free_align(boot_param);
-	return BOOT_PARAM_SIZE >> 9 == ret ? 0 : -1;
+	return sunxi_flashmap_size(FLASHMAP_SPI_NOR, BOOT_PARAM) == ret ? 0 : -1;
 }
 
 static int
 sunxi_flash_spinor_download_spl(unsigned char *buffer, int len, unsigned int ext)
 {
-	struct sunxi_spi_slave *sspi = get_sspi();
+	struct sunxi_spi_slave *sspi = get_sspi(0);
 	boot_spinor_info_t *boot_info;
 
-	if (len / 512 > (_uboot_offset() - CONFIG_SPINOR_PARAM_SPACE_SIZE)) {
+	if (len / 512 > (sunxi_flashmap_offset(FLASHMAP_SPI_NOR, TOC1) - sunxi_flashmap_size(FLASHMAP_SPI_NOR, BOOT_PARAM))) {
 		printf("boot0 last sector :0x%x, over write sector 0x%x\n"
 		       "stop boot0 download\n",
-		       len / 512, _uboot_offset() - CONFIG_SPINOR_PARAM_SPACE_SIZE);
+		       len / 512, sunxi_flashmap_offset(FLASHMAP_SPI_NOR, TOC1) - sunxi_flashmap_size(FLASHMAP_SPI_NOR, BOOT_PARAM));
 		return -1;
 	}
 
@@ -625,15 +620,15 @@ sunxi_flash_spinor_download_toc(unsigned char *buffer, int len,  unsigned int ex
 static int
 sunxi_flash_spinor_download_toc(unsigned char *buffer, int len,  unsigned int ext)
 {
-	if (len / 512 + _uboot_offset() >
-	    _logical_offset()) {
+	if (len / 512 + sunxi_flashmap_offset(FLASHMAP_SPI_NOR, TOC1) >
+	    sunxi_flashmap_logical_offset(FLASHMAP_SPI_NOR, LINUX_LOGIC_OFFSET)) {
 		printf("toc last block :0x%x, over write logical sector starts at block:0x%x\n"
 		       "stop toc download\n",
-		       _uboot_offset() + len / 512,
-		       _logical_offset());
+		       sunxi_flashmap_offset(FLASHMAP_SPI_NOR, TOC1) + len / 512,
+		       sunxi_flashmap_logical_offset(FLASHMAP_SPI_NOR, LINUX_LOGIC_OFFSET));
 		return -1;
 	}
-	return (len/512) == _sunxi_flash_spinor_write(_uboot_offset(), len/512, buffer) ? 0 : -1;
+	return (len/512) == _sunxi_flash_spinor_write(sunxi_flashmap_offset(FLASHMAP_SPI_NOR, TOC1), len/512, buffer) ? 0 : -1;
 }
 #endif /* CONFIG_SUNXI_RTOS */
 

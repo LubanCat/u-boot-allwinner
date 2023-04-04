@@ -32,6 +32,8 @@ int sunxi_sprite_download_mbr(void *buffer, uint buffer_size);
 
 int sunxi_sprite_download_uboot(void *buffer, int production_media, int mode);
 
+int sunxi_sprite_upload_uboot(void *buffer, uint len);
+
 int sunxi_sprite_download_boot0(void *buffer, int production_media);
 
 int sunxi_sprite_erase_flash(void *);

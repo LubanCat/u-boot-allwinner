@@ -11,6 +11,7 @@
 #include <sunxi_board.h>
 #include <sunxi_flash.h>
 #include <fdt_support.h>
+#include <fs.h>
 #include <blk.h>
 #include <part.h>
 #include <asm/arch/rtc.h>
@@ -28,6 +29,11 @@
 #include <linux/mtd/aw-spinand.h>
 #include <boot_gui.h>
 #include "../../drivers/spi/spi-sunxi.h"
+#include "../../drivers/spi/spif-sunxi.h"
+#include <asm/arch/ce.h>
+#ifdef CONFIG_SUNXI_PMU_EXT
+#include <sunxi_power/power_manage.h>
+#endif
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -43,7 +49,20 @@ DECLARE_GLOBAL_DATA_PTR;
 #define ROOT_PART_NAME_MAX_SIZE (PARTITION_NAME_MAX_SIZE + 5)
 #define DEV_PART_NAME_MAX_SIZE (PARTITION_NAME_MAX_SIZE + sizeof("/dev/"))
 
-int disp_update_lcd_param(int lcd_param_index);
+/* only 32 bytes len supported only*/
+#define CE_TRNG_32BYTE_ALIGNED 32
+
+int  __attribute__((weak)) update_pmu_ext_info_to_kernel()
+{
+	return 0;
+}
+
+int  __attribute__((weak)) update_no_ext_info_to_kernel()
+{
+	return 0;
+}
+
+int disp_lcd_param_update_to_kernel(void);
 
 int update_fdt_dram_para(void *dtb_base)
 {
@@ -88,10 +107,27 @@ static int fdt_enable_node(char *name, int onoff)
 	return ret;
 }
 
+int disp_fat_load(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
+{
+	loff_t read;
+	loff_t read_len = 0;
+	ulong addr = 0;
+
+	if (argc < 5)
+		return -1;
+	if (argc >= 6)
+		read_len = simple_strtoul(argv[5], NULL, 16);
+
+	addr = simple_strtoul(argv[3], NULL, 16);
+
+	fs_set_blk_dev(argv[1], argv[2], FS_TYPE_FAT);
+	return fs_read(argv[4], (ulong)addr, 0, read_len, &read);
+}
+
 void sunxi_dump(void *addr, unsigned int size)
 {
 #if 1
-	print_buffer((ulong)addr, addr, 4, ALIGN(size, 16)/4, 4);
+	print_buffer((ulong)addr, addr, 1, ALIGN(size, 16)/1, 16/1);
 #else
 	int i, j;
 	char *buf = (char *)addr;
@@ -698,6 +734,59 @@ int open_autoprint(void)
 }
 #endif
 
+#ifdef CONFIG_SUNXI_KASLR_SEED
+int update_fdt_kaslr_seed(void *dtb_base)
+{
+	int nodeoffset = 0;
+	u64 *temp64;
+	int err;
+	//===========update================
+	u32 src[8];
+	sunxi_ss_open();
+	sunxi_trng_gen((u8 *)src, CE_TRNG_32BYTE_ALIGNED);
+	/* sunxi_dump((u8 *)src, CE_TRNG_32BYTE_ALIGNED); */
+
+	nodeoffset = fdt_find_or_add_subnode(dtb_base, 0, "chosen");
+	if (nodeoffset < 0) {
+		pr_err("## error: %s \n", __func__);
+		return nodeoffset;
+	}
+	temp64 = (u64 *)src;
+	err = fdt_setprop_u64(dtb_base, nodeoffset, "kaslr-seed", *temp64);
+	if (err < 0) {
+			pr_err("WARNING: could not set kaslr-seed %s.\n",
+			       fdt_strerror(err));
+			return err;
+	}
+	return 0;
+}
+
+void board_kaslr_seed(void)
+{
+	tick_printf("update_fdt_kaslr_seed\n");
+	update_fdt_kaslr_seed(working_fdt);
+}
+#endif
+
+int get_dragonboard_test(struct fdt_header *point_fdt,
+			 uint32_t *dragon_board_test)
+{
+	int nodeoffset, err;
+	nodeoffset = fdt_path_offset(point_fdt, "/soc/platform");
+	if (nodeoffset < 0) {
+		pr_err("libfdt fdt_path_offset() returned %s\n",
+		       fdt_strerror(nodeoffset));
+		return -1;
+	}
+	err = fdt_getprop_u32(point_fdt, nodeoffset, "dragonboard_test",
+			      dragon_board_test);
+	if (err < 0) {
+		printf("get value error\n");
+		return -1;
+	}
+	return 0;
+}
+
 int sunxi_update_fdt_para_for_kernel(void)
 {
 	uint storage_type = 0;
@@ -764,6 +853,9 @@ int sunxi_update_fdt_para_for_kernel(void)
 	case STORAGE_EMMC:
 		fdt_enable_node("mmc2", 1);
 		fdt_enable_node("sunxi-mmc2", 1);
+#ifdef CONFIG_SUNXI_SDMMC
+		mmc_set_mmcblckx("sunxi-mmc2");
+#endif
 		break;
 	case STORAGE_EMMC0:
 		fdt_enable_node("mmc0", 1);
@@ -777,24 +869,75 @@ int sunxi_update_fdt_para_for_kernel(void)
 		fdt_enable_node("mmc0", 1);
 		fdt_enable_node("sunxi-mmc0", 1);
 		{
-			uint32_t dragonboard_test = 0;
+			uint32_t dragonboard_test	 = 0;
+			uint32_t uboot_dragon_board_test = 0;
+			//Compatible with old platforms
+			get_dragonboard_test(
+				(struct fdt_header *)gd->uboot_fdt_blob,
+				&uboot_dragon_board_test);
 			script_parser_fetch("/soc/target", "dragonboard_test",
-						(int *)&dragonboard_test, 0);
-			if (dragonboard_test == 1) {
-				fdt_enable_node("mmc2", 1);
-				fdt_enable_node("sunxi-mmc2", 1);
+					    (int *)&dragonboard_test, 0);
+			if (uboot_dragon_board_test == 1 ||
+			    dragonboard_test == 1) {
+				if (uboot_dragon_board_test == 1) {
+					fdt_enable_node("nand0", 0);
+					fdt_enable_node("mmc2", 0);
+					fdt_enable_node("sunxi-mmc2", 0);
+					if (get_board_flash_type_exist(
+						    STORAGE_NAND))
+						fdt_enable_node("nand0", 1);
+					if (get_board_flash_type_exist(
+						    STORAGE_EMMC)) {
+						fdt_enable_node("mmc2", 1);
+						fdt_enable_node("sunxi-mmc2",
+								1);
+					}
+				} else {
+					fdt_enable_node("mmc2", 1);
+					fdt_enable_node("sunxi-mmc2", 1);
+					printf("warning:The flash on the test board is not supported as nand");
+				}
 #ifdef CONFIG_SUNXI_SDMMC
 				mmc_update_config_for_dragonboard(2);
 #ifdef CONFIG_MMC3_SUPPORT
 				mmc_update_config_for_dragonboard(3);
 #endif
 #endif
+#ifdef CONFIG_SUNXI_UBIFS
+#ifdef CONFIG_MACH_SUN8IW18
+				if (nand_use_ubi() == 0) {
+					/* sun8iw18 aw-nftl config */
+					fdt_enable_node("spinand", 1);
+					fdt_enable_node("spi0", 0);
+				}
+#else
+				/* sun50iw11 config */
+				fdt_enable_node("spi0", 1);
+				fdt_enable_node("/soc/spi/spi-nand", 1);
+#endif
+#else
+				/* legacy config */
+				fdt_enable_node("spinand", 1);
+				fdt_enable_node("spi0", 0);
+#endif
 			}
 		}
+#ifdef CONFIG_SUNXI_SDMMC
+		mmc_set_mmcblckx("sunxi-mmc0");
+#endif
 		break;
 	case STORAGE_NOR:
+#ifdef CONFIG_SUNXI_SPIF
+		fdt_enable_node("/soc/spif", 1);
+		fdt_enable_node("/soc/spif/spif-nor", 1);
+		fdt_enable_node("/soc/spi", 0);
+		fdt_enable_node("/soc/spi/spi_board0", 0);
+#else
 		fdt_enable_node("/soc/spi", 1);
 		fdt_enable_node("/soc/spi/spi_board0", 1);
+		fdt_enable_node("/soc/spif", 0);
+		fdt_enable_node("/soc/spif/spif-nor", 0);
+#endif
 		break;
 	default:
 		break;
@@ -849,14 +992,23 @@ int sunxi_update_fdt_para_for_kernel(void)
 	if (nodeoffset < 0) {
 		pr_err("## error: %s : %s\n", __func__,
 				fdt_strerror(nodeoffset));
-		return -1;
 	}
 
 	switch (storage_type) {
 	case STORAGE_NOR:
 #ifdef CONFIG_SUNXI_SPINOR
 	{
-		struct sunxi_spi_slave *sspi = get_sspi();
+#ifdef CONFIG_SUNXI_SPIF
+		struct sunxi_spif_slave *sspi = get_sspif();
+		nodeoffset = fdt_path_offset(working_fdt, "spif0");
+		if (nodeoffset < 0) {
+			pr_err("## error: %s : %s\n", __func__,
+					fdt_strerror(nodeoffset));
+			break;
+		}
+#else
+		struct sunxi_spi_slave *sspi = get_sspi(0);
+#endif
 		fdt_setprop_u32(working_fdt, nodeoffset,
 				"sample_mode", sspi->right_sample_mode);
 		fdt_setprop_u32(working_fdt, nodeoffset,
@@ -868,7 +1020,7 @@ int sunxi_update_fdt_para_for_kernel(void)
 #endif
 		break;
 	case STORAGE_SPI_NAND:
-#ifdef CONFIG_SUNXI_NAND
+#ifdef CONFIG_AW_MTD_SPINAND
 	{
 		struct aw_spinand *spinand = get_spinand();
 		fdt_setprop_u32(working_fdt, nodeoffset,
@@ -886,7 +1038,7 @@ int sunxi_update_fdt_para_for_kernel(void)
 		break;
 	}
 
-#endif
+#endif /* CONFIG_SPI_SAMP_DL_EN */
 
 	/* fix dram para */
 	update_fdt_dram_para(working_fdt);
@@ -902,7 +1054,7 @@ int save_bmp_logo_to_kernel(void);
 
 #ifdef CONFIG_BOOT_GUI
 	save_disp_cmd();
-	disp_update_lcd_param(-1);
+	disp_lcd_param_update_to_kernel();
 #endif
 #ifdef CONFIG_SUNXI_MAC
 	extern int update_sunxi_mac(void);
@@ -911,6 +1063,18 @@ int save_bmp_logo_to_kernel(void);
 #if defined(CONFIG_SUN50IW9_AUTOPRINT)
 	if (check_printmode()) {
 		open_autoprint();
+	}
+#endif
+
+#ifdef CONFIG_SUNXI_KASLR_SEED
+	board_kaslr_seed();
+#endif
+
+#ifdef CONFIG_SUNXI_PMU_EXT
+	if (pmu_ext_get_exist()) {
+		update_pmu_ext_info_to_kernel();
+	} else {
+		update_no_ext_info_to_kernel();
 	}
 #endif
 	tick_printf("update dts\n");

@@ -15,6 +15,7 @@
 	#size-cells = <2>;
 	aliases:aliases@45100000 {
 		nand0=&nand0;
+		gmac0 = &gmac0;
 	};
 	soc: soc@29000000 {
 		#address-cells = <2>;
@@ -306,6 +307,13 @@
 		lcd0: lcd0@01c0c000 {
 			compatible = "allwinner,sunxi-lcd0";
 			pinctrl-names = "active","sleep";
+			status = "okay";
+		};
+
+		gmac0: gmac0@5020000 {
+			compatible = "allwinner,sunxi-gmac";
+			reg = <0x0 0x05020000 0x0 0x10000>,
+			      <0x0 0x03000030 0x0 0x4>;
 			status = "okay";
 		};
 

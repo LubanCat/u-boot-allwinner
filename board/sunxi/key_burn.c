@@ -9,6 +9,7 @@
 #include <sys_config.h>
 #include <securestorage.h>
 #include <private_uboot.h>
+#include "trace.h"
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -69,5 +70,13 @@ int sunxi_keydata_burn_by_usb(void)
 #endif
 	}
 #endif
-	return do_burn_from_boot(NULL, 0, 0, NULL);
+#ifdef CONFIG_SUNXI_TRACE
+		/* trace polling loop is pointless, just don't*/
+		trace_set_enabled(0);
+#endif
+	ret = do_burn_from_boot(NULL, 0, 0, NULL);
+#ifdef CONFIG_SUNXI_TRACE
+		trace_set_enabled(1);
+#endif
+	return ret;
 }

@@ -73,7 +73,11 @@ static int spi0_change_clk(unsigned int dclk_src_sel, unsigned int dclk)
 	u32 sclk0_reg_adr;
 
 	/* CCM_SPI0_CLK_REG */
+#if defined(CONFIG_MACH_SUN8IW11)
+	sclk0_reg_adr = (SUNXI_CCM_BASE + 0x00a0);
+#else
 	sclk0_reg_adr = (SUNXI_CCM_BASE + 0x0940);
+#endif
 
 	/* close dclk */
 	if (dclk == 0) {
@@ -85,9 +89,16 @@ static int spi0_change_clk(unsigned int dclk_src_sel, unsigned int dclk)
 		return 0;
 	}
 
+#ifdef FPGA_PLATFORM
+	sclk0_src_sel = 0;
+	sclk0 = 24;
+	sclk0_src = 24;
+#else
 	sclk0_src_sel = dclk_src_sel;
 	sclk0 = dclk;
-#if defined(CONFIG_MACH_SUN8IW21)
+#endif
+
+#if defined(CONFIG_MACH_SUN8IW21) || defined(CONFIG_MACH_SUN55IW3)
 	sclk0_src = 300;
 #else
 	if (sclk0_src_sel == 0x0)
@@ -129,8 +140,13 @@ static int spi0_change_clk(unsigned int dclk_src_sel, unsigned int dclk)
 	reg_val &= (~(0x7<<24));
 	reg_val |= (sclk0_src_sel&0x7)<<24;
 	/* clock pre-divide ratio(N) */
-	reg_val &= (~(0x3<<8));
-	reg_val |= (sclk0_pre_ratio_n&0x3)<<8;
+#if defined(CONFIG_MACH_SUN8IW21)
+	reg_val &= (~(0x3 << 16));
+	reg_val |= (sclk0_pre_ratio_n & 0x3) << 16;
+#else
+	reg_val &= (~(0x3 << 8));
+	reg_val |= (sclk0_pre_ratio_n & 0x3) << 8;
+#endif
 	/* clock divide ratio(M) */
 	reg_val &= ~(0xf<<0);
 	reg_val |= (sclk0_ratio_m&0xf)<<0;
@@ -151,6 +167,18 @@ static int spic0_clk_request(void)
 
 	/* 1. release ahb reset and open ahb clock gate */
 
+#if defined(CONFIG_MACH_SUN8IW11)
+	/* reset */
+	reg_val = get_reg(SUNXI_CCM_BASE + 0x02c0);
+	reg_val &= (~(0x1U << 20));
+	reg_val |= (0x1U << 20);
+	set_reg(SUNXI_CCM_BASE + 0x02c0, reg_val);
+	/* ahb clock gate */
+	reg_val = get_reg(SUNXI_CCM_BASE + 0x0060);
+	reg_val &= (~(0x1U << 20));
+	reg_val |= (0x1U << 20);
+	set_reg(SUNXI_CCM_BASE + 0x0060, reg_val);
+#else
 	/* reset */
 	reg_val = get_reg(SUNXI_CCM_BASE + 0x096c);
 	reg_val &= (~(0x1U << 16));
@@ -161,10 +189,12 @@ static int spic0_clk_request(void)
 	reg_val &= (~(0x1U << 0));
 	reg_val |= (0x1U << 0);
 	set_reg(SUNXI_CCM_BASE + 0x096c, reg_val);
+#endif
 
 	/* 2. configure spic's sclk0 */
 #if defined(CONFIG_MACH_SUN50IW11) || defined(CONFIG_MACH_SUN8IW20) ||	\
-	defined(CONFIG_MACH_SUN8IW21)
+	defined(CONFIG_MACH_SUN8IW21) || defined(CONFIG_MACH_SUN55IW3) || \
+	defined(CONFIG_MACH_SUN8IW11)
 	ret = spi0_change_clk(1, 10);
 #else
 	ret = spi0_change_clk(3, 10);
@@ -181,7 +211,8 @@ static int spic0_set_clk(unsigned int clk)
 	int ret;
 
 #if defined(CONFIG_MACH_SUN50IW11) || defined(CONFIG_MACH_SUN8IW20) ||	\
-	defined(CONFIG_MACH_SUN8IW21)
+	defined(CONFIG_MACH_SUN8IW21) || defined(CONFIG_MACH_SUN55IW3) || \
+	defined(CONFIG_MACH_SUN8IW11)
 	ret = spi0_change_clk(1, clk);
 #else
 	ret = spi0_change_clk(3, clk);
@@ -289,6 +320,23 @@ int spic0_init(void)
 
 static void spic0_clk_release(void)
 {
+#if defined(CONFIG_MACH_SUN8IW11)
+	/* CCM_SPI0_CLK_REG */
+	u32 sclk0_reg_adr = (SUNXI_CCM_BASE + 0x00a0);
+	/* close clock */
+	u32 reg_val = get_reg(sclk0_reg_adr);
+	reg_val &= (~(0x1U<<31));
+	set_reg(sclk0_reg_adr, reg_val);
+
+	/* reset */
+	reg_val = get_reg(SUNXI_CCM_BASE + 0x02c0);
+	reg_val &= (~(0x1U << 20));
+	set_reg(SUNXI_CCM_BASE + 0x02c0, reg_val);
+	/* ahb clock gate */
+	reg_val = get_reg(SUNXI_CCM_BASE + 0x0060);
+	reg_val &= (~(0x1U << 20));
+	set_reg(SUNXI_CCM_BASE + 0x0060, reg_val);
+#else
 	/* CCM_SPI0_CLK_REG */
 	u32 sclk0_reg_adr = (SUNXI_CCM_BASE + 0x0940);
 	/* close clock */
@@ -304,6 +352,7 @@ static void spic0_clk_release(void)
 	reg_val = get_reg(SUNXI_CCM_BASE + 0x096c);
 	reg_val &= (~(0x1U << 0));
 	set_reg(SUNXI_CCM_BASE + 0x096c, reg_val);
+#endif
 }
 
 int spic0_exit(void)
@@ -352,6 +401,22 @@ static void spic0_sel_ss(unsigned int ssx)
 	unsigned int rval = get_reg(SPI_TCR) & (~(3 << 4));
 
 	rval |= ssx << 4;
+	set_reg(SPI_TCR, rval);
+}
+
+void spic0_set_soft_ss(unsigned int mod)
+{
+	unsigned int rval = get_reg(SPI_TCR) & (~(1 << 6));
+
+	rval |= mod << 6;
+	set_reg(SPI_TCR, rval);
+}
+
+void spic0_set_ss(unsigned int status)
+{
+	unsigned int rval = get_reg(SPI_TCR) & (~(1 << 7));
+
+	rval |= status << 7;
 	set_reg(SPI_TCR, rval);
 }
 

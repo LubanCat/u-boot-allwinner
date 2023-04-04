@@ -275,7 +275,7 @@ int disp_devices_open(void)
 	def_output_dev = get_device_configs(g_devices, &actual_dev_num);
 
 	/* 2.chose one as output by doing hpd */
-	if (g_devices[0].type == DISP_OUTPUT_TYPE_LCD) {
+	if (g_devices[0].type == DISP_OUTPUT_TYPE_LCD || g_devices[0].type == DISP_OUTPUT_TYPE_EDP) {
 		output_dev = &g_devices[0];
 	} else {
 		output_dev = do_hpd_detect(g_devices, actual_dev_num);
@@ -322,6 +322,7 @@ int disp_devices_open(void)
 		}
 	case DISP_OUTPUT_TYPE_TV:
 	case DISP_OUTPUT_TYPE_VGA:
+	case DISP_OUTPUT_TYPE_EDP:
 		hal_switch_device(output_dev, FB_ID_0); /* fixme */
 		break;
 	default:

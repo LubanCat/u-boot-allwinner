@@ -213,7 +213,7 @@ static ulong mmc_write_blocks(struct mmc *mmc, lbaint_t start,
 	static u32 frt;
 #endif
 
-void mmc_force_reinit(struct mmc *mmc);
+int mmc_force_reinit(struct mmc *mmc);
 
 #ifdef CONFIG_BLK
 ulong mmc_bwrite(struct udevice *dev, lbaint_t start, lbaint_t blkcnt,
@@ -267,9 +267,10 @@ ulong mmc_bwrite(struct blk_desc *block_dev, lbaint_t start, lbaint_t blkcnt,
 				MMCMSG(mmc, "write block failed\n");
 
 				if (!force_init) {
-					mmc_force_reinit(mmc);
-					force_init = 1;
-					continue;
+					if (!mmc_force_reinit(mmc)) {
+						force_init = 1;
+						continue;
+					}
 				}
 
 				free(src_align);
@@ -286,9 +287,10 @@ ulong mmc_bwrite(struct blk_desc *block_dev, lbaint_t start, lbaint_t blkcnt,
 				MMCMSG(mmc, "write block failed\n");
 
 				if (!force_init) {
-					mmc_force_reinit(mmc);
-					force_init = 1;
-					continue;
+					if (!mmc_force_reinit(mmc)) {
+						force_init = 1;
+						continue;
+					}
 				}
 
 				return 0;

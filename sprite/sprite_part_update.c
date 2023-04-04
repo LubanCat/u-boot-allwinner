@@ -305,6 +305,9 @@ static int update_uboot_partition(char *file_buf, int *update_flag)
 	/*To get what flash in the board */
 	int storage_type = get_boot_storage_type();
 
+	uboot_part[0].size = (sunxi_flashmap_logical_offset(FLASHMAP_SPI_NOR, LINUX_LOGIC_OFFSET) - sunxi_flashmap_offset(FLASHMAP_SPI_NOR, TOC1)) * 512;
+	uboot_part[1].size = sunxi_flashmap_offset(FLASHMAP_SPI_NOR, TOC1) * 512;
+
 	for (i = 0; uboot_part[i].name != NULL; i++) {
 		part_size = uboot_part[i].size;
 		part_debug("part_name:%s part_size:%d \n", uboot_part[i].name,

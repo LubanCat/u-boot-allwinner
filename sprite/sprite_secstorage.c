@@ -596,6 +596,11 @@ int sunxi_secure_storage_write(const char *item_name, char *buffer, int length)
 		}
 	}
 	memset(tmp_buf, 0x0, 4096);
+	if (length > 4096) {
+		pr_err("%s...%s:Insufficient destination address space\n",
+		       __func__, __LINE__);
+		return -1;
+	}
 	memcpy(tmp_buf, buffer, length);
 	ret = sunxi_secstorage_write(index, (unsigned char *)tmp_buf, 4096);
 	if (ret < 0) {
@@ -737,4 +742,36 @@ int sunxi_secure_storage_erase_all(void)
 	pr_force("erase secure storage: 0 ok\n");
 
 	return 0;
+}
+
+int sunxi_secure_storage_write_or_read(const char *item_name, char *buffer,
+				       int length, int dir)
+{
+	int ret = 0;
+	int data_len;
+	ret = sunxi_secure_storage_init();
+	if (ret < 0) {
+		printf("secure storage init err\n");
+		return -1;
+	}
+
+	if (dir) {
+		ret = sunxi_secure_object_read(item_name, buffer, length,
+					       &data_len);
+		if (ret < 0) {
+			sunxi_secure_storage_exit();
+			printf("erase secure storage failed\n");
+			ret = -1;
+		}
+	} else {
+		ret = sunxi_secure_object_write(item_name, buffer, length);
+		if (ret < 0) {
+			sunxi_secure_storage_exit();
+			printf("erase secure storage failed\n");
+			ret = -1;
+		}
+	}
+
+	sunxi_secure_storage_exit();
+	return ret;
 }

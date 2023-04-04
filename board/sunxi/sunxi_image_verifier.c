@@ -47,6 +47,15 @@ int smc_tee_check_hash(const char *name, u8 *hash)
 	return 0;
 }
 #endif
+
+__attribute__((weak))
+int sunxi_sha_calc_witch_software_verify(u8 *dst_addr, u32 dst_len, u8 *src_addr,
+										u32 src_len, const u8 *verify_hash)
+{
+	printf("call weak fun: %s\n", __func__);
+	return -1;
+}
+
 int sunxi_verify_os(ulong os_load_addr, const char *cert_name)
 {
 	struct blk_desc *desc;
@@ -121,9 +130,18 @@ static int sunxi_certif_pubkey_check(sunxi_key_t *pubkey, u8 *hash_buf)
 	memset(pk, 0x91, sizeof(pk));
 	char *align = (char *)(((ulong)pk + 63) & (~63));
 	if (*(pubkey->n)) {
+		if (pubkey->n_len > (sizeof(pk)/2) || (pubkey->e_len) > (sizeof(pk)/2)) {
+			printf("pubkey check:Insufficient destination address storage space\n");
+			return -1;
+		}
 		memcpy(align, pubkey->n, pubkey->n_len);
 		memcpy(align + pubkey->n_len, pubkey->e, pubkey->e_len);
 	} else {
+		if (pubkey->n_len - 1 > (sizeof(pk)/2) ||
+		    (pubkey->e_len) > (sizeof(pk)/2)) {
+			printf("pubkey check:Insufficient destination address storage space\n");
+			return -1;
+		}
 		memcpy(align, pubkey->n + 1, pubkey->n_len - 1);
 		memcpy(align + pubkey->n_len - 1, pubkey->e, pubkey->e_len);
 	}
@@ -203,7 +221,8 @@ static int check_public_in_rootcert(const char *name,
 
 	sunxi_certif_pubkey_check(&sub_certif->pubkey, key_hash);
 
-	strcpy(request_key_name, name);
+	strncpy(request_key_name, name,
+		sizeof(request_key_name) - strlen("-key") - 1);
 	strcat(request_key_name, "-key");
 
 	ret = smc_tee_check_hash(request_key_name, key_hash);
@@ -219,7 +238,7 @@ static int check_public_in_rootcert(const char *name,
 	}
 }
 #endif
-
+int sunxi_sha_calc_with_software(char *algo_name, u8 *dst_addr, u32 dst_len, u8 *src_addr, u32 src_len);
 static int sunxi_verify_embed_signature(void *buff, uint len,
 					const char *cert_name, void *cert,
 					unsigned cert_len)
@@ -238,11 +257,13 @@ static int sunxi_verify_embed_signature(void *buff, uint len,
 
 	memset(hash_of_file, 0, 32);
 	sunxi_ss_open();
+
 	ret = sunxi_sha_calc(hash_of_file, 32, buff, len);
 	if (ret) {
 		printf("sunxi_verify_signature err: calc hash failed\n");
 		goto __ERROR_END;
 	}
+
 	if (sunxi_certif_verify_itself(&sub_certif, cert_buf, cert_len)) {
 		printf("%s error: cant verify the content certif\n", __func__);
 		printf("cert dump\n");
@@ -251,12 +272,16 @@ static int sunxi_verify_embed_signature(void *buff, uint len,
 	}
 
 	if (memcmp(hash_of_file, sub_certif.extension.value[0], 32)) {
-		printf("hash compare is not correct\n");
-		printf(">>>>>>>hash of file<<<<<<<<<<\n");
-		sunxi_dump(hash_of_file, 32);
-		printf(">>>>>>>hash in certif<<<<<<<<<<\n");
-		sunxi_dump(sub_certif.extension.value[0], 32);
-		goto __ERROR_END;
+		ret = sunxi_sha_calc_witch_software_verify(hash_of_file, 32,
+										buff, len, sub_certif.extension.value[0]);
+		if (ret) {
+			printf("hash compare is not correct\n");
+			printf(">>>>>>>hash of file<<<<<<<<<<\n");
+			sunxi_dump(hash_of_file, 32);
+			printf(">>>>>>>hash in certif<<<<<<<<<<\n");
+			sunxi_dump(sub_certif.extension.value[0], 32);
+			goto __ERROR_END;
+		}
 	}
 
 	/*Approvel certificate by trust-chain*/
@@ -287,6 +312,7 @@ static int sunxi_verify_signature(void *buff, uint len, const char *cert_name)
 		printf("sunxi_verify_signature err: calc hash failed\n");
 		return -1;
 	}
+
 	pr_msg("show hash of file\n");
 
 	ret = smc_tee_check_hash(cert_name, hash_of_file);
@@ -319,6 +345,10 @@ int sunxi_verify_preserve_toc1(void *toc1_head_buf)
 		return -1;
 	}
 
+	if (preserved_toc1) {
+		free(preserved_toc1);
+		preserved_toc1 = NULL;
+	}
 	preserved_toc1 = malloc(preserved_toc1_len);
 	if (preserved_toc1 == NULL) {
 		pr_err("fail to malloc root certif\n");
@@ -842,23 +872,29 @@ int verify_image_by_vbmeta(const char *image_name, const uint8_t *image_data,
 	sunxi_sha_calc(hash_result, 32, (uint8_t *)image_data - hdh->salt_len,
 		       hdh->salt_len + image_len);
 
-	memcpy((uint8_t *)image_data - salt_buf_len, salt_buf, salt_buf_len);
-
-	free(salt_buf);
-	free(desc);
-
 	if (memcmp(expected_hash, hash_result, 32) != 0) {
-		pr_error("hash not match, hash of file:\n");
-		sunxi_dump(hash_result, 32);
-		pr_error("hash in descriptor:\n");
-		sunxi_dump((void *)expected_hash, 32);
-		return -1;
+		ret = sunxi_sha_calc_witch_software_verify(hash_result, 32,
+										(uint8_t *)image_data - hdh->salt_len,
+										hdh->salt_len + image_len, expected_hash);
+		if (ret) {
+			pr_error("hash not match, hash of file:\n");
+			sunxi_dump(hash_result, 32);
+			pr_error("hash in descriptor:\n");
+			sunxi_dump((void *)expected_hash, 32);
+			free(salt_buf);
+			free(desc);
+			return -1;
+		}
 	}
 
+	memcpy((uint8_t *)image_data - salt_buf_len, salt_buf, salt_buf_len);
+	free(salt_buf);
+	free(desc);
 	return 0;
 
 descriptot_need_free:
-	free(desc);
+	if (desc)
+		free(desc);
 	return -1;
 }
 #endif

@@ -458,7 +458,7 @@ int init_nsci_from_nctri(struct _nand_super_storage_info *nssi, struct nand_supe
 	if (nsci->dual_channel == 1) {
 		nsci->sector_cnt_per_super_page <<= 1;
 	}
-	if ((nssi->support_two_plane != 0) && (nsci->nci_first->npi->operation_opt & NAND_MULTI_PROGRAM) && (nsci->nci_first->multi_plane_block_offset == 1)) {
+	if ((nsci->nci_first->npi->operation_opt & NAND_MULTI_PROGRAM) && (nsci->nci_first->multi_plane_block_offset == 1)) {
 		nsci->two_plane = 1;
 	} else {
 		nsci->two_plane = 0;
@@ -475,14 +475,10 @@ int init_nsci_from_nctri(struct _nand_super_storage_info *nssi, struct nand_supe
 	if (nsci->two_plane == 1) {
 		nsci->blk_cnt_per_super_chip >>= 1;
 		nsci->sector_cnt_per_super_page <<= 1;
+		nssi->plane_cnt = 2;
 	} else {
 		nssi->support_two_plane = 0;
-	}
-
-	if (nssi->support_two_plane == 0) {
 		nssi->plane_cnt = 1;
-	} else {
-		nssi->plane_cnt = 2;
 	}
 
 	if (nsci->vertical_interleave == 1) {

@@ -11,5 +11,6 @@ obj-$(CONFIG_SOUND_WM8994)	+= wm8994.o
 obj-$(CONFIG_SOUND_MAX98095)	+= max98095.o
 obj-$(CONFIG_SOUND_SUNXI_SUN8IW18_CODEC)	+= sun8iw18-codec.o
 obj-$(CONFIG_SOUND_SUNXI_SUN50IW10_CODEC)	+= sun50iw10-codec.o
+obj-$(CONFIG_SOUND_SUNXI_SUN55IW3_CODEC)	+= sun55iw3-codec.o
 obj-$(CONFIG_SOUND_SUNXI_SOC_RWFUNC) += sunxi_rw_func.o
 obj-$(CONFIG_SOUND_SUNXI_BOOT_TONE)  += sunxi_boot_tone.o

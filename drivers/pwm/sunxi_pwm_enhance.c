@@ -144,9 +144,9 @@ int sunxi_pwm_set_polarity(struct sunxi_pwm_chip *pchip, enum pwm_polarity polar
 	reg_width = PWM_ACT_STA_WIDTH;
 	temp = sunxi_pwm_readl(pchip, reg_offset);
 	if (polarity == PWM_POLARITY_NORMAL)
-		temp = SET_BITS(reg_shift, reg_width, temp, 0);
-	else
 		temp = SET_BITS(reg_shift, reg_width, temp, 1);
+	else
+		temp = SET_BITS(reg_shift, reg_width, temp, 0);
 
 	sunxi_pwm_writel(pchip, reg_offset, temp);
 
@@ -641,24 +641,26 @@ err_pwm:
 /* if dont use this pwm chn then remove it */
 int pwm_remove(int pwm)
 {
-#if defined CLK_GATE_SUPPORT
 	struct sunxi_pwm_chip *pchip = NULL;
 
 	list_for_each_entry(pchip, &pwm_list, list) {
+#if defined(CLK_GATE_SUPPORT)
 		if (pchip->pwm == pwm) {
 			if (pchip->pwm_base > 0)
 				sclk_count--;
 			else
 				clk_count--;
 		}
+#endif
+		free(pchip->config);
+		free(pchip);
 	}
-	free(pchip->config);
-	if (clk_count == 0) {
+
+#if defined(CLK_GATE_SUPPORT)
+	if (clk_count == 0)
 		writel(0, (SUNXI_CCM_BASE + PWM_CCU_OFFSET));
-	}
-	if (sclk_count == 0) {
+	if (sclk_count == 0)
 		writel(0, (SUNXI_PRCM_BASE + PWM_RCM_OFFSET));
-	}
 #endif
 	return 0;
 }

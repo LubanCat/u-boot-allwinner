@@ -9,3 +9,4 @@ obj-$(CONFIG_HDMI_DISP2_SUNXI) += hdmi/
 obj-$(CONFIG_HDMI2_DISP2_SUNXI) += hdmi2/
 obj-$(CONFIG_TV_DISP2_SUNXI) += tv/
 obj-$(CONFIG_EDP_DISP2_SUNXI) += edp/
+obj-$(CONFIG_EDP2_DISP2_SUNXI) += edp2/

@@ -13,7 +13,7 @@
 #include <private_uboot.h>
 #include <sunxi_image_verifier.h>
 #include <mapmem.h>
-
+#include <bootm.h>
 DECLARE_GLOBAL_DATA_PTR;
 
 struct spare_rtos_head_t {

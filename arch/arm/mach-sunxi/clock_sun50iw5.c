@@ -13,6 +13,7 @@
 #include <fdt_support.h>
 #include <sunxi_board.h>
 #include <asm/arch/efuse.h>
+#include "private_uboot.h"
 
 void clock_init_uart(void)
 {
@@ -23,17 +24,17 @@ void clock_init_uart(void)
 	writel(APB2_CLK_SRC_OSC24M | APB2_CLK_RATE_N_1 | APB2_CLK_RATE_M(1),
 	       &ccm->apb2_cfg);
 
-	clrbits_le32(&ccm->uart_gate_reset, 1 << (CONFIG_CONS_INDEX - 1));
+	clrbits_le32(&ccm->uart_gate_reset, 1 << (uboot_spare_head.boot_data.uart_port));
 	udelay(2);
 
 	clrbits_le32(&ccm->uart_gate_reset,
-		     1 << (RESET_SHIFT + CONFIG_CONS_INDEX - 1));
+		     1 << (RESET_SHIFT + uboot_spare_head.boot_data.uart_port));
 	udelay(2);
 	/* deassert uart reset */
 	setbits_le32(&ccm->uart_gate_reset,
-		     1 << (RESET_SHIFT + CONFIG_CONS_INDEX - 1));
+		     1 << (RESET_SHIFT + uboot_spare_head.boot_data.uart_port));
 	/* open the clock for uart */
-	setbits_le32(&ccm->uart_gate_reset, 1 << (CONFIG_CONS_INDEX - 1));
+	setbits_le32(&ccm->uart_gate_reset, 1 << (uboot_spare_head.boot_data.uart_port));
 }
 
 static int clk_get_pll_para(struct core_pll_freq_tbl *factor, int pll_clk)

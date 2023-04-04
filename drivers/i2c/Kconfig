@@ -339,6 +339,12 @@ config SYS_OMAP24_I2C_SPEED
 	  OMAP24xx Slave speed channel 0
 endif
 
+config SYS_I2C_RCAR_I2C
+	bool "Renesas RCar I2C driver"
+	depends on (RCAR_GEN3 || RCAR_GEN2) && DM_I2C
+	help
+	  Support for Renesas RCar I2C controller.
+
 config SYS_I2C_RCAR_IIC
 	bool "Renesas RCar Gen3 IIC driver"
 	depends on (RCAR_GEN3 || RCAR_GEN2) && DM_I2C
@@ -590,7 +596,8 @@ config AXP152_SUNXI_I2C_SLAVE
 
 config AXP1530_SUNXI_I2C_SLAVE
 	hex "AXP1530 I2C Slave"
-	depends on R_I2C0_ENABLE && AXP1530_POWER
+	depends on AXP1530_POWER
+	depends on R_I2C0_ENABLE || I2C0_ENABLE
 	default 0
 	help
 	 Sunxi AXP1530 I2C Slave

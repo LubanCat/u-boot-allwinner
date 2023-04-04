@@ -58,6 +58,7 @@ typedef struct
 }disp_lcd_cfg;
 
 s32 disp_init_lcd(disp_bsp_init_para * para);
+u32 get_lcd_device_num(void);
 s32 disp_lcd_gpio_init(struct disp_device* lcd);
 s32 disp_lcd_gpio_exit(struct disp_device* lcd);
 s32 disp_lcd_gpio_set_direction(struct disp_device* lcd, u32 io_index, u32 direction);
@@ -68,5 +69,48 @@ s32 disp_lcd_is_enabled(struct disp_device* lcd);
 #if defined(SUPPORT_EINK) && defined(CONFIG_EINK_PANEL_USED)
 extern int diplay_finish_flag;
 #endif
+
+struct disp_lcd_private_data {
+	disp_lcd_flow             open_flow;
+	disp_lcd_flow             close_flow;
+	u32                       compat_panel_index;
+	u32                       switch_to_compat_panel_index;
+	disp_panel_para           panel_info;
+	panel_extend_para         panel_extend_info;
+	disp_lcd_cfg              lcd_cfg;
+	disp_lcd_panel_fun        lcd_panel_fun;
+	bool                      need_open_again;
+	bool                      enabling;
+	bool                      disabling;
+	bool                      bl_enabled;
+	u32                       irq_no;
+	u32                       irq_no_dsi;
+	u32                       irq_no_edp;
+	u32                       enabled;
+	u32                       power_enabled;
+	u32                       bl_need_enabled;
+	u32                       frame_per_sec;
+	u32                       usec_per_line;
+	u32                       judge_line;
+	u32                       tri_finish_fail;
+	struct {
+		uintptr_t               dev;
+		u32                     channel;
+		u32                     polarity;
+		u32                     period_ns;
+		u32                     duty_ns;
+		u32                     enabled;
+	} pwm_info;
+	struct clk *clk;
+	struct clk *lvds_clk;
+	struct clk *clk_tcon_lcd;
+	struct clk *dsi_clk[CLK_DSI_NUM];
+	struct clk *edp_clk;
+	struct clk *clk_parent;
+#if defined(DE_VERSION_V35X)
+	/* In v35x, TCON can control all DSIS. */
+	struct clk *clk_mipi_dsi_combphy[CLK_DSI_NUM];
+#endif  /* DE_VERSION_V35X */
+};
 
 #endif

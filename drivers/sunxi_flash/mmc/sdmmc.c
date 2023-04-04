@@ -22,8 +22,6 @@
 #include "../flash_interface.h"
 #include "../../mmc/mmc_def.h"
 
-#define SUNXI_MMC_BOOT0_START_ADDRS	(16)
-#define SUNXI_MMC_TOC_START_ADDRS	(32800)
 
 static int  mmc_has_pre_init;
 static int sunxi_flash_mmc_init(int stage, int card_no);
@@ -65,7 +63,7 @@ static int sunxi_flash_mmc_read(unsigned int start_block, unsigned int nblock,
 	debug("mmcboot read: start 0x%x, sector 0x%x\n", start_block, nblock);
 
 	return mmc_boot->block_dev.block_read(
-	    &mmc_boot->block_dev, start_block + CONFIG_MMC_LOGICAL_OFFSET,
+	    &mmc_boot->block_dev, start_block + sunxi_flashmap_logical_offset(FLASHMAP_SDMMC, LINUX_LOGIC_OFFSET),
 	    nblock, buffer);
 }
 
@@ -75,7 +73,7 @@ static int sunxi_flash_mmc_write(unsigned int start_block, unsigned int nblock,
 	debug("mmcboot write: start 0x%x, sector 0x%x\n", start_block, nblock);
 
 	return mmc_boot->block_dev.block_write(
-	    &mmc_boot->block_dev, start_block + CONFIG_MMC_LOGICAL_OFFSET,
+	    &mmc_boot->block_dev, start_block + sunxi_flashmap_logical_offset(FLASHMAP_SDMMC, LINUX_LOGIC_OFFSET),
 	    nblock, buffer);
 }
 
@@ -127,14 +125,14 @@ static int
 sunxi_flash_mmc_download_toc(unsigned char *buf, int len,  unsigned int ext)
 {
 	if (!mmc_boot->block_dev.block_write(&mmc_boot->block_dev,
-					       SUNXI_MMC_TOC_START_ADDRS,
+					       sunxi_flashmap_offset(FLASHMAP_SDMMC, TOC1),
 					       len / 512, buf)) {
 		pr_err("%s: write main uboot failed\n");
 		return -1;
 	}
 
 	if (!mmc_boot->block_dev.block_write(
-		    &mmc_boot->block_dev, UBOOT_BACKUP_START_SECTOR_IN_SDMMC,
+		    &mmc_boot->block_dev, sunxi_flashmap_offset(FLASHMAP_SDMMC, TOC1_BAK),
 		    len / 512, buf)) {
 		pr_err("%s: write back uboot failed\n");
 		return -1;
@@ -213,7 +211,7 @@ static int sunxi_sprite_mmc_read(unsigned int start_block, unsigned int nblock,
 	debug("mmcboot read: start 0x%x, sector 0x%x\n", start_block, nblock);
 
 	return mmc_sprite->block_dev.block_read(
-	    &mmc_sprite->block_dev, start_block + CONFIG_MMC_LOGICAL_OFFSET,
+	    &mmc_sprite->block_dev, start_block + sunxi_flashmap_logical_offset(FLASHMAP_SDMMC, LINUX_LOGIC_OFFSET),
 	    nblock, buffer);
 }
 
@@ -223,7 +221,7 @@ static int sunxi_sprite_mmc_write(unsigned int start_block, unsigned int nblock,
 	debug("mmcboot write: start 0x%x, sector 0x%x\n", start_block, nblock);
 
 	return mmc_sprite->block_dev.block_write(
-	    &mmc_sprite->block_dev, start_block + CONFIG_MMC_LOGICAL_OFFSET,
+	    &mmc_sprite->block_dev, start_block + sunxi_flashmap_logical_offset(FLASHMAP_SDMMC, LINUX_LOGIC_OFFSET),
 	    nblock, buffer);
 }
 
@@ -310,14 +308,14 @@ static int sunxi_sprite_mmc_download_toc(unsigned char *buf, int len,
 					 unsigned int ext)
 {
 	if (!mmc_sprite->block_dev.block_write(&mmc_sprite->block_dev,
-					       SUNXI_MMC_TOC_START_ADDRS,
+					       sunxi_flashmap_offset(FLASHMAP_SDMMC, TOC1),
 					       len / 512, buf)) {
 		pr_err("%s: write main uboot failed\n");
 		return -1;
 	}
 
 	if (!mmc_sprite->block_dev.block_write(
-		    &mmc_sprite->block_dev, UBOOT_BACKUP_START_SECTOR_IN_SDMMC,
+		    &mmc_sprite->block_dev, sunxi_flashmap_offset(FLASHMAP_SDMMC, TOC1_BAK),
 		    len / 512, buf)) {
 		pr_err("%s: write back uboot failed\n");
 		return -1;
@@ -353,7 +351,7 @@ int sunxi_flash_mmc_secread(int item, unsigned char *buf, unsigned int nblock)
 		goto OUT;
 	}
 	if (mmc_boot->block_dev.block_read(&mmc_boot->block_dev,
-		SDMMC_SECURE_STORAGE_START_ADD + SDMMC_ITEM_SIZE * 2 * item,
+		sunxi_flashmap_offset(FLASHMAP_SDMMC, SEC_STORAGE) + SDMMC_ITEM_SIZE * 2 * item,
 		nblock, buf) != nblock) {
 		printf("read first backup failed in fun %s line %d\n", __FUNCTION__, __LINE__);
 		ret = -1;
@@ -386,7 +384,7 @@ int sunxi_flash_mmc_secread_backup(int item, unsigned char *buf,
 	}
 
 	if (mmc_boot->block_dev.block_read(&mmc_boot->block_dev,
-		SDMMC_SECURE_STORAGE_START_ADD + SDMMC_ITEM_SIZE * 2 * item + SDMMC_ITEM_SIZE,
+		sunxi_flashmap_offset(FLASHMAP_SDMMC, SEC_STORAGE) + SDMMC_ITEM_SIZE * 2 * item + SDMMC_ITEM_SIZE,
 		nblock, buf) != nblock) {
 		printf("read second backup failed in fun %s line %d\n", __FUNCTION__, __LINE__);
 		ret = -1;
@@ -418,7 +416,7 @@ int sunxi_flash_mmc_secwrite(int item, unsigned char *buf, unsigned int nblock)
 	}
 
 	if (mmc_boot->block_dev.block_write(&mmc_boot->block_dev,
-		SDMMC_SECURE_STORAGE_START_ADD + SDMMC_ITEM_SIZE * 2 * item,
+		sunxi_flashmap_offset(FLASHMAP_SDMMC, SEC_STORAGE) + SDMMC_ITEM_SIZE * 2 * item,
 		nblock, buf) != nblock) {
 		printf("write first backup failed in fun %s line %d\n", __FUNCTION__, __LINE__);
 		ret = -1;
@@ -426,7 +424,7 @@ int sunxi_flash_mmc_secwrite(int item, unsigned char *buf, unsigned int nblock)
 	}
 
 	if (mmc_boot->block_dev.block_write(&mmc_boot->block_dev,
-		SDMMC_SECURE_STORAGE_START_ADD + SDMMC_ITEM_SIZE * 2 * item + SDMMC_ITEM_SIZE,
+		sunxi_flashmap_offset(FLASHMAP_SDMMC, SEC_STORAGE) + SDMMC_ITEM_SIZE * 2 * item + SDMMC_ITEM_SIZE,
 		nblock, buf) != nblock) {
 		printf("write second backup failed in fun %s line %d\n", __FUNCTION__, __LINE__);
 		ret = -1;
@@ -463,7 +461,7 @@ int sunxi_sprite_mmc_secread(int item, unsigned char *buf, unsigned int nblock)
 		goto OUT;
 	}
 	if (mmc_sprite->block_dev.block_read(&mmc_sprite->block_dev,
-		SDMMC_SECURE_STORAGE_START_ADD + SDMMC_ITEM_SIZE * 2 * item,
+		sunxi_flashmap_offset(FLASHMAP_SDMMC, SEC_STORAGE) + SDMMC_ITEM_SIZE * 2 * item,
 		nblock, buf) != nblock) {
 		printf("read first backup failed in fun %s line %d\n", __FUNCTION__, __LINE__);
 		ret = -1;
@@ -496,7 +494,7 @@ int sunxi_sprite_mmc_secread_backup(int item, unsigned char *buf,
 	}
 
 	if (mmc_sprite->block_dev.block_read(&mmc_sprite->block_dev,
-		SDMMC_SECURE_STORAGE_START_ADD + SDMMC_ITEM_SIZE * 2 * item + SDMMC_ITEM_SIZE,
+		sunxi_flashmap_offset(FLASHMAP_SDMMC, SEC_STORAGE) + SDMMC_ITEM_SIZE * 2 * item + SDMMC_ITEM_SIZE,
 		nblock, buf) != nblock) {
 		printf("read second backup failed in fun %s line %d\n", __FUNCTION__, __LINE__);
 		ret = -1;
@@ -528,7 +526,7 @@ int sunxi_sprite_mmc_secwrite(int item, unsigned char *buf, unsigned int nblock)
 	}
 
 	if (mmc_sprite->block_dev.block_write(&mmc_sprite->block_dev,
-		SDMMC_SECURE_STORAGE_START_ADD + SDMMC_ITEM_SIZE * 2 * item,
+		sunxi_flashmap_offset(FLASHMAP_SDMMC, SEC_STORAGE) + SDMMC_ITEM_SIZE * 2 * item,
 		nblock, buf) != nblock) {
 		printf("write first backup failed in fun %s line %d\n", __FUNCTION__, __LINE__);
 		ret = -1;
@@ -536,7 +534,7 @@ int sunxi_sprite_mmc_secwrite(int item, unsigned char *buf, unsigned int nblock)
 	}
 
 	if (mmc_sprite->block_dev.block_write(&mmc_sprite->block_dev,
-		SDMMC_SECURE_STORAGE_START_ADD + SDMMC_ITEM_SIZE * 2 * item + SDMMC_ITEM_SIZE,
+		sunxi_flashmap_offset(FLASHMAP_SDMMC, SEC_STORAGE) + SDMMC_ITEM_SIZE * 2 * item + SDMMC_ITEM_SIZE,
 		nblock, buf) != nblock) {
 		printf("write second backup failed in fun %s line %d\n", __FUNCTION__, __LINE__);
 		ret = -1;

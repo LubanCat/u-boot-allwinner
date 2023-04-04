@@ -86,6 +86,7 @@ static void usage(void)
 		"\n"
 		"Commands\n"
 		"   dump-ftrace\t\tDump out textual data in ftrace format\n"
+		"   dump-json\t\tDump out chrome json data that can be visualize by chorome in \"chrome:traing\" page\n"
 		"\n"
 		"Options:\n"
 		"   -m <map>\tSpecify Systen.map file\n"
@@ -479,6 +480,46 @@ static void out_func(ulong func_offset, int is_caller, const char *suffix)
 		printf("%lx%s", func_offset, suffix);
 }
 
+static int make_chrom_json(void)
+{
+	struct trace_call *call;
+	int missing_count = 0, skip_count = 0;
+	int i;
+
+	printf("[");
+	for (i = 0, call = call_list; i < call_count; i++, call++) {
+		struct func_info *func = find_func_by_offset(call->func);
+		ulong time	       = call->flags & FUNCF_TIMESTAMP_MASK;
+
+		if (TRACE_CALL_TYPE(call) != FUNCF_ENTRY &&
+		    TRACE_CALL_TYPE(call) != FUNCF_EXIT)
+			continue;
+		if (!func) {
+			warn("Cannot find function at %lx\n",
+			     text_offset + call->func);
+			missing_count++;
+			continue;
+		}
+
+		if (!(func->flags & FUNCF_TRACE)) {
+			debug("Funcion '%s' is excluded from trace\n",
+			      func->name);
+			skip_count++;
+			continue;
+		}
+		printf("{\"name\":\"%s\", \"cat\":\"uboot\","
+		       "\"ph\":\"%s\",\"pid\":1,\"tid\":1,\"ts\":%lu},\n",
+		       func->name,
+		       TRACE_CALL_TYPE(call) == FUNCF_ENTRY ? "B" : "E", time);
+	}
+	printf("{}"); //dummy object, make output json legit
+	printf("]");
+	info("ftrace: %d functions not found, %d excluded\n", missing_count,
+	     skip_count);
+
+	return 0;
+}
+
 /*
  * # tracer: function
  * #
@@ -604,6 +645,8 @@ static int prof_tool(int argc, char *const argv[], const char *prof_fname,
 
 		if (0 == strcmp(cmd, "dump-ftrace"))
 			err = make_ftrace();
+		else if (0 == strcmp(cmd, "dump-json"))
+			err = make_chrom_json();
 		else
 			warn("Unknown command '%s'\n", cmd);
 	}

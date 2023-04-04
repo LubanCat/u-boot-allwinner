@@ -41,6 +41,12 @@
 //#include <sys_config_old.h>
 #include <sunxi_mbr.h>
 #include <sprite.h>
+#include <linux/mtd/aw-spinand.h>
+#include <sunxi_nand_boot.h>
+#include <memalign.h>
+#include <private_toc.h>
+#include <private_boot0.h>
+#include <private_uboot.h>
 
 
 #ifndef CONFIG_SUNXI_SPINOR
@@ -1229,6 +1235,10 @@ static int __sunxi_usb_efex_op_cmd(u8 *cmd_buffer)
 					if (trans_data.flash_start == 0 && trans_data.flash_sectors == 0x80) {
 						printf("convert gpt to mbr\n");
 						sunxi_mbr_t *sunxi_mbr = malloc(SUNXI_MBR_SIZE);
+						if (!sunxi_mbr) {
+							printf("sunxi_mbr malloc failed in func %s:line %d\n", __func__, __LINE__);
+							return -1;
+						}
 						int boot_storage_type;
 						if ((get_boot_storage_type() == STORAGE_EMMC3) || (get_boot_storage_type() == STORAGE_EMMC0)) {
 							boot_storage_type = STORAGE_EMMC;
@@ -1330,8 +1340,11 @@ static int __sunxi_usb_efex_op_cmd(u8 *cmd_buffer)
 				if ((get_boot_storage_type() == STORAGE_EMMC3) || (get_boot_storage_type() == STORAGE_EMMC0))
                                 {
                                         *storage_type = STORAGE_EMMC;
-				} else
-                                {
+#ifdef CONFIG_SUNXI_UBIFS
+				} else if (get_boot_storage_type() == STORAGE_NAND) {
+					*storage_type = STORAGE_SPI_NAND;
+#endif
+				} else {
 				        *storage_type = get_boot_storage_type();
                                 }
 				trans_data.act_send_buffer   = trans_data.base_send_buffer;
@@ -1546,6 +1559,95 @@ static int __sunxi_usb_efex_op_cmd(u8 *cmd_buffer)
 				trans_data.app_next_status   = SUNXI_USB_EFEX_APPS_SEND_DATA;
 			}
 			break;
+#ifdef CONFIG_AW_MTD_SPINAND
+		case FEX_CMD_fes_spinand:
+			{
+				if (get_boot_storage_type() == STORAGE_NAND) {
+					fes_trans_t  *trans = (fes_trans_t *)cmd_buf;
+					trans_data.flash_start       = trans->addr; //设置发送地址，属于扇区单位
+					trans_data.flash_sectors     = (trans->len + 511) >> 9;
+
+					trans_data.last_err          	 = 0;
+					trans_data.type  = trans->type;
+					trans_data.send_size = trans->len;
+					trans_data.app_next_status   	 = SUNXI_USB_EFEX_APPS_SEND_DATA;
+					trans_data.act_send_buffer   = trans_data.base_send_buffer;	 //设置发送地址
+					struct aw_spinand *spinand = get_spinand();
+					struct aw_spinand_chip *chip = &spinand->chip;
+					struct aw_spinand_info *info = chip->info;
+					struct aw_spinand_phy_info *pinfo = info->phy_info;
+					size_t retlen;
+					if ((trans->type & SUNXI_EFEX_NAND_ID_TAG) == SUNXI_EFEX_NAND_ID_TAG) {
+						printf("read spinand flash ID..\n");
+						printf("SectCntPerPage:%d  PageCntPerBlk:%d  OobSizePerPage:%d \n",
+								pinfo->SectCntPerPage, pinfo->PageCntPerBlk, pinfo->OobSizePerPage);
+						memcpy((void *)trans_data.act_send_buffer, pinfo, sizeof(struct aw_spinand_phy_info));
+					}
+					if ((trans->type & SUNXI_EFEX_NAND_PHY_BLOCK) == SUNXI_EFEX_NAND_PHY_BLOCK) {
+						printf("read phy addr:%x len:%x\n", trans->addr, trans->len);
+						spinand->mtd._read(&spinand->mtd, trans->addr,
+							trans->len, &retlen, trans_data.act_send_buffer);
+					}
+					if ((trans->type & SUNXI_EFEX_NAND_PHY_BLOCK_OOB) == SUNXI_EFEX_NAND_PHY_BLOCK_OOB) {
+						printf("read phy block oob len:%x\n", trans->len);
+						struct mtd_oob_ops ops = {0};
+						int i;
+
+						for (i = 0; i < pinfo->PageCntPerBlk; i++) {
+							ops.len = 0;
+							ops.datbuf = NULL;
+							ops.oobbuf = trans_data.act_send_buffer + pinfo->OobSizePerPage * i;
+							ops.ooblen = pinfo->OobSizePerPage;
+							spinand->mtd._read_oob(&spinand->mtd,
+									trans->addr + pinfo->SectCntPerPage * 512 * i, &ops);
+						}
+					}
+					if ((trans->type & SUNXI_EFEX_NAND_BOOT0_SIZE) == SUNXI_EFEX_NAND_BOOT0_SIZE) {
+						int page_size = pinfo->SectCntPerPage * 512;
+						unsigned char *boot_buffer = memalign(CONFIG_SYS_CACHELINE_SIZE, page_size);
+						uint *boot_size = (uint *)trans_data.base_send_buffer;
+
+						spinand->mtd._read(&spinand->mtd, 0, page_size, &retlen, boot_buffer);
+
+						/* get boot size */
+						if (SUNXI_NORMAL_MODE == sunxi_get_securemode()) {
+							boot0_file_head_t *boot0 = (boot0_file_head_t *)boot_buffer;
+							*boot_size = boot0->boot_head.length;
+						} else {
+							toc0_private_head_t *toc0 = (toc0_private_head_t *)boot_buffer;
+							*boot_size = toc0->length;
+						}
+						free(boot_buffer);
+					}
+					if ((trans->type & SUNXI_EFEX_NAND_BOOT1_SIZE) == SUNXI_EFEX_NAND_BOOT1_SIZE) {
+						int page_size = pinfo->SectCntPerPage * 512;
+						unsigned char *boot_buffer = memalign(CONFIG_SYS_CACHELINE_SIZE, page_size);
+						uint *boot_size = (uint *)trans_data.base_send_buffer;
+						sbrom_toc1_head_info_t *toc1 = (sbrom_toc1_head_info_t *)boot_buffer;
+						uint addr = UBOOT_START_BLOCK_SMALLNAND * info->phy_block_size(chip);
+
+						spinand->mtd._read(&spinand->mtd, addr, page_size, &retlen, boot_buffer);
+						/* get boot size */
+						*boot_size = toc1->valid_len;
+						free(boot_buffer);
+					}
+					if ((trans->type & SUNXI_EFEX_NAND_BOOT0) == SUNXI_EFEX_NAND_BOOT0) {
+						printf("SUNXI_EFEX_NAND_BOOT0\n");
+						spinand->mtd._read(&spinand->mtd, 0,
+							trans->len, &retlen, trans_data.act_send_buffer);
+					}
+
+					if ((trans->type & SUNXI_EFEX_NAND_BOOT1) == SUNXI_EFEX_NAND_BOOT1) {
+						uint addr = UBOOT_START_BLOCK_SMALLNAND * info->phy_block_size(chip);
+						printf("SUNXI_EFEX_NAND_BOOT1\n");
+
+						spinand->mtd._read(&spinand->mtd, addr,
+							trans->len, &retlen, trans_data.act_send_buffer);
+					}
+				}
+			}
+			break;
+#endif
 #ifdef CONFIG_CMD_SUNXI_NAND
 		case FEX_CMD_fes_nand:
 			{

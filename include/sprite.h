@@ -3,6 +3,7 @@
  * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
  * Jerry Wang <wangflord@allwinnertech.com>
  *
+ * SPDX-License-Identifier:	GPL-2.0+
  * MA 02111-1307 USA
  */
 
@@ -28,5 +29,5 @@ extern uint sunxi_sprite_part_rawdata_verify(uint base_start,
 extern int sprite_form_sysrecovery(void);
 extern int sprite_led_init(void);
 extern int sprite_led_exit(int status);
-
+extern int sprite_erase_for_androidrecovery(void);
 #endif /* __SPRITE_SYS_H */

@@ -75,6 +75,8 @@
 #define   AXP81X_CHARGE2             			(0x34)
 #define   AXP81X_CHARGE3             			(0x35)
 
+#define   AXP803_VTS_RES_H						(0x58)
+#define   AXP803_VTS_RES_L						(0x59)
 #define   AXP81X_BAT_AVERVOL_H8                  (0x78)
 #define   AXP81X_BAT_AVERVOL_L4                  (0x79)
 

@@ -1,4 +1,5 @@
 /*
+ * SPDX-License-Identifier: GPL-2.0+
 **********************************************************************************************************************
 *											        eGon
 *						           the Embedded GO-ON Bootloader System
@@ -113,7 +114,13 @@ static int __sunxi_publickey_dipatch(sunxi_key_t *pkey, u8 *buf, u32 len)
 
 		return -2;
 	}
+
 	pkey->n = malloc(asn1.data_len);
+	if (!pkey->n) {
+		printf("malloc pkey->n failed\n");
+		ret = -2;
+		goto publickey_dipatch_err;;
+	}
 	memcpy(pkey->n, asn1.data, asn1.data_len);
 	pkey->n_len = asn1.data_len;
 
@@ -124,12 +131,26 @@ static int __sunxi_publickey_dipatch(sunxi_key_t *pkey, u8 *buf, u32 len)
 
 		return -3;
 	}
-
+	if (pkey->e) {
+		free(pkey->e);
+		pkey->e = NULL;
+	}
 	pkey->e = malloc(asn1.data_len);
+	if (!pkey->e) {
+		printf("malloc pkey->e failed\n");
+		ret = -2;
+		goto publickey_dipatch_err;
+	}
 	memcpy(pkey->e, asn1.data, asn1.data_len);
 	pkey->e_len = asn1.data_len;
 
 	return 0;
+publickey_dipatch_err:
+	if (pkey->n)
+		free(pkey->n);
+	if (pkey->e)
+		free(pkey->e);
+	return ret;
 }
 /*
 ************************************************************************************************************
@@ -216,6 +237,10 @@ static uint __merge_extension_value(u8 **dst_buf, u8 *src_buf, uint src_buf_len)
 		return 0;
 	}
 	*dst_buf = malloc((asn1.data_len + 1) / 2);
+	if (!(*dst_buf)) {
+		printf("malloc *dst_buf failed\n");
+		return 0;
+	}
 	memset(*dst_buf, 0, (asn1.data_len + 1) / 2);
 	tmp_len = asn1.data_len;
 	if (tmp_len > 512) //rsakey
@@ -413,7 +438,18 @@ int sunxi_certif_probe_extension(X509 *x, sunxi_certif_info_t *sunxi_certif)
 			printf("extersion %d name length is 0\n", i);
 		} else {
 			//printf("name len=%d\n", len);
+			if (sunxi_certif->extension.name[i]) {
+				free(sunxi_certif->extension.name[i]);
+				sunxi_certif->extension.name[i] = NULL;
+			}
 			sunxi_certif->extension.name[i] = malloc(len + 1);
+			if (!sunxi_certif->extension.name[i]) {
+				printf("Failed to malloc sunxi_certif->extension.name\n");
+				for (; i >= 0 ; i--) {
+					free(sunxi_certif->extension.name[i]);
+				}
+				return -1;
+			}
 			memcpy(sunxi_certif->extension.name[i], buff_name, len);
 			sunxi_certif->extension.name[i][len] = '\0';
 			sunxi_certif->extension.name_len[i]  = len;

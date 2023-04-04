@@ -1,3 +1,4 @@
+source "common/Kconfig.boot"
 menu "Boot timing"
 
 config BOOTSTAGE
@@ -646,6 +647,18 @@ config SUNXI_IMAGE_VERIFIER
 config SUNXI_KEYBOX
 	bool "Sunxi keybox support"
 	default n
+
+config BCC
+	bool "Support for Boot Certificate Chain derivation"
+	default n
+	select LIB_OPENDICE
+	select LIB_BORINGSSL
+	select SHA256
+	help
+	  This enables support for generating the next entry in Boot Certificate
+	  Chain using Open Profile for DICE derivation. This is a form of
+	  measured boot that can be used for remote attestation and key
+	  provisioning.
 
 endmenu
 

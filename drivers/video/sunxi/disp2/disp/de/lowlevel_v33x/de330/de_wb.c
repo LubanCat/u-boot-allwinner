@@ -815,6 +815,7 @@ s32 de_wb_get_reg_blocks(u32 wb,
 	if (priv->cdc_hdl)
 		de_cdc_get_reg_blks(priv->cdc_hdl, NULL, &num);
 	num += priv->reg_blk_num;
+
 	if (*blk_num < num) {
 		DE_WRN("should not happen: blk_num=%d\n", *blk_num);
 		*blk_num = 0;

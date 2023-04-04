@@ -13,10 +13,17 @@ config SUNXI_MAC
 	help
 		when enabled, uboot read mac addr and send to system via cmdline
 
+config SUNXI_GPIO_POWER_VOL_MODE
+	bool "power mode of gpio"
+	default n
+	help
+		when enabled, the voltage of gpio to set normal according to extern voltage
+
 config SUNXI_USER_KEY
 	bool "user key"
 	default n
 	select SUNXI_SECURE_STORAGE
+	select CMD_FAT
 	help
 		when enable, uboot try to read cmdline data from secure storage
 
@@ -153,6 +160,14 @@ config SUN50IW9_AUTOPRINT
 	help
 	    check card print and uart print,write auto_print
 
+config SUNXI_KASLR_SEED
+	bool "sunxi support kaslr seed"
+	default n
+	depends on SUNXI_CE_DRIVER
+	help
+	    Use TRNG to generate random numbers and update
+	    them to the kernel device tree
+
 config SUNXI_LRADC_VOL
 	bool "sunxi support lradc read voltage"
 	default n
@@ -165,16 +180,19 @@ config BOOTCMD_SKIP_MISC
 	bool "sunxi skip detect misc for bootcmd"
 	default n
 	help
+		skip detect misc for bootcmd
 
 config BOOTCMD_SKIP_ADCKEY
 	bool "sunxi skip detect adckey for bootcmd"
 	default n
 	help
+		skip detect adckey for bootcmd
 
 config BOOTCMD_SKIP_RTC
 	bool "sunxi skip detect rtc for bootcmd"
 	default n
 	help
+		skip detect rtc for bootcmd
 
 menuconfig SUNXI_HOMLET
 	bool "sunxi homlet support"
@@ -199,6 +217,12 @@ config IR_BOOT_RECOVERY
 config RECOVERY_KEY
 	bool "support recovery key"
 	default n
+
+config HDCP_DEBUG
+	bool "hdcp key debug support"
+	default n
+	help
+		support write hdcphash to efuse
 
 config SUNXI_HDCP_IN_SECURESTORAGE
 	bool "hdcp key support"
@@ -299,5 +323,20 @@ config SUNXI_MEM_INFO
         default y
         help
            enable memory information
+
+config SUNXI_RKP
+	bool "sunxi rkp extraction"
+	default n
+	depends on SUNXI_AVB
+	help
+		support rkp device extraction
+
+if SUNXI_RKP
+config SUNXI_RKP_FROM_UBOOT
+	bool "support build rkp csr in uboot"
+	imply LIB_OPENDICE
+	help
+		require external open-dice lib
+endif
 
 endmenu

@@ -28,6 +28,13 @@ typedef struct vendor_boot_img_hdr vendor_boot_img_hdr;
 #define VENDOR_BOOT_ARGS_SIZE 2048
 #define VENDOR_BOOT_HEAD_SIZE 2108
 
+/* new for v4 */
+#define VENDOR_RAMDISK_TYPE_NONE 0
+#define VENDOR_RAMDISK_TYPE_PLATFORM 1
+#define VENDOR_RAMDISK_TYPE_RECOVERY 2
+#define VENDOR_RAMDISK_TYPE_DLKM 3
+#define VENDOR_RAMDISK_NAME_SIZE 32
+#define VENDOR_RAMDISK_TABLE_ENTRY_BOARD_ID_SIZE 16
 struct andr_img_hdr {
 	char magic[ANDR_BOOT_MAGIC_SIZE];
 
@@ -140,7 +147,22 @@ struct vendor_boot_img_hdr {
 	* bytes */
 	u32 dtb_size; /* size of dtb image */
 	u64 dtb_addr; /* physical load address */
+	/* new for v4 */
+	uint32_t vendor_ramdisk_table_size; /* size in bytes for the vendor ramdisk table */
+	uint32_t vendor_ramdisk_table_entry_num; /* number of entries in the vendor ramdisk table */
+	uint32_t vendor_ramdisk_table_entry_size;
+	uint32_t vendor_bootconfig_size; /* size in bytes for bootconfig image */
 } __attribute__((packed));
 
+/* new for v4 */
+struct vendor_ramdisk_table_entry_v4 {
+	uint32_t ramdisk_size; /* size in bytes for the ramdisk image */
+	uint32_t ramdisk_offset; /* offset to the ramdisk image in vendor ramdisk section */
+	uint32_t ramdisk_type; /* type of the ramdisk */
+	uint8_t ramdisk_name[VENDOR_RAMDISK_NAME_SIZE]; /* asciiz ramdisk name */
 
+	// Hardware identifiers describing the board, soc or platform which this
+	// ramdisk is intended to be loaded on.
+	uint32_t board_id[VENDOR_RAMDISK_TABLE_ENTRY_BOARD_ID_SIZE];
+} __attribute__((packed));
 #endif

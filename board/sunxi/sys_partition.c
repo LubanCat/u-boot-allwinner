@@ -20,7 +20,6 @@ static sunxi_mbr_t *mbr ;
 #endif
 
 extern struct bootloader_control ab_message;
-#define MMC_LOGICAL_OFFSET   (20 * 1024 * 1024/512)
 DECLARE_GLOBAL_DATA_PTR;
 
 #if defined (CONFIG_ENABLE_MTD_CMDLINE_PARTS_BY_ENV)
@@ -141,6 +140,98 @@ int sunxi_partition_parse_get_info(int index, disk_partition_t *info)
 }
 #endif
 
+/**
+ * Parses a string into a number.  The number stored at ptr is
+ * potentially suffixed with K (for kilobytes, or 1024 bytes),
+ * M (for megabytes, or 1048576 bytes), or G (for gigabytes, or
+ * 1073741824).  If the number is suffixed with K, M, or G, then
+ * the return value is the number multiplied by one kilobyte, one
+ * megabyte, or one gigabyte, respectively.
+ *
+ * @param ptr where parse begins
+ * @param retptr output pointer to next char after parse completes (output)
+ * @return resulting unsigned int
+ */
+static u64 size_parse(const char *const ptr, const char **retptr)
+{
+	u64 ret = simple_strtoull(ptr, (char **)retptr, 0);
+
+	switch (**retptr) {
+	case 'G':
+	case 'g':
+		ret <<= 10;
+	case 'M':
+	case 'm':
+		ret <<= 10;
+	case 'K':
+	case 'k':
+		ret <<= 10;
+		(*retptr)++;
+	default:
+		break;
+	}
+
+	return ret;
+}
+
+int sunxi_partition_parse(const char *name, disk_partition_t *info)
+{
+	const char *src, *des, *part_name;
+	const char *cmdline = env_get("mtdparts");
+	int name_len;
+
+	if (!cmdline) {
+		printf("error:can't find mtdparts in env.\n");
+		debug("get partition error\n");
+		return -1;
+	}
+
+	src = strchr(cmdline, ':');
+	if (!src) {
+		printf("Invalid mtdparts parameter\n");
+		return -1;
+	}
+
+	while (1) {
+		des = strchr(src, '(');
+		if (!des)
+			goto err;
+
+		part_name = ++des;
+
+		des = strchr(des, ')');
+		if (!des)
+			goto err;
+
+		name_len = des - part_name;
+
+		if (!strncmp(name, part_name, name_len))
+			break;
+
+		src = strchr(des, ',');
+		if (!src)
+			goto err;
+	}
+
+	src++;
+	if (*src == '-')
+		goto err;
+
+	strncpy((char *)info->name, part_name, name_len);
+	info->size = size_parse(src, &src);
+
+	if (*src == '@') {
+		src++;
+		info->start = size_parse(src, &src);
+	}
+
+	return 0;
+
+err:
+	printf("%s not found in mtdparts\n", name);
+	return -1;
+}
+
 int sunxi_partition_init(void)
 {
 #ifndef CONFIG_ENABLE_MTD_CMDLINE_PARTS_BY_ENV
@@ -193,7 +284,7 @@ int sunxi_replace_android_ab_system(char *intput_part_name, char *output_part_na
 #ifdef CONFIG_ANDROID_AB
 	int i, ret;
 	static int part_cur_len;
-	static char ab_partition[16][16] = {"bootloader", "env", "boot", "vendor_boot", "dtbo", "vbmeta", "vbmeta_system", "vbmeta_vendor"};
+	static char ab_partition[16][16] = {"bootloader", "env", "boot", "vendor_boot", "init_boot", "dtbo", "vbmeta", "vbmeta_system", "vbmeta_vendor"};
 	char *ab_part_list = env_get("ab_partition_list");
 	if ((gd->env_has_init) && (ab_part_list != NULL) && (part_cur_len != strlen(ab_part_list))) {
 		memset(ab_partition, 0, sizeof(ab_partition));
@@ -212,6 +303,7 @@ int sunxi_replace_android_ab_system(char *intput_part_name, char *output_part_na
 			break;
 		}
 	}
+
 #endif
 	/* tick_printf("output_part_name:%s\t intput_part_name:%s\n", output_part_name, intput_part_name); */
 	return 0;
@@ -332,7 +424,7 @@ int sunxi_partition_get_info(const char *part_name, disk_partition_t *info)
 	if (get_boot_work_mode() == WORK_MODE_CARD_PRODUCT ||
 		storage_type == STORAGE_EMMC || storage_type == STORAGE_EMMC3
 		|| storage_type == STORAGE_SD || storage_type == STORAGE_EMMC0) {
-		logic_offset = MMC_LOGICAL_OFFSET;
+		logic_offset = sunxi_flashmap_logical_offset(FLASHMAP_SDMMC, LINUX_LOGIC_OFFSET);
 	} else {
 		logic_offset = 0;
 	}

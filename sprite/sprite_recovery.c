@@ -157,6 +157,30 @@ static int sprite_erase_partition_by_name(char *part_name)
 	return 0;
 }
 
+/*
+* pms id:79675
+* DragonSN tool usage
+* 1. Destroy the data of metadata partition and UserData partition.
+* When Android starts, it recognizes that the partition is damaged,
+* which will trigger Android erasure
+* 2. Speed up the production line
+*/
+int sprite_erase_for_androidrecovery(void)
+{
+	int ret;
+	ret = sprite_erase_partition_by_name("data");
+	if (ret) {
+		pr_err("sprite update error: fail to erase data\n");
+		return -1;
+	}
+	ret = sprite_erase_partition_by_name("meta");
+	if (ret) {
+		pr_err("sprite update error: fail to erase data\n");
+		return -1;
+	}
+	return 0;
+}
+
 static int sprite_erase_in_sysrecovery(void)
 {
 	int ret;

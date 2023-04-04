@@ -99,7 +99,6 @@
 /* Common Interface */
 #define UART_GATE           0x090C
 #define TWI_GATE            0x091C
-#define CAN_GATE            0x092C
 #define SCR_GATE            0x093C
 #define SPI0_CFG            0x0940
 #define SPI1_CFG            0x0944
@@ -173,7 +172,6 @@
 #define CPUS_LRADC_GATE     0x016C
 #define CPUS_UART_GATE      0x018C
 #define CPUS_TWI_GATE       0x019C
-#define CPUS_CAN_GATE       0x01AC
 #define CPUS_RSB_GATE       0x01BC
 #define CPUS_CIR_CFG        0x01C0
 #define CPUS_CIR_GATE       0x01CC

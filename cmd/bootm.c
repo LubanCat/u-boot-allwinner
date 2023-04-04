@@ -105,7 +105,24 @@ __maybe_unused static void sunxi_update_initrd(ulong os_load_addr)
 		android_image_get_vendor_ramdisk(hdr, &vendor_initrd_start, &vendor_initrd_size);
 		memmove_wd((void *)(ramdisk_addr), (void *)vendor_initrd_start, vendor_initrd_size, CHUNKSZ);
 		memmove_wd((void *)(ramdisk_addr + vendor_initrd_size), (void *)initrd_start, initrd_size, CHUNKSZ);
+
 		initrd_size += vendor_initrd_size;
+
+		/*bootconfig exist*/
+		if (android_image_is_vendor_bootconfig_used(vendor_hdr)) {
+			ulong bootconfig_start = 0;
+			ulong bootconfig_size  = 0;
+			android_image_get_vendor_bootconfig(
+				hdr, &bootconfig_start, &bootconfig_size);
+			android_image_cmdline_to_vendorbootconfig(&bootconfig_start, &bootconfig_size);
+			memmove_wd((void *)(ramdisk_addr + initrd_size),
+				   (void *)bootconfig_start, bootconfig_size,
+				   CHUNKSZ);
+			initrd_size += bootconfig_size;
+			env_set_hex("bootconfig_addr", bootconfig_start);
+			env_set_hex("bootconfig_size", bootconfig_size);
+		}
+
 		if (vendor_hdr->dtb_addr) {
 			env_set_hex("load_dtb_addr", env_get_hex("load_dtb_addr", vendor_hdr->dtb_addr));
 		}
@@ -309,6 +326,8 @@ int do_bootm(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 			return do_bootm_subcommand(cmdtp, flag, argc, argv);
 	}
 	update_bootargs();
+	update_vendorbootconfig_and_bootgargs();
+
 	return do_bootm_states(cmdtp, flag, argc, argv, BOOTM_STATE_START |
 		BOOTM_STATE_FINDOS | BOOTM_STATE_FINDOTHER |
 		BOOTM_STATE_LOADOS |
@@ -473,7 +492,7 @@ static int image_info(ulong addr)
 	case IMAGE_FORMAT_FIT:
 		puts("   FIT image found\n");
 
-		if (!fit_check_format(hdr)) {
+		if (fit_check_format(hdr, IMAGE_SIZE_INVAL)) {
 			puts("Bad FIT image format!\n");
 			return 1;
 		}
@@ -546,7 +565,7 @@ static int do_imls_nor(void)
 #endif
 #if defined(CONFIG_FIT)
 			case IMAGE_FORMAT_FIT:
-				if (!fit_check_format(hdr))
+				if (fit_check_format(hdr, IMAGE_SIZE_INVAL))
 					goto next_sector;
 
 				printf("FIT Image at %08lX:\n", (ulong)hdr);
@@ -626,7 +645,7 @@ static int nand_imls_fitimage(struct mtd_info *mtd, int nand_dev, loff_t off,
 		return ret;
 	}
 
-	if (!fit_check_format(imgdata)) {
+	if (fit_check_format(imgdata, IMAGE_SIZE_INVAL)) {
 		free(imgdata);
 		return 0;
 	}

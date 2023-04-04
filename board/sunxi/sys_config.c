@@ -26,6 +26,7 @@
 #include <asm/io.h>
 #include <sys_config.h>
 #include <fdt_support.h>
+#include <asm/arch-sunxi/gpio.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -889,7 +890,7 @@ int gpio_request_early(void  *user_gpio_list, __u32 group_count_max, __s32 set_g
 	volatile __u32     *tmp_group_func_addr,   *tmp_group_pull_addr;
 	volatile __u32     *tmp_group_dlevel_addr, *tmp_group_data_addr;
 	__u32  				port, port_num, port_num_func, port_num_pull, port_num_dlevel;
-	__u32  				pre_port, pre_port_num_func;
+	__u32  				pre_port = 0, pre_port_num_func;
 	__u32  				pre_port_num_pull;
 	__s32               i, tmp_val;
 
@@ -906,6 +907,11 @@ int gpio_request_early(void  *user_gpio_list, __u32 group_count_max, __s32 set_g
 		{
 			continue;
 		}
+#if CONFIG_SUNXI_GPIO_POWER_VOL_MODE
+		if (port != pre_port) {
+			sunxi_io_set_pow_mode_on_actual_val(port - 1);
+		}
+#endif
 		port_num_func = (port_num >> 3);
 		port_num_pull = (port_num >> 4);
 		port_num_dlevel = (port_num / PIOC_o_DLEVEL);
@@ -1125,6 +1131,11 @@ ulong sunxi_gpio_request(user_gpio_set_t *gpio_list, __u32 group_count_max)
         {
             continue;
         }
+#if CONFIG_SUNXI_GPIO_POWER_VOL_MODE
+		if (port != pre_port) {
+			sunxi_io_set_pow_mode_on_actual_val(port - 1);
+		}
+#endif
         port_num_func = (port_num >> 3);
         port_num_pull = (port_num >> 4);
 	port_num_dlevel = (port_num / PIOC_o_DLEVEL);
@@ -1143,6 +1154,7 @@ ulong sunxi_gpio_request(user_gpio_set_t *gpio_list, __u32 group_count_max)
     }
     if(first_port >= group_count_max)
     {
+		free(user_gpio_buf);
         return 0;
     }
    
@@ -1509,7 +1521,9 @@ int fdt_get_all_pin(int nodeoffset,const char* pinctrl_name,user_gpio_set_t* gpi
 				FDT_ERR(" muxsel not configed\n");
 				return -1;
 			}
-			strcpy(gpio_list[gpio_list_index].gpio_name, pin_name[j]);
+			strncpy(gpio_list[gpio_list_index].gpio_name,
+				pin_name[j],
+				sizeof(gpio_list[gpio_list_index].gpio_name) - 1);
 			gpio_list[gpio_list_index].port = port_name[j][1] - 'A'+1;
 			gpio_list[gpio_list_index].port_num = tmp_value;
 			gpio_list[gpio_list_index].mul_sel = tmp_mul & 0xf;
@@ -1821,7 +1835,7 @@ int fdt_set_normal_gpio(user_gpio_set_t  *gpio_set, int gpio_count)
 
 int script_parser_fetch(char *node_path, char *prop_name, int value[], int def_val)
 {
-	int nodeoffset; 
+	int nodeoffset;
 	int ret;
 
 	//get property vaule by handle

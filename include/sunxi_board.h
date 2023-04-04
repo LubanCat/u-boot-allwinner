@@ -29,18 +29,26 @@
 #include <sunxi_flash.h>
 #include <clk/clk.h>
 
+#define	SUNXI_CRYPT_SOFTWARE	(0xF1)
+#define	SUNXI_CRYPT_HW			(0xF2)
+
 extern int sunxi_oem_op_lock(int lock_flag, char *info);
 extern int sunxi_fastboot_status_read(void);
 
 extern void sunxi_board_close_source(void);
 extern int sunxi_board_restart(int next_mode);
 extern int sunxi_board_shutdown(void);
-extern int sunxi_platform_power_off(void);
+extern int sunxi_board_shutdown_charge(void);
+extern int sunxi_platform_power_off(int status);
 extern int sunxi_board_prepare_kernel(void);
 extern int sunxi_board_run_fel(void);
 extern int sunxi_board_run_fel_eraly(void);
+extern int sunxi_partition_parse(const char *name, disk_partition_t *info);
 extern int sunxi_flash_try_partition(struct blk_desc *desc, const char *str,
 				     disk_partition_t *info);
+
+extern int update_pmu_ext_info_to_kernel(void);
+extern int update_no_ext_info_to_kernel(void);
 
 extern void sunxi_update_subsequent_processing(int next_work);
 extern void fastboot_partition_init(void);
@@ -254,7 +262,7 @@ extern int sunxi_arisc_probe(void);
 int sunxi_dsp_init(u32 img_addr, u32 run_ddr, u32 dsp_id);
 #endif
 
-#ifdef CONFIG_RISCV_E907
+#ifdef CONFIG_BOOT_RISCV
 int sunxi_riscv_init(u32 img_addr, u32 run_ddr, u32 riscv_id);
 #endif
 
@@ -264,5 +272,19 @@ int sunxi_usb_detect(void);
 
 extern int sunxi_set_force_32bit_os(int forced);
 extern int sunxi_get_force_32bit_os(void);
+
+int android_image_cmdline_to_vendorbootconfig(
+	unsigned long *bootconfig_startaddr, unsigned long *bootconfig_size);
+void update_vendorbootconfig_and_bootgargs(void);
+
+struct key_value_set {
+	const char *key;
+	const char *value;
+	uint32_t key_len;
+	uint32_t value_len;
+};
+
+int sunxi_cmdline_parse(const char *string, struct key_value_set *buffer,
+			size_t buffer_count);
 
 #endif /*_SUNXI_BOARD_H_ */

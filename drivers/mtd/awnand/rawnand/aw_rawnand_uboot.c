@@ -14,9 +14,10 @@
 #include <linux/mtd/aw-rawnand.h>
 #include <fdt_support.h>
 #include <linux/mtd/aw-ubi.h>
+#include <spare_head.h>
 
 
-#define VERSION "v1.28 2021-12-13 16:13"
+#define VERSION "v1.31 2022-09-09 11:21"
 
 void DISPLAY_VERSION(void)
 {
@@ -26,6 +27,9 @@ void DISPLAY_VERSION(void)
 
 static int enable_rawnand = -1;
 
+extern int get_boot_storage_type_ext(void);
+extern int get_boot_work_mode(void);
+
 
 inline bool support_rawnand(void)
 {
@@ -34,19 +38,41 @@ inline bool support_rawnand(void)
 	if (enable_rawnand != -1)
 		return enable_rawnand;
 
-	raw_node = fdt_path_offset(working_fdt, "nand0");
-	if (raw_node < 0) {
-		awrawnand_err("get raw-nand node from fdt failed\n");
-		return false;
-	}
+	if (get_boot_work_mode() == WORK_MODE_BOOT &&
+			get_boot_storage_type_ext() == STORAGE_NAND) {
+
+		raw_node = fdt_path_offset(working_fdt, "nand0");
+		if (raw_node < 0) {
+			awrawnand_err("get raw-nand node from fdt failed\n");
+			return false;
+		}
 #ifdef CONFIG_SUNXI_UBIFS
-	enable_rawnand = true;
+
+		enable_rawnand = true;
 #else
-	enable_rawnand = false;
+		enable_rawnand = false;
 #endif
+	} else if (get_boot_work_mode() != WORK_MODE_BOOT) {
+		raw_node = fdt_path_offset(working_fdt, "nand0");
+		if (raw_node < 0) {
+			awrawnand_err("get raw-nand node from fdt failed\n");
+			return false;
+		}
+#ifdef CONFIG_SUNXI_UBIFS
+
+		enable_rawnand = true;
+#else
+		enable_rawnand = false;
+#endif
+	}
 	return enable_rawnand;
 }
 EXPORT_SYMBOL_GPL(support_rawnand);
+
+void disable_rawnand(void)
+{
+	enable_rawnand = false;
+}
 
 /*usually small capacity nand is slc nand*/
 static int get_smallnand_uboot_start_block_num(void)

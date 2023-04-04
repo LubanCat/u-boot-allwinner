@@ -244,6 +244,9 @@ enum disp_tv_mode
 	DISP_TV_MOD_1024_768P_60HZ      = 0x42,
 	DISP_TV_MOD_900_540P_60HZ       = 0x43,
 	DISP_TV_MOD_1920_720P_60HZ      = 0x44,
+	DISP_TV_MOD_2560_1600P_60HZ     = 0x45,
+	/* 2.5K reduce blanking */
+	DISP_TV_MOD_2560_1600P_60HZ_RB  = 0x46,
 
 	/*Just for the solution of hdmi edid detailed timiming block*/
 	DISP_HDMI_MOD_DT0                = 0x4a,

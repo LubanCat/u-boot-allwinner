@@ -1373,7 +1373,7 @@ static const struct de_feat sun8iw20_de_features = {
 /*	.num_vdpo = DEVICE_VDPO_NUM,*/
 };
 
-#endif /*endif CONFIG_ARCH_SUN8iW20 */
+#endif /*endif CONFIG_MACH_SUN8iW20 */
 
 static const int default_de_num_chns[] = {
 	/* DISP0 */

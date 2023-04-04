@@ -42,10 +42,15 @@
 #define   AXP2101_CHARGE1             	(0x62)
 #define   AXP2101_CHGLED_SET             	(0x69)
 
+#define   AXP2101_ADC_CH_EN0      (0x30)
 #define   AXP2101_BAT_AVERVOL_H6          (0x34)
 #define   AXP2101_BAT_AVERVOL_L8          (0x35)
+#define   AXP2101_TS_H            (0x36)
+#define   AXP2101_TS_L            (0x37)
+#define   AXP2101_TS_CFG          (0x50)
 
 #define   AXP2101_FUEL_GAUGE_CTL       	(0x18)
+#define   AXP210X_REG_CONFIG    			(0xA2)
 #define   AXP2101_BAT_PERCEN_CAL			(0xA4)
 
 #endif /* __AXP2101_REGS_H__ */

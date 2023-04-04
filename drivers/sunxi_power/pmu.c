@@ -44,13 +44,22 @@ static struct sunxi_pmu_dev_t *pmu_get_axp_dev_t(void)
 	return NULL;
 }
 
-/* matches chipid*/
+/* matches chipid */
 int pmu_probe(void)
 {
 	sunxi_pmu_dev = pmu_get_axp_dev_t();
 	if (sunxi_pmu_dev == NULL)
 		return -1;
 	return 0;
+}
+
+/* reg debug */
+int pmu_reg_debug(void)
+{
+	if ((sunxi_pmu_dev) && (sunxi_pmu_dev->reg_debug))
+		return sunxi_pmu_dev->reg_debug();
+	axp_err("not imple:%s\n", __func__);
+	return -1;
 }
 
 /*get axp info*/

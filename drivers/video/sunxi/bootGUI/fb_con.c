@@ -222,7 +222,10 @@ static int creat_framebuffer(framebuffer_t *fb, const fb_config_t *const fb_cfg)
 
 	fb->cv->width = fb_cfg->width;
 	fb->cv->height = fb_cfg->height;
-	if (32 == fb_cfg->bpp) {
+	if (16 == fb_cfg->bpp) {
+		fb->cv->bpp = 16;
+		fb->cv->pixel_format_name = "RGB565";
+	} else if (32 == fb_cfg->bpp) {
 		fb->cv->bpp = 32;
 		fb->cv->pixel_format_name = "ARGB8888";
 	} else if (24 == fb_cfg->bpp) {
@@ -329,11 +332,16 @@ static int clear_framebuffer(framebuffer_t *const fb)
 static void get_fb_configs(fb_config_t *fb_cfgs, int fb_id)
 {
 	int node = get_disp_fdt_node();
-	char prop[12];
+	char prop[20];
+	uint32_t tmp;
+	uint32_t rot_used;
+	uint32_t rot_degree;
 
 	/* memset((void *)fb_cfgs, 0, sizeof(*fb_cfgs)); */
 	sprintf(prop, "fb%d_format", fb_id);
 	disp_getprop_by_name(node, prop, (uint32_t *)&(fb_cfgs->format_cfg), -1);
+	if (fb_cfgs->format_cfg == -1)
+		disp_getprop_by_name(node, "fb_format", (uint32_t *)&(fb_cfgs->format_cfg), -1);
 	hal_get_fb_format_config(fb_cfgs->format_cfg, &(fb_cfgs->bpp));
 	sprintf(prop, "fb%d_width", fb_id);
 	disp_getprop_by_name(node, prop, (uint32_t *)&(fb_cfgs->width), 0);
@@ -341,6 +349,17 @@ static void get_fb_configs(fb_config_t *fb_cfgs, int fb_id)
 	disp_getprop_by_name(node, prop, (uint32_t *)&(fb_cfgs->height), 0);
 	if (fb_cfgs->height == 0 || fb_cfgs->width == 0)
 		hal_get_screen_size(fb_id, (unsigned int *)&fb_cfgs->width, (unsigned int *)&fb_cfgs->height);
+
+	sprintf(prop, "fb%d_rot_used", fb_id);
+	disp_getprop_by_name(node, prop, &rot_used, 0);
+	sprintf(prop, "fb%d_rot_degree", fb_id);
+	disp_getprop_by_name(node, prop, &rot_degree, 0);
+	/*rotate 90 or rotate 270*/
+	if (rot_used == 1 && (rot_degree == 1 || rot_degree == 3)) {
+		tmp = (uint32_t)fb_cfgs->width;
+		fb_cfgs->width = fb_cfgs->height;
+		fb_cfgs->height = tmp;
+	}
 }
 
 int fb_init(void)

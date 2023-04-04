@@ -778,11 +778,14 @@ extern int ubi_nand_force_erase(void);
 extern int ubi_nand_read(unsigned int start, unsigned int sectors, void *buffer);
 extern int ubi_nand_write(unsigned int start, unsigned int sectors, void *buf);
 extern int ubi_nand_download_uboot(unsigned int len, void *buf);
+extern int ubi_nand_upload_uboot(void *buf, unsigned int);
 extern int ubi_nand_download_boot0(unsigned int len, void *buf);
 extern int ubi_nand_write_end(void);
 extern int ubi_nand_update_ubi_env(void);
 extern int ubi_nand_secure_storage_read(int item, void *buf, unsigned int len);
 extern int ubi_nand_secure_storage_write(int item, void *buf, unsigned int len);
+extern int mtd_nand_read(unsigned int start, unsigned int sectors, void *buffer);
+extern int mtd_nand_write(unsigned int start, unsigned int sectors, void *buffer);
 
 extern void nand_get_ubootstat(void);
 

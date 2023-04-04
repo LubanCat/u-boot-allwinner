@@ -10,6 +10,11 @@
 #include <mmc.h>
 #include <spare_head.h>
 #include <sunxi_board.h>
+#include <sparse_format.h>
+#include <image-sparse.h>
+#ifdef CONFIG_SUNXI_SDMMC
+#include "../drivers/mmc/sunxi_mmc.h"
+#endif
 
 static int curr_device = -1;
 
@@ -128,7 +133,7 @@ static int do_mmcinfo(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	return CMD_RET_SUCCESS;
 }
 
-#ifdef CONFIG_SUPPORT_EMMC_RPMB
+#if CONFIG_IS_ENABLED(CMD_MMC_RPMB)
 static int confirm_key_prog(void)
 {
 	puts("Warning: Programming authentication key can be done only once !\n"
@@ -307,6 +312,71 @@ static int do_mmc_read(cmd_tbl_t *cmdtp, int flag,
 
 	return (n == cnt) ? CMD_RET_SUCCESS : CMD_RET_FAILURE;
 }
+
+#if CONFIG_IS_ENABLED(CMD_MMC_SWRITE)
+static lbaint_t mmc_sparse_write(struct sparse_storage *info, lbaint_t blk,
+				 lbaint_t blkcnt, const void *buffer)
+{
+	struct blk_desc *dev_desc = info->priv;
+
+	return blk_dwrite(dev_desc, blk, blkcnt, buffer);
+}
+
+static lbaint_t mmc_sparse_reserve(struct sparse_storage *info,
+				   lbaint_t blk, lbaint_t blkcnt)
+{
+	return blkcnt;
+}
+
+static int do_mmc_sparse_write(cmd_tbl_t *cmdtp, int flag,
+			       int argc, char * const argv[])
+{
+	struct sparse_storage sparse;
+	struct blk_desc *dev_desc;
+	struct mmc *mmc;
+	char dest[11];
+	void *addr;
+	u32 blk;
+
+	if (argc != 3)
+		return CMD_RET_USAGE;
+
+	addr = (void *)simple_strtoul(argv[1], NULL, 16);
+	blk = simple_strtoul(argv[2], NULL, 16);
+
+	if (!is_sparse_image(addr)) {
+		printf("Not a sparse image\n");
+		return CMD_RET_FAILURE;
+	}
+
+	mmc = init_mmc_device(curr_device, false);
+	if (!mmc)
+		return CMD_RET_FAILURE;
+
+	printf("\nMMC Sparse write: dev # %d, block # %d ... ",
+	       curr_device, blk);
+
+	if (mmc_getwp(mmc) == 1) {
+		printf("Error: card is write protected!\n");
+		return CMD_RET_FAILURE;
+	}
+
+	dev_desc = mmc_get_blk_desc(mmc);
+	sparse.priv = dev_desc;
+	sparse.blksz = 512;
+	sparse.start = blk;
+	sparse.size = dev_desc->lba - blk;
+	sparse.write = mmc_sparse_write;
+	sparse.reserve = mmc_sparse_reserve;
+	sparse.mssg = NULL;
+	sprintf(dest, "0x" LBAF, sparse.start * sparse.blksz);
+
+	if (write_sparse_image(&sparse, dest, addr, NULL))
+		return CMD_RET_FAILURE;
+	else
+		return CMD_RET_SUCCESS;
+}
+#endif
 
 #if CONFIG_IS_ENABLED(MMC_WRITE)
 static int do_mmc_write(cmd_tbl_t *cmdtp, int flag,
@@ -806,12 +876,37 @@ static int do_mmc_bkops_enable(cmd_tbl_t *cmdtp, int flag,
 }
 #endif
 
+#ifdef CONFIG_SUNXI_SDMMC
+static int do_mmc_tuning(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
+{
+	struct mmc *mmc;
+	int dev = simple_strtoul(argv[1], NULL, 10);
+	mmc = find_mmc_device(dev);
+	if (!mmc) {
+		printf("no mmc device at slot %x\n", dev);
+		return CMD_RET_FAILURE;
+	}
+
+	struct sunxi_mmc_priv *priv = mmc->priv;
+	struct mmc_config *cfg = &priv->cfg;
+	cfg->force_boot_tuning = 1;
+	mmc->has_init = 0;
+
+	if (mmc_init(mmc))
+		return CMD_RET_FAILURE;
+	return CMD_RET_SUCCESS;
+}
+#endif
+
 static cmd_tbl_t cmd_mmc[] = {
 	U_BOOT_CMD_MKENT(info, 1, 0, do_mmcinfo, "", ""),
 	U_BOOT_CMD_MKENT(read, 4, 1, do_mmc_read, "", ""),
 #if CONFIG_IS_ENABLED(MMC_WRITE)
 	U_BOOT_CMD_MKENT(write, 4, 0, do_mmc_write, "", ""),
 	U_BOOT_CMD_MKENT(erase, 3, 0, do_mmc_erase, "", ""),
+#endif
+#if CONFIG_IS_ENABLED(CMD_MMC_SWRITE)
+	U_BOOT_CMD_MKENT(swrite, 3, 0, do_mmc_sparse_write, "", ""),
 #endif
 	U_BOOT_CMD_MKENT(rescan, 1, 1, do_mmc_rescan, "", ""),
 	U_BOOT_CMD_MKENT(part, 1, 1, do_mmc_part, "", ""),
@@ -826,12 +921,15 @@ static cmd_tbl_t cmd_mmc[] = {
 	U_BOOT_CMD_MKENT(partconf, 5, 0, do_mmc_partconf, "", ""),
 	U_BOOT_CMD_MKENT(rst-function, 3, 0, do_mmc_rst_func, "", ""),
 #endif
-#ifdef CONFIG_SUPPORT_EMMC_RPMB
+#if CONFIG_IS_ENABLED(CMD_MMC_RPMB)
 	U_BOOT_CMD_MKENT(rpmb, CONFIG_SYS_MAXARGS, 1, do_mmcrpmb, "", ""),
 #endif
 	U_BOOT_CMD_MKENT(setdsr, 2, 0, do_mmc_setdsr, "", ""),
 #ifdef CONFIG_CMD_BKOPS_ENABLE
 	U_BOOT_CMD_MKENT(bkops-enable, 2, 0, do_mmc_bkops_enable, "", ""),
+#endif
+#ifdef CONFIG_SUNXI_SDMMC
+	U_BOOT_CMD_MKENT(tuning, 2, 0, do_mmc_tuning, "", ""),
 #endif
 };
 
@@ -867,11 +965,15 @@ U_BOOT_CMD(
 	"info - display info of the current MMC device\n"
 	"mmc read addr blk# cnt\n"
 	"mmc write addr blk# cnt\n"
+#if CONFIG_IS_ENABLED(CMD_MMC_SWRITE)
+	"mmc swrite addr blk#\n"
+#endif
 	"mmc erase blk# cnt\n"
 	"mmc rescan\n"
 	"mmc part - lists available partition on current mmc device\n"
 	"mmc dev [dev] [part] - show or set current mmc device [partition]\n"
 	"mmc list - lists available devices\n"
+#if CONFIG_IS_ENABLED(MMC_HW_PARTITIONING)
 	"mmc hwpartition [args...] - does hardware partitioning\n"
 	"  arguments (sizes in 512-byte blocks):\n"
 	"    [user [enh start cnt] [wrrel {on|off}]] - sets user data area attributes\n"
@@ -879,6 +981,7 @@ U_BOOT_CMD(
 	"    [check|set|complete] - mode, complete set partitioning completed\n"
 	"  WARNING: Partitioning is a write-once setting once it is set to complete.\n"
 	"  Power cycling is required to initialize partitions after set to complete.\n"
+#endif
 #ifdef CONFIG_SUPPORT_EMMC_BOOT
 	"mmc bootbus dev boot_bus_width reset_boot_bus_width boot_mode\n"
 	" - Set the BOOT_BUS_WIDTH field of the specified device\n"
@@ -890,7 +993,7 @@ U_BOOT_CMD(
 	" - Change the RST_n_FUNCTION field of the specified device\n"
 	"   WARNING: This is a write-once field and 0 / 1 / 2 are the only valid values.\n"
 #endif
-#ifdef CONFIG_SUPPORT_EMMC_RPMB
+#if CONFIG_IS_ENABLED(CMD_MMC_RPMB)
 	"mmc rpmb read addr blk# cnt [address of auth-key] - block size is 256 bytes\n"
 	"mmc rpmb write addr blk# cnt <address of auth-key> - block size is 256 bytes\n"
 	"mmc rpmb key <address of auth-key> - program the RPMB authentication key.\n"

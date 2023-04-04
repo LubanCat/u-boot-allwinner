@@ -30,6 +30,8 @@
 #define SPI_RX_SLOW	BIT(11)			/* receive with 1 wire slow */
 #define SPI_RX_DUAL	BIT(12)			/* receive with 2 wires */
 #define SPI_RX_QUAD	BIT(13)			/* receive with 4 wires */
+#define SPI_TX_OCTAL   BIT(14)                 /* transmit with 8 wires */
+#define SPI_RX_OCTAL   BIT(15)                 /* receive with 8 wires */
 
 /* Header byte that marks the start of the message */
 #define SPI_PREAMBLE_END_BYTE	0xec
@@ -118,6 +120,7 @@ struct spi_slave {
 };
 
 int spi_init(void);
+int spi_init_all(void);
 
 /**
  * spi_do_alloc_slave - Allocate a new SPI slave (internal)

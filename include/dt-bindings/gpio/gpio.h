@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * This header provides constants for most GPIO bindings.
  *
@@ -16,6 +17,14 @@
 /* Bit 1 express single-endedness */
 #define GPIO_PUSH_PULL 0
 #define GPIO_SINGLE_ENDED 2
+
+/* Bit 2 express Open drain or open source */
+#define GPIO_LINE_OPEN_SOURCE 0
+#define GPIO_LINE_OPEN_DRAIN 4
+
+/* Bit 3 express GPIO suspend/resume and reset persistence */
+#define GPIO_PERSISTENT 0
+#define GPIO_TRANSITORY 8
 
 /*
  * Open Drain/Collector is the combination of single-ended active low,

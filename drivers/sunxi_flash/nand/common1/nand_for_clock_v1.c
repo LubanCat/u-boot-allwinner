@@ -65,6 +65,92 @@ __u32 _get_pll6_clk_v1(void)
 #endif
 }
 
+#if defined(CONFIG_MACH_SUN55IW3)
+__s32 _get_ndfc_clk_v1(__u32 nand_index, __u32 *pdclk, __u32 *pcclk)
+{
+	__u32 sclk0_reg_adr = 0;
+	__u32 sclk1_reg_adr = 0;
+	__u32 sclk_src = 0;
+	__u32 sclk_src_sel = 0;
+	__u32 sclk_ratio_m = 0;
+	__u32 reg_val = 0;
+	__u32 sclk0, sclk1 = 0;
+
+	if (nand_index == 0) {
+		sclk0_reg_adr = (SUNXI_CCM_BASE +
+				NAND0_0_CLK_REG); /* CCM_NAND0_CLK0_REG; */
+		sclk1_reg_adr = (SUNXI_CCM_BASE +
+				NAND0_1_CLK_REG); /* CCM_NAND0_CLK1_REG; */
+	} else {
+		printf("_get_ndfc_clk_v1 error, wrong nand index: %d\n",
+				nand_index);
+		return -1;
+	}
+
+	/* sclk0 */
+	reg_val		 = get_wvalue(sclk0_reg_adr);
+	sclk_src_sel     = (reg_val >> 24) & 0x7;
+	sclk_ratio_m = (reg_val)&0x1f;
+
+	switch (sclk_src_sel) {
+	case 0:
+		sclk_src = 24;
+		break;
+	case 1:
+	case 3:
+		sclk_src = 400;
+		break;
+	case 2:
+	case 4:
+		sclk_src = 300;
+		break;
+	default:
+		printf("module clock source select err\n");
+		break;
+	}
+
+	sclk0 = sclk_src / (sclk_ratio_m + 1);
+
+	/* sclk1 */
+	reg_val		 = get_wvalue(sclk1_reg_adr);
+	sclk_src_sel     = (reg_val >> 24) & 0x7;
+	sclk_ratio_m = (reg_val)&0x1f;
+
+	switch (sclk_src_sel) {
+	case 0:
+		sclk_src = 24;
+		break;
+	case 1:
+	case 3:
+		sclk_src = 400;
+		break;
+	case 2:
+	case 4:
+		sclk_src = 300;
+		break;
+	default:
+		printf("module clock source select err\n");
+		break;
+	}
+
+	sclk1 = sclk_src / (sclk_ratio_m + 1);
+
+	if (nand_index == 0) {
+		/* printf("Reg 0x03001000 + 0x0810: 0x%x\n", *(volatile __u32 *)(SUNXI_CCM_BASE + 0x0810)); */
+		/* printf("Reg 0x03001000 + 0x0814: 0x%x\n", *(volatile __u32 *)(SUNXI_CCM_BASE + 0x0814)); */
+	} else {
+		/* printf("Reg 0x06000408: 0x%x\n", *(volatile __u32 *)(0x06000400)); */
+		/* printf("Reg 0x0600040C: 0x%x\n", *(volatile __u32 *)(0x06000404)); */
+	}
+	/* printf("NDFC%d:  sclk0(2*dclk): %d MHz   sclk1(cclk): %d MHz\n", nand_index, sclk0, sclk1); */
+
+	*pdclk = sclk0 / 2;
+	*pcclk = sclk1;
+
+	return 0;
+}
+
+#else
 __s32 _get_ndfc_clk_v1(__u32 nand_index, __u32 *pdclk, __u32 *pcclk)
 {
 	__u32 sclk0_reg_adr, sclk1_reg_adr;
@@ -87,7 +173,6 @@ __s32 _get_ndfc_clk_v1(__u32 nand_index, __u32 *pdclk, __u32 *pcclk)
 	reg_val		 = get_wvalue(sclk0_reg_adr);
 	sclk_src_sel     = (reg_val >> 24) & 0x7;
 	sclk_pre_ratio_n = (reg_val >> 8) & 0x3;
-	;
 	sclk_ratio_m = (reg_val)&0xf;
 
 	if (sclk_src_sel == 0)
@@ -96,6 +181,7 @@ __s32 _get_ndfc_clk_v1(__u32 nand_index, __u32 *pdclk, __u32 *pcclk)
 		sclk_src = _get_pll6_clk_v1() / 1000000;
 	else
 		sclk_src = 2 * _get_pll6_clk_v1() / 1000000;
+
 
 	sclk0 = (sclk_src >> sclk_pre_ratio_n) / (sclk_ratio_m + 1);
 
@@ -129,6 +215,162 @@ __s32 _get_ndfc_clk_v1(__u32 nand_index, __u32 *pdclk, __u32 *pcclk)
 	return 0;
 }
 
+#endif
+
+#if defined(CONFIG_MACH_SUN55IW3)
+__s32 _change_ndfc_clk_v1(__u32 nand_index, __u32 dclk_src_sel, __u32 dclk,
+		__u32 cclk_src_sel, __u32 cclk)
+{
+	u32 reg_val = 0;
+	u32 sclk0_src_sel = 0;
+	u32 sclk0 = 0;
+	u32 sclk0_src = 0;
+	u32 sclk0_ratio_m = 0;
+	u32 sclk1_src_sel = 0;
+	u32 sclk1 = 0;
+	u32 sclk1_src = 0;
+	u32 sclk1_ratio_m = 0;
+	u32 sclk0_reg_adr, sclk1_reg_adr = 0;
+
+	if (nand_index == 0) {
+		sclk0_reg_adr = (SUNXI_CCM_BASE +
+				NAND0_0_CLK_REG); /* CCM_NAND0_CLK0_REG; */
+		sclk1_reg_adr = (SUNXI_CCM_BASE +
+				NAND0_1_CLK_REG); /* CCM_NAND0_CLK1_REG; */
+	} else {
+		printf("_change_ndfc_clk_v1 error, wrong nand index: %d\n",
+				nand_index);
+		return -1;
+	}
+
+	/*close dclk and cclk*/
+	if ((dclk == 0) && (cclk == 0)) {
+		reg_val = get_wvalue(sclk0_reg_adr);
+		reg_val &= (~(0x1U << 31));
+		put_wvalue(sclk0_reg_adr, reg_val);
+
+		reg_val = get_wvalue(sclk1_reg_adr);
+		reg_val &= (~(0x1U << 31));
+		put_wvalue(sclk1_reg_adr, reg_val);
+
+		printf("_change_ndfc_clk_v1, close sclk0 and sclk1\n");
+		return 0;
+	}
+
+	sclk0_src_sel = dclk_src_sel;
+	sclk0	 = dclk * 2; /* set sclk0 to 2*dclk. */
+	sclk1_src_sel = cclk_src_sel;
+	sclk1	 = cclk;
+
+	switch (sclk0_src_sel) {
+	case 0:
+		sclk0_src = 24;
+		break;
+	case 1:
+	case 3:
+		sclk0_src = 400;
+		break;
+	case 2:
+	case 4:
+		sclk0_src = 300;
+		break;
+	default:
+		printf("module clock source select err\n");
+		break;
+	}
+
+	switch (sclk1_src_sel) {
+	case 0:
+		sclk1_src = 24;
+		break;
+	case 1:
+	case 3:
+		sclk1_src = 400;
+		break;
+	case 2:
+	case 4:
+		sclk1_src = 300;
+		break;
+	default:
+		printf("module ecc clock source select err\n");
+		break;
+	}
+
+	sclk0_ratio_m = sclk0_src / sclk0;
+	sclk0_ratio_m -= 1;
+
+	sclk1_ratio_m = sclk1_src / sclk1;
+	sclk1_ratio_m -= 1;
+
+	/* close clock */
+	reg_val = get_wvalue(sclk0_reg_adr);
+	reg_val &= (~(0x1U << 31));
+	put_wvalue(sclk0_reg_adr, reg_val);
+
+	reg_val = get_wvalue(sclk1_reg_adr);
+	reg_val &= (~(0x1U << 31));
+	put_wvalue(sclk1_reg_adr, reg_val);
+
+	/* configure */
+	/* sclk0 <--> 2*dclk */
+	reg_val = get_wvalue(sclk0_reg_adr);
+	/* clock source select */
+	reg_val &= (~(0x7 << 24));
+	reg_val |= (sclk0_src_sel & 0x7) << 24;
+	/* clock divide ratio(M) */
+	reg_val &= ~(0x1f << 0);
+	reg_val |= (sclk0_ratio_m & 0x1f) << 0;
+	put_wvalue(sclk0_reg_adr, reg_val);
+	printf("sclk0:%x\n", get_wvalue(sclk0_reg_adr));
+
+	/* sclk1 <--> cclk */
+	reg_val = get_wvalue(sclk1_reg_adr);
+	/* clock source select */
+	reg_val &= (~(0x7 << 24));
+	reg_val |= (sclk1_src_sel & 0x7) << 24;
+	/* clock divide ratio(M) */
+	reg_val &= ~(0x1f << 0);
+	reg_val |= (sclk1_ratio_m & 0x1f) << 0;
+	put_wvalue(sclk1_reg_adr, reg_val);
+	printf("sclk1:%x\n", get_wvalue(sclk1_reg_adr));
+
+	/* open clock */
+	reg_val = get_wvalue(sclk0_reg_adr);
+	reg_val |= 0x1U << 31;
+	put_wvalue(sclk0_reg_adr, reg_val);
+
+	reg_val = get_wvalue(sclk1_reg_adr);
+	reg_val |= 0x1U << 31;
+	put_wvalue(sclk1_reg_adr, reg_val);
+
+	/* printf("NAND_SetClk for nand index %d \n", nand_index); */
+	if (nand_index == 0) {
+		sclk0_ratio_m     = (get_wvalue(sclk0_reg_adr) & 0x1f) + 1;
+
+		sclk1_ratio_m     = (get_wvalue(sclk1_reg_adr) & 0x1f) + 1;
+
+
+		/* NAND_Print_DBG("uboot Nand0 clk: %dMHz,PERI=%d,N=%d,M=%d,"
+		 *	"T=%d\n",sclk0_src/sclk0_ratio_m/sclk0_pre_ratio_n,
+			sclk0_src, sclk0_pre_ratio_n, sclk0_ratio_m, dclk); */
+		/* NAND_Print_DBG("uboot Nand Ecc clk: %dMHz,PERI=%d,N=%d,M=%d,"
+		 *	"T=%d\n",sclk1_src/sclk1_ratio_m/sclk1_pre_ratio_n,
+			sclk1_src, sclk1_pre_ratio_n, sclk1_ratio_m, cclk); */
+		/* printf("Reg 0x03001000 + 0x0810: 0x%x\n",
+		 *	*(volatile __u32 *)(SUNXI_CCM_BASE + 0x0810)); */
+		/* printf("Reg 0x03001000 + 0x0814: 0x%x\n",
+		 *	*(volatile __u32 *)(SUNXI_CCM_BASE + 0x0814)); */
+	} else {
+		/* printf("Reg 0x06000408: 0x%x\n",
+		 *	*(volatile __u32 *)(0x06000400)); */
+		/* printf("Reg 0x0600040C: 0x%x\n",
+		 *	*(volatile __u32 *)(0x06000404)); */
+	}
+
+	return 0;
+}
+
+#else
 __s32 _change_ndfc_clk_v1(__u32 nand_index, __u32 dclk_src_sel, __u32 dclk,
 		__u32 cclk_src_sel, __u32 cclk)
 {
@@ -184,6 +426,7 @@ __s32 _change_ndfc_clk_v1(__u32 nand_index, __u32 dclk_src_sel, __u32 dclk,
 		sclk1_src = _get_pll6_clk_v1() / 1000000;
 	else
 		sclk1_src = 2 * _get_pll6_clk_v1() / 1000000;
+
 
 	/* sclk0: 2*dclk */
 	/* sclk0_pre_ratio_n */
@@ -297,6 +540,9 @@ __s32 _change_ndfc_clk_v1(__u32 nand_index, __u32 dclk_src_sel, __u32 dclk,
 
 	return 0;
 }
+
+#endif
+
 
 __s32 _close_ndfc_clk_v1(__u32 nand_index)
 {

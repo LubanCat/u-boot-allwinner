@@ -6,10 +6,18 @@ menuconfig SUNXI_SPRITE
 	  Enable support for sunxi efex devices. 
 
 if SUNXI_SPRITE
+
 config SUNXI_SECURE_STORAGE
 	bool "Sunxi Sprite Secure Storage"
 	help
 	  Enable supprot for sunxi secure storage
+
+config SECURE_STORAGE_KEY_HUK
+	bool "Sunxi Secure Storage select huk to crypto"
+	depends on SUNXI_SECURE_STORAGE
+	default n
+	help
+	  sunxi secure storage select huk to crypto
 
 config SUNXI_SPRITE_CARTOON
 	bool "Sunxi Sprite cartoon support"

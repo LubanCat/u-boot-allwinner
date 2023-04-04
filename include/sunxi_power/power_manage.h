@@ -14,6 +14,7 @@
 #include <fdt_support.h>
 #include <sys_config.h>
 #include <sunxi_power/axp.h>
+#include <sunxi_power/pmu_ext.h>
 #include <sunxi_board.h>
 
 #define PMU_FASTBOOT_MODE		(0x0c)
@@ -39,6 +40,13 @@ int sunxi_update_axp_info(void);
 int axp_reset_capacity(void);
 int axp_set_dcdc_mode(void);
 
+
+#ifdef CONFIG_SUNXI_PMU_EXT
+int pmu_ext_probe(void);
+int pmu_ext_set_dcdc_mode(void);
+bool pmu_ext_get_exist(void);
+int pmu_ext_get_type(void);
+#endif
 
 
 

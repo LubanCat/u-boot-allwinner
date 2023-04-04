@@ -42,6 +42,7 @@
 
 #define SUNXI_SPI0_BASE			0x04025000
 #define SUNXI_SPI1_BASE			0x04026000
+#define SUNXI_SPIF_BASE			0x04F00000
 #define SUNXI_GMAC_BASE			0x04500000
 #define SUNXI_USB0_BASE			0x04100000
 #define SUNXI_USB1_BASE			0x04200000
@@ -74,6 +75,26 @@
 #define SUNXI_GPADC_BASE                  (0x02009000L)
 #define SUNXI_LRADC_BASE                  (0x02009800L)
 #define SUNXI_KEYADC_BASE                 SUNXI_LRADC_BASE
+
+#define PIOC_REG_o_POW_MOD_SEL   0x340
+#define PIOC_REG_o_POW_MS_CTL   0x344
+#define PIOC_REG_o_POW_MS_VAL   0x348
+
+#define PIOC_REG_POW_MOD_SEL  (SUNXI_PIO_BASE + PIOC_REG_o_POW_MOD_SEL)
+#define PIOC_REG_POW_MS_CTL   (SUNXI_PIO_BASE + PIOC_REG_o_POW_MS_CTL)
+#define PIOC_REG_POW_VAL   (SUNXI_PIO_BASE + PIOC_REG_o_POW_MS_VAL)
+
+#define PIOC_SEL_Px_3_3V_VOL 0
+#define PIOC_SEL_Px_1_8V_VOL 1
+
+#define PIOC_CTL_Px_ENABLE 0
+#define PIOC_CTL_Px_DISABLE 1
+
+#define PIOC_VAL_Px_3_3V_VOL 0
+#define PIOC_VAL_Px_1_8V_VOL 1
+
+#define PIOC_CTL_Px_DEFUALT PIOC_CTL_Px_ENABLE
+#define PIOC_SEL_Px_DEFAULT PIOC_SEL_Px_1_8V_VOL
 
 #ifndef __ASSEMBLY__
 void sunxi_board_init(void);

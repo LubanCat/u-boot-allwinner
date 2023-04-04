@@ -17,6 +17,7 @@
 #include "disp_device.h"
 
 static LIST_HEAD(device_list);
+static u32 device_num;
 
 s32 disp_device_set_manager(struct disp_device* dispdev, struct disp_manager *mgr)
 {
@@ -168,13 +169,20 @@ struct list_head* disp_device_get_list_head(void)
 s32 disp_device_register(struct disp_device *dispdev)
 {
 	list_add_tail(&dispdev->list, &device_list);
+	device_num++;
 	return 0;
 }
 
 s32 disp_device_unregister(struct disp_device *dispdev)
 {
 	list_del(&dispdev->list);
+	device_num--;
 	return 0;
+}
+
+u32 disp_device_get_num(void)
+{
+	return device_num;
 }
 
 void disp_device_show_builtin_patten(struct disp_device *dispdev, u32 patten)

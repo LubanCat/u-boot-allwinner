@@ -20,6 +20,21 @@ struct sunxi_lcd_drv g_lcd_drv;
 
 __lcd_panel_t* panel_array[] = {
 	&default_panel,
+/****** sk panel config ******/
+#ifdef CONFIG_LCD_SUPPORT_FT8021_TV097WXM_LH0
+	&FT8021_TV097WXM_LH0_mipi_panel,
+#endif
+#ifdef CONFIG_LCD_SUPPORT_JD9365DA_SAT080BO31I21Y03_26114M018I
+	&JD9365DA_SAT080BO31I21Y03_26114M018IB_mipi_panel,
+#endif
+
+#ifdef CONFIG_LCD_SUPPORT_JD9365DA_SAT080AT31I21Y03_26114M019IB
+	&JD9365DA_SAT080AT31I21Y03_26114M019IB_mipi_panel,
+#endif
+#ifdef CONFIG_LCD_SUPPORT_JD9365DA_SQ101A_B4EI313_39R501
+	&SQ101A_B4EI313_39R501_mipi_panel,
+#endif
+
 #ifdef CONFIG_LCD_SUPPORT_HE0801A068
 	&he0801a068_panel,
 #endif
@@ -123,6 +138,10 @@ __lcd_panel_t* panel_array[] = {
 	&st7701s_panel,
 #endif
 
+#ifdef CONFIG_LCD_SUPPORT_ST7701S_G5
+	&st7701s_g5_panel,
+#endif
+
 #ifdef CONFIG_LCD_SUPPORT_WTL096601G03
 	&wtl096601g03_panel,
 #endif
@@ -159,6 +178,10 @@ __lcd_panel_t* panel_array[] = {
 	&jd9366ab_3_panel,
 #endif
 
+#ifdef CONFIG_LCD_SUPPORT_JD9161Z_MIPI
+	&jd9161z_panel,
+#endif
+
 #ifdef CONFIG_LCD_SUPPORT_TFT08006
 	&tft08006_panel,
 #endif
@@ -167,11 +190,27 @@ __lcd_panel_t* panel_array[] = {
 	&t050k589_panel,
 #endif
 
+#ifdef CONFIG_LCD_SUPPORT_B080UAN01_MIPI1200X1920
+	&b080uan01_panel,
+#endif
+
 #ifdef CONFIG_LCD_SUPPORT_K101_MM2QA01_A
 	&K101_MM2QA01_A_mipi_panel,
 #endif
+#ifdef CONFIG_LCD_SUPPORT_ICN6202
+	&icn6202_panel,
+#endif
+#ifdef CONFIG_LCD_SUPPORT_NT35510_MIPI
+	&nt35510_panel,
+#endif
+#ifdef CONFIG_LCD_SUPPORT_KD080D24
+	&kd080d24_panel,
+#endif
+#ifdef CONFIG_LCD_SUPPORT_FX070_DHM18BOEL2_1024X600
+	&FX070_DHM18BOEL2_1024X600_mipi_panel,
+#endif
 	/* add new panel below */
-
+	&SQ101D_Q5DI404_84H501_mipi_panel,
 	NULL,
 };
 

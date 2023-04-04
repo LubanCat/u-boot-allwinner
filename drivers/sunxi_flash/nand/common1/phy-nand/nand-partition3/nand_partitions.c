@@ -644,8 +644,8 @@ int nand_check_partitions_consistent_legal(struct nand_partitions *new, struct n
 	}
 	if (new->nc != old->nc) {
 		pr_err("update parts count is inconsistent [new@%d-old@%d]\n", new->nc, old->nc);
-		pr_err("stop run\n");
-		asm("b .");
+		//pr_err("stop run\n");
+		//asm("b .");
 		return NAND_PARTS_COUNT_INCONSISTENT;
 	}
 
@@ -656,7 +656,7 @@ int nand_check_partitions_consistent_legal(struct nand_partitions *new, struct n
 		if (new->parts[p].from != old->parts[p].from ||
 				new->parts[p].size != old->parts[p].size) {
 			pr_err("update parts size is inconsitent\nplease check partitions size\n stop run\n");
-			asm("b .");
+			//asm("b .");
 			return NAND_PARTS_SIZE_INCONSISTENT;
 		}
 	}
@@ -1054,6 +1054,7 @@ int nand_info_init(struct _nand_info *nand_info, int state)
 		ret = -ENOMEM;
 		goto out_nomem;
 	}
+	memset(nand_info->new_bad_block, 0xff, PHY_PARTITION_BAD_BLOCK_SIZE);
 
 	nand_info->mbr_data = malloc_align(sizeof(PARTITION_MBR), 64);
 	if (nand_info->mbr_data == NULL) {
@@ -1094,13 +1095,14 @@ int nand_info_init(struct _nand_info *nand_info, int state)
 		nand_partitions_phy_range(&nand_parts, phy_partition->StartBlock, phy_partition->EndBlock);
 	}
 
-
+#if 0 /*maybe don't check is more friendly. e.g. in debug and tigerdump*/
 	/*check parts when update partial partition*/
 	if (ubootsta.nand_erase_state.erase_whole_chip != true && state == UBOOT_IN_PRODUCT) {
 		if ((ret = nand_check_partitions_consistent_legal(&nand_parts, &nand_info->boot->parts)) != 0) {
 			goto out;
 		}
 	}
+#endif
 
 	nand_build_boot_info_r(nand_info, state);
 

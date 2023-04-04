@@ -1061,36 +1061,45 @@ static AvbSlotVerifyResult load_and_verify_vbmeta(
           }
         }
 
-        if (apply_cmdline) {
-          if (slot_data->cmdline == NULL) {
-            slot_data->cmdline =
-                avb_calloc(kernel_cmdline_desc.kernel_cmdline_length + 1);
-            if (slot_data->cmdline == NULL) {
-              ret = AVB_SLOT_VERIFY_RESULT_ERROR_OOM;
-              goto out;
-            }
-            avb_memcpy(slot_data->cmdline,
-                       kernel_cmdline,
-                       kernel_cmdline_desc.kernel_cmdline_length);
-          } else {
-            /* new cmdline is: <existing_cmdline> + ' ' + <newcmdline> + '\0' */
-            size_t orig_size = avb_strlen(slot_data->cmdline);
-            size_t new_size =
-                orig_size + 1 + kernel_cmdline_desc.kernel_cmdline_length + 1;
-            char* new_cmdline = avb_calloc(new_size);
-            if (new_cmdline == NULL) {
-              ret = AVB_SLOT_VERIFY_RESULT_ERROR_OOM;
-              goto out;
-            }
-            avb_memcpy(new_cmdline, slot_data->cmdline, orig_size);
-            new_cmdline[orig_size] = ' ';
-            avb_memcpy(new_cmdline + orig_size + 1,
-                       kernel_cmdline,
-                       kernel_cmdline_desc.kernel_cmdline_length);
-            avb_free(slot_data->cmdline);
-            slot_data->cmdline = new_cmdline;
-          }
-        }
+		if (apply_cmdline) {
+			if (slot_data->cmdline == NULL) {
+				slot_data->cmdline = avb_calloc(
+				kernel_cmdline_desc.kernel_cmdline_length + 1);
+				if (slot_data->cmdline == NULL) {
+					ret = AVB_SLOT_VERIFY_RESULT_ERROR_OOM;
+					goto out;
+				}
+			avb_memcpy(slot_data->cmdline, kernel_cmdline,
+			kernel_cmdline_desc.kernel_cmdline_length);
+			} else {
+				/* new cmdline is: <existing_cmdline> + ' ' + <newcmdline> + '\0' */
+				size_t orig_size = avb_strlen(slot_data->cmdline);
+				size_t new_size =
+				orig_size + 1 +
+				kernel_cmdline_desc.kernel_cmdline_length + 1;
+				char *new_cmdline = avb_calloc(new_size);
+				if (new_cmdline == NULL) {
+					ret = AVB_SLOT_VERIFY_RESULT_ERROR_OOM;
+					goto out;
+				}
+				if (new_size < orig_size) {
+					printf("error:new_cmdline no space\n");
+					goto out;
+				}
+				avb_memcpy(new_cmdline, slot_data->cmdline, orig_size);
+				new_cmdline[orig_size] = ' ';
+				if ((new_size - (orig_size + 1)) < kernel_cmdline_desc.kernel_cmdline_length) {
+					printf("error:new_cmdline no space\n");
+					goto out;
+				}
+				avb_memcpy(new_cmdline + orig_size + 1,
+					   kernel_cmdline,
+					   kernel_cmdline_desc
+						   .kernel_cmdline_length);
+				avb_free(slot_data->cmdline);
+				slot_data->cmdline = new_cmdline;
+			}
+		}
       } break;
 
       case AVB_DESCRIPTOR_TAG_HASHTREE: {

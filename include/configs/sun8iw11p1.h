@@ -13,25 +13,6 @@
  */
 #include <configs/sunxi-common.h>
 
-#ifdef CONFIG_SUNXI_UBIFS
-#define CONFIG_MTD_DEVICE
-#define CONFIG_MTD_PARTITIONS
-#define CONFIG_CMD_MTDPARTS
-#define CONFIG_CMD_UBIFS
-#define CONFIG_MTD_UBI_WL_THRESHOLD 4096
-#define CONFIG_MTD_UBI_BEB_LIMIT 20
-#define CONFIG_CMD_UBI
-#define CONFIG_RBTREE
-#define CONFIG_LZO
-/* Nand config */
-#define CONFIG_SYS_MAX_NAND_DEVICE	1
-#define CONFIG_SYS_NAND_BASE	0x00
-
-/* MTD SUPPORT */
-#define MTDIDS_DEFAULT "nand0=nand"
-#define MTDPARTS_DEFAULT "mtdparts=nand:-(sunxi_nand_mtd)"
-#endif
-
 #define SUNXI_DMA_SECURITY
 /*
  * sun8iw18 specific configuration
@@ -43,6 +24,7 @@
 */
 #ifdef CONFIG_USB_EHCI_HCD
 #define CONFIG_USB_EHCI_SUNXI
+#define CONFIG_USB_MAX_CONTROLLER_COUNT 3
 #endif
 
 /* sram layout*/

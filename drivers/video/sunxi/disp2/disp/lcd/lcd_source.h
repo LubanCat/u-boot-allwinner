@@ -227,6 +227,14 @@ s32 sunxi_lcd_set_panel_funs(char *name, disp_lcd_panel_fun * lcd_cfg);
  */
 s32 sunxi_lcd_gpio_set_value(u32 screen_id, u32 io_index, u32 value);
 
+/**** add for lcd read gpio level id by lxm 20220310 ***/
+/**
+ * sunxi_lcd_gpio_get_value
+ * @screen_id: The index of screen.
+ * @io_index:  the index of gpio
+ */
+s32 sunxi_lcd_gpio_get_value(u32 screen_id, u32 io_index);
+
 /**
  * sunxi_lcd_gpio_set_direction
  * @screen_id: The index of screen.

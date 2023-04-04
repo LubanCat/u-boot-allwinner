@@ -391,6 +391,11 @@ config SUNXI_SPI
 	help
 	  Enable support for SPI on the Sunxi SoCs.
 
+config SUNXI_SPIF
+	bool "Sunxi SPIF driver"
+	help
+	  Enable support for SPIF on the Sunxi SoCs.
+
 config SPI_USE_DMA
     bool "SPI use dma driver"
     help

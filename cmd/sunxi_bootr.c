@@ -35,9 +35,6 @@ int do_bootr(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 #ifdef CONFIG_XTENSA_DSP
 	sunxi_dsp_init(img_addr, run_addr, id);
 #endif
-#ifdef CONFIG_RISCV_E907
-	sunxi_riscv_init(img_addr, run_addr, id);
-#endif
 	return  0;
 }
 

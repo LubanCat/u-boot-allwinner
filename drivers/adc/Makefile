@@ -11,3 +11,4 @@ obj-$(CONFIG_ADC_SANDBOX) += sandbox.o
 obj-$(CONFIG_SARADC_ROCKCHIP) += rockchip-saradc.o
 obj-$(CONFIG_SUNXI_GPADC) += sunxi_gpadc.o
 obj-$(CONFIG_SUNXI_LRADC) += sunxi_lradc.o
+obj-$(CONFIG_SARADC_MESON) += meson-saradc.o

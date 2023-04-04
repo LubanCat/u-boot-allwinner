@@ -484,7 +484,7 @@ static int __fastboot_reboot(int word_mode)
 
 	sprintf(response, "OKAY");
 	__sunxi_fastboot_send_status(response, strlen(response));
-	mdelay(1000); /* 1 sec */
+	mdelay(100); /* 100 ms */
 
 	sunxi_board_restart(word_mode);
 
@@ -591,13 +591,15 @@ static int __erase_part(char *name)
 	char response[68];
 	disk_partition_t info = { 0 };
 	int ret = 0;
+	if (name == NULL) {
+		return -1;
+	}
 	void *addr = (void *)memalign(CONFIG_SYS_CACHELINE_SIZE, FASTBOOT_ERASE_BUFFER_SIZE);
 	if (addr == NULL) {
 		pr_err("%s memalign fail\n", __func__);
 		return -1;
 	}
-
-	if (!memcmp(name, "userdata", strlen("userdata"))) {
+	if (!strncmp(name, "userdata", strlen("userdata"))) {
 		erase_userdata();
 	} else {
 		if (sunxi_partition_get_info((const char *)name, &info) < 0) {
@@ -608,10 +610,10 @@ static int __erase_part(char *name)
 
 			printf("********* starting to erase %s partition, this may take some time, please wait for minutes ***********\n",
 			       name);
-			if (memcmp(name, CONFIG_LAST_PARTITION_NAME, strlen(CONFIG_LAST_PARTITION_NAME)) == 0) {
+			if (strncmp(name, CONFIG_LAST_PARTITION_NAME, strlen(CONFIG_LAST_PARTITION_NAME)) == 0) {
 				if (unerased_sectors >= 16 * 1024 * 1024 / 512)
 					unerased_sectors = 16 * 1024 * 1024 / 512;
-			} else if (memcmp(name, "cache", strlen("cache")) == 0) {
+			} else if (strncmp(name, "cache", strlen("cache")) == 0) {
 				if (unerased_sectors >= 16 * 1024 * 1024 / 512)
 					unerased_sectors = 16 * 1024 * 1024 / 512;
 			}
@@ -1436,7 +1438,7 @@ static void __oem_operation(char *operation)
 	} else {
 		strcpy(response, "FAIL");
 	}
-	strcat(response, lock_info);
+	strncat(response, lock_info, sizeof(response) - strlen(response) - 1);
 	printf("%s\n", response);
 
 return_without_lock_op:
@@ -1483,6 +1485,24 @@ static void __continue(void)
 
 	return;
 }
+
+static void __snapshot_update(char *operation)
+{
+	char response[32];
+
+	memset(response, 0, 32);
+
+	if (!strncmp(operation, "cancel", 6)) {
+		/* We have not supported merge op yet, if asked to cancel, sure we are OKAY*/
+		strcpy(response, "OKAY");
+	} else {
+		/* For merge op, we do not support; for others(except 'cancel') they are illegal */
+		strcpy(response, "FAIL:Unsupport op:");
+		strncat(response, operation, sizeof(response) - strlen(response) - 1);
+	}
+	__sunxi_fastboot_send_status(response, strlen(response));
+}
+
 /*
 ************************************************************************************************************
 *
@@ -1537,7 +1557,10 @@ static int sunxi_fastboot_init(void)
 	fastboot_data_flag = 0;
 
 	trans_data.base_recv_buffer = (char *)FASTBOOT_TRANSFER_BUFFER;
-
+	if (trans_data.base_send_buffer) {
+		free(trans_data.base_send_buffer);
+		trans_data.base_send_buffer = NULL;
+	}
 	trans_data.base_send_buffer =
 		(char *)malloc(SUNXI_FASTBOOT_SEND_MEM_SIZE);
 	if (!trans_data.base_send_buffer) {
@@ -1555,7 +1578,7 @@ static int sunxi_fastboot_init(void)
 	char *p = NULL;
 	p       = env_get("snum");
 	if (p) {
-		strncpy(sunxi_usb_fastboot_dev[2], p, 24);
+		strncpy(sunxi_usb_fastboot_dev[SUNXI_FASTBOOT_DEVICE_STRING_SERIAL_NUMBER_INDEX], p, 24);
 	}
 
 	return 0;
@@ -1881,11 +1904,11 @@ static int sunxi_fastboot_state_loop(void *buffer)
 
 		sunxi_usb_fastboot_status     = SUNXI_USB_FASTBOOT_IDLE;
 		sunxi_ubuf->rx_ready_for_data = 0;
-		if (memcmp(sunxi_ubuf->rx_req_buffer, "reboot-bootloader",
+		if (strncmp((char *)sunxi_ubuf->rx_req_buffer, "reboot-bootloader",
 			   strlen("reboot-bootloader")) == 0) {
 			printf("reboot-bootloader\n");
 			__fastboot_reboot(SUNXI_FASTBOOT_FLAG);
-		} else if (memcmp(sunxi_ubuf->rx_req_buffer, "reboot-fastboot", strlen("reboot-fastboot")) == 0) {
+		} else if (strncmp((char *)sunxi_ubuf->rx_req_buffer, "reboot-fastboot", strlen("reboot-fastboot")) == 0) {
 				tick_printf("reboot-fastboot\n");
 				u32 misc_offset = sunxi_partition_get_offset_byname("misc");
 				char  misc_args[2048] = {0};
@@ -1898,14 +1921,14 @@ static int sunxi_fastboot_state_loop(void *buffer)
 				}
 				misc_info = (struct bootloader_message *)misc_args;
 				memset(misc_info->recovery, 0, sizeof(misc_info->recovery));
-				memcpy(misc_info->recovery, "recovery\n--fastboot", strlen("recovery\n--fastboot"));
+				strncpy(misc_info->recovery, "recovery\n--fastboot", strlen("recovery\n--fastboot"));
 				sunxi_flash_write(misc_offset, 2048/512, misc_args);
 				__fastboot_reboot(SUNXI_BOOT_RECOVERY_FLAG);
-		} else if (memcmp(sunxi_ubuf->rx_req_buffer, "reboot", 6) ==
+		} else if (strncmp((char *)sunxi_ubuf->rx_req_buffer, "reboot", 6) ==
 			   0) {
 			printf("reboot\n");
 			__fastboot_reboot(0);
-		} else if (memcmp(sunxi_ubuf->rx_req_buffer, "erase:", 6) ==
+		} else if (strncmp((char *)sunxi_ubuf->rx_req_buffer, "erase:", 6) ==
 			   0) {
 			printf("erase\n");
 			if (!sunxi_fastboot_status()) {
@@ -1913,7 +1936,7 @@ static int sunxi_fastboot_state_loop(void *buffer)
 				break;
 			}
 			__erase_part((char *)(sunxi_ubuf->rx_req_buffer + 6));
-		} else if (memcmp(sunxi_ubuf->rx_req_buffer, "flash:", 6) ==
+		} else if (strncmp((char *)sunxi_ubuf->rx_req_buffer, "flash:", 6) ==
 			   0) {
 			printf("flash\n");
 			if (!sunxi_fastboot_status()) {
@@ -1921,25 +1944,25 @@ static int sunxi_fastboot_state_loop(void *buffer)
 				break;
 			}
 #ifdef CONFIG_SUNXI_FASTBOOT_UBOOT
-			if (!memcmp((char *)(sunxi_ubuf->rx_req_buffer + 6),
+			if (!strncmp((char *)(sunxi_ubuf->rx_req_buffer + 6),
 				    "u-boot", 6) ||
-			    !memcmp((char *)(sunxi_ubuf->rx_req_buffer + 6),
+			    !strncmp((char *)(sunxi_ubuf->rx_req_buffer + 6),
 				    "toc1", 4)) {
 				__flash_to_uboot();
 			} else
 #endif
 #ifdef CONFIG_SUNXI_FASTBOOT_BOOT0
-				if (!memcmp((char *)(sunxi_ubuf->rx_req_buffer +
+				if (!strncmp((char *)(sunxi_ubuf->rx_req_buffer +
 						     6),
 					    "boot0", 5) ||
-				    !memcmp((char *)(sunxi_ubuf->rx_req_buffer +
+				    !strncmp((char *)(sunxi_ubuf->rx_req_buffer +
 						     6),
 					    "toc0", 4)) {
 				__flash_to_boot0();
 			} else
 #endif
 #ifdef CONFIG_SUNXI_FASTBOOT_MBR
-				if (!memcmp((char *)(sunxi_ubuf->rx_req_buffer +
+				if (!strncmp((char *)(sunxi_ubuf->rx_req_buffer +
 						     6),
 					    "mbr", 3)) {
 				__flash_to_mbr();
@@ -1947,7 +1970,7 @@ static int sunxi_fastboot_state_loop(void *buffer)
 #endif
 				__flash_to_part((
 					char *)(sunxi_ubuf->rx_req_buffer + 6));
-		} else if (memcmp(sunxi_ubuf->rx_req_buffer, "download:", 9) ==
+		} else if (strncmp((char *)sunxi_ubuf->rx_req_buffer, "download:", 9) ==
 			   0) {
 			printf("download\n");
 			if (!sunxi_fastboot_status()) {
@@ -1966,14 +1989,14 @@ static int sunxi_fastboot_state_loop(void *buffer)
 			}
 			__sunxi_fastboot_send_status(response,
 						     strlen(response));
-		} else if (memcmp(sunxi_ubuf->rx_req_buffer, "boot", 4) == 0) {
+		} else if (strncmp((char *)sunxi_ubuf->rx_req_buffer, "boot", 4) == 0) {
 			printf("boot\n");
 			if (!sunxi_fastboot_status()) {
 				__limited_fastboot();
 				break;
 			}
 			__boot();
-		} else if (memcmp(sunxi_ubuf->rx_req_buffer, "getvar:", 7) ==
+		} else if (strncmp((char *)sunxi_ubuf->rx_req_buffer, "getvar:", 7) ==
 			   0) {
 			printf("getvar\n");
 			if (!sunxi_fastboot_status()) {
@@ -1981,15 +2004,17 @@ static int sunxi_fastboot_state_loop(void *buffer)
 				break;
 			}
 			__get_var((char *)(sunxi_ubuf->rx_req_buffer + 7));
-		} else if ((memcmp(sunxi_ubuf->rx_req_buffer, "oem", 3) == 0) ||
-			(memcmp(sunxi_ubuf->rx_req_buffer, "flashing", 8) == 0)) {
+		} else if ((strncmp((char *)sunxi_ubuf->rx_req_buffer, "oem", 3) == 0) ||
+			(strncmp((char *)sunxi_ubuf->rx_req_buffer, "flashing", 8) == 0)) {
 			printf("oem operations\n");
 			__oem_operation(
 				(char *)(sunxi_ubuf->rx_req_buffer + 4));
-		} else if (memcmp(sunxi_ubuf->rx_req_buffer, "continue", 8) ==
+		} else if (strncmp((char *)sunxi_ubuf->rx_req_buffer, "continue", 8) ==
 			   0) {
 			printf("continue\n");
 			__continue();
+		} else if (strncmp((char *)sunxi_ubuf->rx_req_buffer, "snapshot-update:", 16) == 0) {
+			__snapshot_update((char *)(sunxi_ubuf->rx_req_buffer + 16));
 		} else {
 			printf("not supported fastboot cmd\n");
 			__unsupported_cmd();

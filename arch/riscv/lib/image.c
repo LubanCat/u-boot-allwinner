@@ -30,12 +30,9 @@ struct linux_image_h {
 	uint32_t	magic;		/* Magic number */
 	uint32_t	res4;		/* reserved */
 };
-#if 0
+
 int booti_setup(ulong image, ulong *relocated_addr, ulong *size,
 		bool force_reloc)
-#else
-int booti_setup(ulong image, ulong *relocated_addr, ulong *size)
-#endif
 {
 	struct linux_image_h *lhdr;
 

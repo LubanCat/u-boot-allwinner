@@ -14,10 +14,16 @@
 #define   AXP1530_CHIP_ID              (0x48)
 #define   AXP313A_CHIP_ID              (0x4B)
 #define   AXP313B_CHIP_ID              (0x4C)
+#define   AXP323_CHIP_ID              (0x49)
 
 #define AXP1530_DEVICE_ADDR			(0x3A3)
+
 #ifndef CONFIG_SYS_SUNXI_R_I2C0_SLAVE
-#define AXP1530_RUNTIME_ADDR			(0x2d)
+#ifdef CONFIG_AXP1530_SUNXI_I2C_SLAVE
+#define AXP1530_RUNTIME_ADDR			CONFIG_AXP1530_SUNXI_I2C_SLAVE
+#else
+#define AXP1530_RUNTIME_ADDR			(0x34)
+#endif
 #else
 #ifndef CONFIG_AXP1530_SUNXI_I2C_SLAVE
 #define AXP1530_RUNTIME_ADDR			CONFIG_SYS_SUNXI_R_I2C0_SLAVE
@@ -49,6 +55,10 @@
 #define	AXP1530_DCDC1_2_POWER_ON_DEFAULT_SET		(0x80)
 #define	AXP1530_DCDC3_ALDO1_POWER_ON_DEFAULT_SET	(0x81)
 
+#define   AXP1530_DCDC_MODESET				(0x12)
+#define   AXP1530_DCDC1_PWM_BIT				(0)
+#define   AXP1530_DCDC2_PWM_BIT				(1)
+#define   AXP1530_DCDC3_PWM_BIT				(2)
 
 #endif /* __AXP1530_REGS_H__ */
 

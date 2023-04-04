@@ -8,7 +8,7 @@
 
 #include <common.h>
 #include <asm/arch/clock.h>
-#include <asm/arch/usb_phy.h>
+//#include <asm/arch/usb_phy.h>
 #include <asm/io.h>
 #include <dm.h>
 #include <asm/arch/gpio.h>
@@ -110,11 +110,23 @@ u32 open_usb_clock(int index)
 	struct sunxi_ccm_reg *const ccm =
 		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
 
+#if !IS_ENABLED(CONFIG_MACH_SUN8IW11)
 	/* Bus reset and gating for ehci */
 	reg_value = readl(&ccm->usb_gate_reset);
 	reg_value |= (1 << ehci_cfg[index].bus_soft_reset_ofs);
 	reg_value |= (1 << ehci_cfg[index].bus_clk_gating_ofs);
 	writel(reg_value, &ccm->usb_gate_reset);
+
+#else
+	reg_value = readl(&ccm->ahb_reset0_cfg);
+	reg_value |= (1 << ehci_cfg[index].bus_soft_reset_ofs);
+	writel(reg_value, &ccm->ahb_reset0_cfg);
+
+	reg_value = readl(&ccm->ahb_gate0);
+	reg_value |= (1 << ehci_cfg[index].bus_clk_gating_ofs);
+	writel(reg_value, &ccm->ahb_gate0);
+#endif
+
 
 #if defined(CONFIG_MACH_SUN50IW9)
 	reg_value = readl(&ccm->usb2_clk_cfg);
@@ -124,32 +136,61 @@ u32 open_usb_clock(int index)
 #endif
 	/* open clk for usb phy */
 	if (index == 0) {
+#if !IS_ENABLED(CONFIG_MACH_SUN8IW11)
 		reg_value = readl(&ccm->usb0_clk_cfg);
 		reg_value |= (1 << ehci_cfg[index].phy_slk_gatimg_ofs);
 		reg_value |= (1 << ehci_cfg[index].phy_reset_ofs);
 		writel(reg_value, &ccm->usb0_clk_cfg);
+#else
+		reg_value = readl(&ccm->usb_clk_cfg);
+		reg_value |= (1 << ehci_cfg[index].phy_slk_gatimg_ofs);
+		reg_value |= (1 << ehci_cfg[index].phy_reset_ofs);
+		writel(reg_value, &ccm->usb_clk_cfg);
+#endif
+
 	} else if (index == 1) {
+#if !IS_ENABLED(CONFIG_MACH_SUN8IW11)
 		reg_value = readl(&ccm->usb1_clk_cfg);
 		reg_value |= (1 << ehci_cfg[index].phy_slk_gatimg_ofs);
 		reg_value |= (1 << ehci_cfg[index].phy_reset_ofs);
 		writel(reg_value, &ccm->usb1_clk_cfg);
+#else
+		reg_value = readl(&ccm->usb_clk_cfg);
+		reg_value |= (1 << ehci_cfg[index].phy_slk_gatimg_ofs);
+		reg_value |= (1 << ehci_cfg[index].phy_reset_ofs);
+		writel(reg_value, &ccm->usb_clk_cfg);
+#endif
 	} else if (index == 2) {
 #if defined(CONFIG_MACH_SUN50IW9)
 		/*noting to do*/
 #else
 #ifdef SUNXI_EHCI2_BASE
+#if !IS_ENABLED(CONFIG_MACH_SUN8IW11)
 		reg_value = readl(&ccm->usb2_clk_cfg);
 		reg_value |= (1 << ehci_cfg[index].phy_slk_gatimg_ofs);
 		reg_value |= (1 << ehci_cfg[index].phy_reset_ofs);
 		writel(reg_value, &ccm->usb2_clk_cfg);
+#else
+		reg_value = readl(&ccm->usb_clk_cfg);
+		reg_value |= (1 << ehci_cfg[index].phy_slk_gatimg_ofs);
+		reg_value |= (1 << ehci_cfg[index].phy_reset_ofs);
+		writel(reg_value, &ccm->usb_clk_cfg);
+#endif
 #endif
 #endif
 	} else {
 #ifdef SUNXI_EHCI3_BASE
+#if !IS_ENABLED(CONFIG_MACH_SUN8IW11)
 		reg_value = readl(&ccm->usb3_clk_cfg);
 		reg_value |= (1 << ehci_cfg[index].phy_slk_gatimg_ofs);
 		reg_value |= (1 << ehci_cfg[index].phy_reset_ofs);
 		writel(reg_value, &ccm->usb3_clk_cfg);
+#else
+		reg_value = readl(&ccm->usb_clk_cfg);
+		reg_value |= (1 << ehci_cfg[index].phy_slk_gatimg_ofs);
+		reg_value |= (1 << ehci_cfg[index].phy_reset_ofs);
+		writel(reg_value, &ccm->usb_clk_cfg);
+#endif
 #endif
 	}
 	printf("config usb clk ok\n");
@@ -163,39 +204,77 @@ u32 close_usb_clock(int index)
 		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
 
 	/* Bus reset and gating for ehci */
+#if !IS_ENABLED(CONFIG_MACH_SUN8IW11)
 	reg_value = readl(&ccm->usb_gate_reset);
 	reg_value &= ~(1 << ehci_cfg[index].bus_soft_reset_ofs);
 	reg_value &= ~(1 << ehci_cfg[index].bus_clk_gating_ofs);
 	writel(reg_value, &ccm->usb_gate_reset);
+#else
+	reg_value = readl(&ccm->ahb_reset0_cfg);
+	reg_value &= ~(1 << ehci_cfg[index].bus_soft_reset_ofs);
+	writel(reg_value, &ccm->ahb_reset0_cfg);
+
+	reg_value = readl(&ccm->ahb_gate0);
+	reg_value &= ~(1 << ehci_cfg[index].bus_clk_gating_ofs);
+	writel(reg_value, &ccm->ahb_gate0);
+#endif
 
 	/* close clk for usb phy */
 	if (index == 0) {
+#if !IS_ENABLED(CONFIG_MACH_SUN8IW11)
 		reg_value = readl(&ccm->usb0_clk_cfg);
 		reg_value &= ~(1 << ehci_cfg[index].phy_slk_gatimg_ofs);
 		reg_value &= ~(1 << ehci_cfg[index].phy_reset_ofs);
 		writel(reg_value, &ccm->usb0_clk_cfg);
+#else
+		reg_value = readl(&ccm->usb_clk_cfg);
+		reg_value &= ~(1 << ehci_cfg[index].phy_slk_gatimg_ofs);
+		reg_value &= ~(1 << ehci_cfg[index].phy_reset_ofs);
+		writel(reg_value, &ccm->usb_clk_cfg);
+#endif
 	} else if (index == 1) {
+#if !IS_ENABLED(CONFIG_MACH_SUN8IW11)
 		reg_value = readl(&ccm->usb1_clk_cfg);
 		reg_value &= ~(1 << ehci_cfg[index].phy_slk_gatimg_ofs);
 		reg_value &= ~(1 << ehci_cfg[index].phy_reset_ofs);
 		writel(reg_value, &ccm->usb1_clk_cfg);
+#else
+		reg_value = readl(&ccm->usb_clk_cfg);
+		reg_value &= ~(1 << ehci_cfg[index].phy_slk_gatimg_ofs);
+		reg_value &= ~(1 << ehci_cfg[index].phy_reset_ofs);
+		writel(reg_value, &ccm->usb_clk_cfg);
+#endif
 	} else if (index == 2) {
 #if defined(CONFIG_MACH_SUN50IW9)
 		/*noting to do*/
 #else
 #ifdef SUNXI_EHCI2_BASE
+#if !IS_ENABLED(CONFIG_MACH_SUN8IW11)
 		reg_value = readl(&ccm->usb2_clk_cfg);
 		reg_value &= ~(1 << ehci_cfg[index].phy_slk_gatimg_ofs);
 		reg_value &= ~(1 << ehci_cfg[index].phy_reset_ofs);
 		writel(reg_value, &ccm->usb2_clk_cfg);
+#else
+		reg_value = readl(&ccm->usb_clk_cfg);
+		reg_value &= ~(1 << ehci_cfg[index].phy_slk_gatimg_ofs);
+		reg_value &= ~(1 << ehci_cfg[index].phy_reset_ofs);
+		writel(reg_value, &ccm->usb_clk_cfg);
+#endif
 #endif
 #endif
 	} else {
 #ifdef SUNXI_EHCI3_BASE
+#if !IS_ENABLED(CONFIG_MACH_SUN8IW11)
 		reg_value = readl(&ccm->usb3_clk_cfg);
 		reg_value &= ~(1 << ehci_cfg[index].phy_slk_gatimg_ofs);
 		reg_value &= ~(1 << ehci_cfg[index].phy_reset_ofs);
 		writel(reg_value, &ccm->usb3_clk_cfg);
+#else
+		reg_value = readl(&ccm->usb_clk_cfg);
+		reg_value &= ~(1 << ehci_cfg[index].phy_slk_gatimg_ofs);
+		reg_value &= ~(1 << ehci_cfg[index].phy_reset_ofs);
+		writel(reg_value, &ccm->usb_clk_cfg);
+#endif
 #endif
 	}
 
@@ -215,9 +294,20 @@ void usb_passby(int index, u32 enable)
 		reg_value &= ~(0x01);
 		writel(reg_value, (void *)(SUNXI_USBOTG_BASE + 0x420));
 	}
+#if defined(CONFIG_MACH_SUN50IW11)
+	if (index == 1) {
+		reg_value = readl((void *)(SUNXI_USB1_BASE + 0x420));
+		reg_value &= ~(0x01);
+		writel(reg_value, (void *)(SUNXI_USB1_BASE + 0x420));
+	}
+#endif
 
 	reg_value = readl((void *)(ehci_vbase + SUNXI_USB_PHY_CTRL));
+#if !IS_ENABLED(CONFIG_MACH_SUN8IW11)
 	reg_value &= ~(0x01 << 3);
+#else
+	reg_value &= ~(0x01 << 1);
+#endif
 	writel(reg_value, (void *)(ehci_vbase + SUNXI_USB_PHY_CTRL));
 
 	reg_value = readl((void *)(ehci_vbase + SUNXI_USB_CTRL));

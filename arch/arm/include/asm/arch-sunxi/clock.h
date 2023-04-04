@@ -30,6 +30,8 @@
 #include <asm/arch/clock_sun50iw9.h>
 #elif defined(CONFIG_MACH_SUN50IW10)
 #include <asm/arch/clock_sun50iw10.h>
+#elif defined(CONFIG_MACH_SUN60IW1)
+#include <asm/arch/plat-sun60iw1p1/clock_sun60iw1.h>
 #elif defined(CONFIG_MACH_SUN55IW3)
 #include <asm/arch/plat-sun55iw3p1/clock_sun55iw3.h>
 #elif defined(CONFIG_MACH_SUN50IW11)
@@ -80,6 +82,7 @@ uint clock_get_axi(void);
 uint clock_get_mbus(void);
 void clock_open_timer(int timernum);
 void clock_close_timer(int timernum);
+void clock_set_gic(void);
 #endif
 
 #endif /* _SUNXI_CLOCK_H */

@@ -14,6 +14,7 @@
 #include <asm/arch/clock.h>
 #include <asm/arch/prcm.h>
 #include <asm/arch/sys_proto.h>
+#include "private_uboot.h"
 
 #ifdef CONFIG_SPL_BUILD
 void clock_init_safe(void)
@@ -62,12 +63,12 @@ void clock_init_uart(void)
 	/* open the clock for uart */
 	setbits_le32(&ccm->apb2_gate,
 		     CLK_GATE_OPEN << (APB2_GATE_UART_SHIFT +
-				       CONFIG_CONS_INDEX - 1));
+				       uboot_spare_head.boot_data.uart_port));
 
 	/* deassert uart reset */
 	setbits_le32(&ccm->apb2_reset_cfg,
 		     1 << (APB2_RESET_UART_SHIFT +
-			   CONFIG_CONS_INDEX - 1));
+			   uboot_spare_head.boot_data.uart_port));
 }
 
 #ifdef CONFIG_SPL_BUILD

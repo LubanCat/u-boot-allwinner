@@ -1,3 +1,3 @@
-config RISCV_E907
+config BOOT_RISCV
 	bool "Support RISCV"
 	default n

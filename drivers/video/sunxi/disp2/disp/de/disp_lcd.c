@@ -16,57 +16,56 @@
  */
 #include "disp_lcd.h"
 
-struct disp_lcd_private_data
-{
-	disp_lcd_flow             open_flow;
-	disp_lcd_flow             close_flow;
-	u32                       compat_panel_index;
-	u32                       switch_to_compat_panel_index;
-	disp_panel_para           panel_info;
-	panel_extend_para         panel_extend_info;
-	disp_lcd_cfg              lcd_cfg;
-	disp_lcd_panel_fun        lcd_panel_fun;
-	bool                      need_open_again;
-	bool                      enabling;
-	bool                      disabling;
-	bool                      bl_enabled;
-	u32                       irq_no;
-	u32                       irq_no_dsi;
-	u32                       irq_no_edp;
-	u32                       enabled;
-	u32                       power_enabled;
-	u32                       bl_need_enabled;
-	u32                       frame_per_sec;
-	u32                       usec_per_line;
-	u32                       judge_line;
-	u32                       tri_finish_fail;
-	struct {
-		uintptr_t               dev;
-		u32                     channel;
-		u32                     polarity;
-		u32                     period_ns;
-		u32                     duty_ns;
-		u32                     enabled;
-	}pwm_info;
-	struct clk *clk;
-	struct clk *lvds_clk;
-	struct clk *dsi_clk[CLK_DSI_NUM];
-	struct clk *edp_clk;
-	struct clk *clk_parent;
-};
-
 __attribute__((unused)) static spinlock_t lcd_data_lock;
 
 static struct disp_device *lcds;
 static struct disp_device *lcds_compat;
 static struct disp_lcd_private_data *lcd_private;
 static struct disp_lcd_private_data *lcd_compat_private;
+static int g_disp_index;
 static int g_compat_index;
+static int g_lcd_compat_msg[10][2] = {0};
+static u32 num_devices_support_lcd;
 
 static void disp_lcd_post_disable_ex(unsigned int disp);
 s32 disp_lcd_set_bright(struct disp_device *lcd, u32 bright);
 s32 disp_lcd_get_bright(struct disp_device *lcd);
-int disp_update_lcd_param(int lcd_param_index);
+int disp_update_lcd_param(int disp, int lcd_param_index, int is_set_index);
+
+u32 get_lcd_device_num(void)
+{
+	return num_devices_support_lcd;
+}
+
+static int disp_check_timing_param(disp_panel_para *panel)
+{
+	u32 x = panel->lcd_x;
+	u32 y = panel->lcd_y;
+	u32 vt = panel->lcd_vt;
+	u32 vbp = panel->lcd_vbp;
+	u32 ht = panel->lcd_ht;
+	u32 hbp = panel->lcd_hbp;
+	u32 hspw = panel->lcd_hspw;
+	u32 vspw = panel->lcd_vspw;
+
+	if (ht <= x + hbp) {
+		panel->lcd_ht = x + hbp + (hbp - panel->lcd_hspw);
+		printf("[ERROR]timing param error!\n");
+		printf("lcd_ht need to be equal to lcd_x + lcd_hbp + lcd_hfp.\n");
+		printf("lcd_x = %d, lcd_hbp = %d, lcd_ht = %d, lcd_hspw = %d.\n", x, hbp, ht, hspw);
+		printf("Now, reset lcd_ht = %u.\n\n", panel->lcd_ht);
+	}
+
+	if (vt <= y + vbp) {
+		panel->lcd_vt = y + vbp + (vbp - panel->lcd_vspw);
+		printf("[ERROR]timing param error!\n");
+		printf("lcd_vt need to be equal to lcd_y + lcd_vbp + lcd_vfp.\n");
+		printf("lcd_y = %d, lcd_vbp = %d, lcd_vt = %d, lcd_vspw = %d.\n", y, vbp, vt, vspw);
+		printf("Now, reset lcd_vt = %u. \n\n", panel->lcd_vt);
+	}
+
+	return 0;
+}
 
 static struct disp_lcd_private_data *disp_lcd_get_priv(struct disp_device *lcd)
 {
@@ -80,6 +79,8 @@ static struct disp_lcd_private_data *disp_lcd_get_priv(struct disp_device *lcd)
 
 struct disp_device *disp_get_direct_lcd_compat(u32 disp, u32 index)
 {
+	int real_base_index = 0;
+	int i;
 	/*
 	 *    if g_compat_index is set, means not first boot, lcd_compat is NULL.
 	 * disp_lcd_compat_set_panel_funs may try to get lcd_compat, so return NULL
@@ -87,32 +88,31 @@ struct disp_device *disp_get_direct_lcd_compat(u32 disp, u32 index)
 	 */
 	if (g_compat_index)
 		return NULL;
-	return &lcds_compat[index - 1];
+
+	for (i = 0; i < disp; i++) {
+		real_base_index += g_lcd_compat_msg[i][1];
+	}
+
+	real_base_index += index - 1;
+	return &lcds_compat[real_base_index];
 }
-/*now only lcd0   index is the index for var lcds_compat*/
+
 static struct disp_device *disp_get_lcd_compat(u32 disp, u32 index)
 {
-	static int count;
-	struct disp_lcd_private_data *lcd_compatp = &lcd_compat_private[index - 1];
-	u32 next_index = lcd_compatp->switch_to_compat_panel_index;
-	count++;
-	if (count > 100) {
-		DE_WRN("disp_get_lcd_compat endless loop ?\n");
-		return NULL;
+	int num_compat = 0;
+	int i;
+	for (i = 0; i < disp; i++) {
+		num_compat += g_lcd_compat_msg[i][1];
+
 	}
-	if (next_index)
-		return disp_get_lcd_compat(disp, next_index);
-	else {
-		count = 0;
-		return &lcds_compat[index - 1];
-	}
+	return &lcds_compat[num_compat + index - 1];
 }
 
 struct disp_device* disp_get_lcd(u32 disp)
 {
-	u32 num_screens = bsp_disp_feat_get_num_screens();
-	u32 num_compat = disp_get_compat_lcd_panel_num(0);
+	u32 num_screens = disp_device_get_num();
 	u32 index = ((struct disp_lcd_private_data *)(lcds[disp].priv_data))->switch_to_compat_panel_index;
+	u32 num_compat = disp_get_compat_lcd_panel_num(disp);
 
 	if (disp >= num_screens || !bsp_disp_feat_is_supported_output_types(disp, DISP_OUTPUT_TYPE_LCD)) {
 		DE_INF("disp %d not support lcd output\n", disp);
@@ -148,6 +148,8 @@ int lcd_sys_script_get_item(char *main_name, char *sub_name, int value[], int ty
 
 	char primary_key1[20] = "/soc/lcd0_0";
 	char primary_key2[20] = "lcd0";
+
+	primary_key1[8] = main_name[3];  // set lcd{disp}
 	if (compat_idx == 0) {/*when using lcd0 or lcd1*/
 		if (g_compat_index > 0 && main_name[3] == '0')/* g_compat_index was set mean need to directly use lcd0_g_compat_index */
 			return lcd_sys_script_get_item(main_name, sub_name, value, type, g_compat_index);
@@ -321,6 +323,10 @@ static s32 lcd_parse_panel_para(u32 disp, disp_panel_para *info, int compat_idx)
     {
         info->lcd_frm = value;
     }
+
+    ret = lcd_sys_script_get_item(primary_key, "lcd_start_delay", &value, 1, compat_idx);
+    if (ret == 1)
+	info->lcd_start_delay = value;
 
     ret = lcd_sys_script_get_item(primary_key, "lcd_dsi_if", &value, 1, compat_idx);
     if (ret == 1)
@@ -881,6 +887,39 @@ static s32 lcd_clk_exit(struct disp_device* lcd)
 	return DIS_SUCCESS;
 }
 
+#if defined(DE_VERSION_V35X) && defined(SUPPORT_DSI)
+static s32 combphy_clk_config(struct clk *combphy_clk, disp_panel_para *panel)
+{
+	unsigned long combphy_rate = 0;
+	unsigned long combphy_rate_set = 0;
+	unsigned char bits_per_pixel = 0;
+
+	switch (panel->lcd_dsi_format) {
+	case LCD_DSI_FORMAT_RGB888:
+		bits_per_pixel = 24;
+		break;
+	case LCD_DSI_FORMAT_RGB666:
+		bits_per_pixel = 18;
+		break;
+	case LCD_DSI_FORMAT_RGB666P:
+		bits_per_pixel = 18;
+		break;
+	case LCD_DSI_FORMAT_RGB565:
+		bits_per_pixel = 16;
+		break;
+	}
+
+	combphy_rate = panel->lcd_dclk_freq * bits_per_pixel / panel->lcd_dsi_lane * 1000000;
+
+	clk_set_rate(combphy_clk, combphy_rate);
+	combphy_rate_set = clk_get_rate(combphy_clk);
+
+	if (combphy_rate != combphy_rate_set)
+		DE_WRN("combphy clk was setted rate  %lu, but real rate is %lu", combphy_rate, combphy_rate_set);
+	return 0;
+}
+#endif  /* DE_VERSION_V35X */
+
 static s32 lcd_clk_config(struct disp_device* lcd)
 {
 	struct disp_lcd_private_data *lcdp = disp_lcd_get_priv(lcd);
@@ -936,9 +975,12 @@ static s32 lcd_clk_config(struct disp_device* lcd)
 		/* In the case of CLK_NUM_PER_DSI equal to 2
 		 * even index mean hs clk which need to be seted
 		 * odd index mean lp clk which no need to be seted*/
-		for (i = dsi_num * lcd->disp, j = 0; i < CLK_DSI_NUM;
+		for (i = 0, j = 0; i < CLK_DSI_NUM;
 		     i += CLK_NUM_PER_DSI) {
 			if (lcdp->dsi_clk[i]) {
+#if defined(DSI_VERSION_40)
+				dsi_rate_set = 150000000;
+#endif
 				clk_set_rate(lcdp->dsi_clk[i], dsi_rate_set);
 				DE_INF(
 				    "clk_set_rate:dsi's %d th clk with %ld\n",
@@ -946,6 +988,14 @@ static s32 lcd_clk_config(struct disp_device* lcd)
 				j += CLK_NUM_PER_DSI;
 				dsi_rate_set = clk_get_rate(lcdp->dsi_clk[i]);
 			}
+#ifdef CONFIG_MACH_SUN55IW3
+			if (lcdp->clk_mipi_dsi_combphy[i]) {
+				combphy_clk_config(lcdp->clk_mipi_dsi_combphy[i], panel);
+				// clk_set_rate(lcdp->clk_mipi_dsi_combphy[i], lcd_rate_set);
+				if (lcdp->panel_info.lcd_tcon_mode != DISP_TCON_DUAL_DSI)
+					clk_set_rate(lcdp->clk_tcon_lcd, pll_rate);
+			}
+#endif
 			if (j == dsi_num)
 				break;
 		}
@@ -985,7 +1035,6 @@ static s32 lcd_clk_enable(struct disp_device* lcd)
 		return -1;
 	}
 	lcd_clk_config(lcd);
-
 	ret = clk_prepare_enable(lcdp->clk);
 	if (0 != ret) {
 		DE_WRN("fail enable lcd's clock!\n");
@@ -1011,7 +1060,6 @@ static s32 lcd_clk_enable(struct disp_device* lcd)
 			      : 1;
 		/*the num of dsi clk to use for current disp*/
 		dsi_num *= CLK_NUM_PER_DSI;
-
 		for (i = dsi_num * lcd->disp, j = 0; i < CLK_DSI_NUM; ++i) {
 			if (lcdp->dsi_clk[i]) {
 				ret = clk_prepare_enable(lcdp->dsi_clk[i]);
@@ -1025,6 +1073,13 @@ static s32 lcd_clk_enable(struct disp_device* lcd)
 				DE_WRN("dsi's clock%d is NULL!\n", i);
 				goto exit;
 			}
+#if defined(DE_VERSION_V35X)
+			ret = clk_prepare_enable(lcdp->clk_mipi_dsi_combphy[i]);
+			if (ret) {
+				DE_WRN("clk_prepare_enable for clk_mipi_dsi_combphy[%d] ,0x%p failed\n", i, lcdp->clk_mipi_dsi_combphy[i]);
+				return ret;
+			}
+#endif
 			if (j == dsi_num)
 				break;
 		}
@@ -1277,9 +1332,9 @@ static s32 disp_lcd_pin_cfg(struct disp_device *lcd, u32 bon)
 		}
 	}
 	if (g_compat_index > 0)
-		sprintf(dev_name, "/soc/lcd0_%d", g_compat_index);
+		sprintf(dev_name, "/soc/lcd%d_%d", lcd->hwdev_index, g_compat_index);
 	else if (lcdp->compat_panel_index > 0)
-		sprintf(dev_name, "/soc/lcd0_%d", lcdp->compat_panel_index);
+		sprintf(dev_name, "/soc/lcd%d_%d", lcd->hwdev_index, lcdp->compat_panel_index);
 	else
 		sprintf(dev_name, "lcd%d", lcd->disp);
 
@@ -1760,6 +1815,7 @@ static s32 disp_lcd_pre_enable(struct disp_device* lcd)
 	if (0 != ret)
 		return DIS_FAIL;
 
+	disp_check_timing_param(&lcdp->panel_info);
 	disp_al_lcd_cfg(lcd->hwdev_index, &lcdp->panel_info, &lcdp->panel_extend_info);
 
 	return 0;
@@ -1830,7 +1886,6 @@ static s32 __disp_lcd_enable(struct disp_device* lcd, bool fake)
 	}
 	if (1 == disp_lcd_is_enabled(lcd))
 		return 0;
-
 	disp_lcd_cal_fps(lcd);
 	if (mgr->enable)
 		mgr->enable(mgr);
@@ -1875,6 +1930,7 @@ static s32 __disp_lcd_enable(struct disp_device* lcd, bool fake)
 	if (0 != ret)
 		return DIS_FAIL;
 
+	disp_check_timing_param(&lcdp->panel_info);
 	disp_al_lcd_cfg(lcd->hwdev_index, &lcdp->panel_info, &lcdp->panel_extend_info);
 	lcd_calc_judge_line(lcd);
 	lcdp->open_flow.func_num = 0;
@@ -1902,13 +1958,13 @@ static s32 __disp_lcd_enable(struct disp_device* lcd, bool fake)
 
 	return 0;
 }
-/*now only support lcd0*/
+
 s32 disp_lcd_switch_compat_panel(struct disp_device *lcd, unsigned int index)
 {
 	struct disp_device *lcd_compat;
 	struct disp_lcd_private_data *lcdp;
 	u32 num_compat;
-	num_compat = disp_get_compat_lcd_panel_num(0);
+	num_compat = disp_get_compat_lcd_panel_num(lcd->disp);
 
 	if (index == 0 || index > num_compat)
 		return -1;
@@ -1921,11 +1977,11 @@ s32 disp_lcd_switch_compat_panel(struct disp_device *lcd, unsigned int index)
 	lcdp->switch_to_compat_panel_index = index;
 
 	lcd_compat = disp_get_lcd_compat(lcd->disp, index);
+	DE_INF("compat disp: %d, lcd_compat: %d \n", lcd_compat->disp, disp_lcd_get_priv(lcd_compat)->compat_panel_index);
 	lcdp = disp_lcd_get_priv(lcd_compat);
 	lcdp->need_open_again = true;
 
-
-	disp_update_lcd_param(index);
+	disp_update_lcd_param(lcd->disp, index, SAVE_INDEX);
 	lcd_compat->init(lcd_compat);
 	disp_device_swap_manager(lcd, lcd_compat);
 	return 0;
@@ -1973,6 +2029,7 @@ static s32 disp_lcd_enable(struct disp_device *lcd)
 	if (0 != ret)
 		return DIS_FAIL;
 
+	disp_check_timing_param(&lcdp->panel_info);
 	disp_al_lcd_cfg(lcd->hwdev_index, &lcdp->panel_info, &lcdp->panel_extend_info);
 	lcdp->open_flow.func_num = 0;
 	if (lcdp->lcd_panel_fun.cfg_open_flow)
@@ -2380,23 +2437,26 @@ static disp_lcd_flow * disp_lcd_get_open_flow(struct disp_device* lcd)
 	}
 	if (lcdp->need_open_again) {
 		lcdp->need_open_again = false;
+		lcdp->open_flow.func_num = 0;
 		return NULL;/*NULL for caller to call openflow again*/
 	}
-	lcdp->open_flow.func_num = 0;
-	if (!disp_lcd_is_used(lcd))
-		goto exit;
-	lcdp->open_flow.func[lcdp->open_flow.func_num].func = disp_lcd_pre_enable_ex;
-	lcdp->open_flow.func[lcdp->open_flow.func_num].delay = 0;
-	lcdp->open_flow.func_num ++;
 
-	if(lcdp->lcd_panel_fun.cfg_open_flow)	{
-		lcdp->lcd_panel_fun.cfg_open_flow(lcd->disp);
-	}	else {
-		DE_WRN("lcd_panel_fun[%d].cfg_open_flow is NULL\n", lcd->disp);
+	if (lcdp->open_flow.func_num == 0) {
+		if (!disp_lcd_is_used(lcd))
+			goto exit;
+		lcdp->open_flow.func[lcdp->open_flow.func_num].func = disp_lcd_pre_enable_ex;
+		lcdp->open_flow.func[lcdp->open_flow.func_num].delay = 0;
+		lcdp->open_flow.func_num++;
+
+		if (lcdp->lcd_panel_fun.cfg_open_flow)
+			lcdp->lcd_panel_fun.cfg_open_flow(lcd->disp);
+		else {
+			DE_WRN("lcd_panel_fun[%d].cfg_open_flow is NULL\n", lcd->disp);
+		}
+		lcdp->open_flow.func[lcdp->open_flow.func_num].func = disp_lcd_post_enable_ex;
+		lcdp->open_flow.func[lcdp->open_flow.func_num].delay = 0;
+		lcdp->open_flow.func_num++;
 	}
-	lcdp->open_flow.func[lcdp->open_flow.func_num].func = disp_lcd_post_enable_ex;
-	lcdp->open_flow.func[lcdp->open_flow.func_num].delay = 0;
-	lcdp->open_flow.func_num ++;
 
 exit:
 	return &(lcdp->open_flow);
@@ -2417,7 +2477,7 @@ static disp_lcd_flow * disp_lcd_get_close_flow(struct disp_device* lcd)
 	lcdp->close_flow.func[lcdp->close_flow.func_num].func = disp_lcd_pre_disable_ex;
 	lcdp->close_flow.func[lcdp->close_flow.func_num].delay = 0;
 	lcdp->close_flow.func_num ++;
-	
+
 	if(lcdp->lcd_panel_fun.cfg_close_flow)	{
 		lcdp->lcd_panel_fun.cfg_close_flow(lcd->disp);
 	}	else {
@@ -2445,7 +2505,7 @@ static s32 disp_lcd_set_panel_funs(struct disp_device* lcd, char *name, disp_lcd
 	sprintf(primary_key, "lcd%d", lcd->disp);
 
 	ret = lcd_sys_script_get_item(primary_key, "lcd_driver_name",  (int *)drv_name, 2, g_compat_index);
-	DE_INF("lcd %d, driver_name %s,  panel_name %s\n", lcd->disp, drv_name, name);
+	DE_INF("lcd %d, compat_panel_index: %u, driver_name %s,  panel_name %s\n", lcd->disp, lcdp->compat_panel_index, drv_name, name);
 	if ((2==ret) && !strcmp(drv_name, name)) {
 		memset(&lcdp->lcd_panel_fun, 0, sizeof(disp_lcd_panel_fun));
 		lcdp->lcd_panel_fun.cfg_panel_info= lcd_cfg->cfg_panel_info;
@@ -2471,8 +2531,8 @@ static s32 disp_lcd_compat_set_panel_funs(struct disp_device *lcd, char *name, d
 	}
 	index = lcdp->compat_panel_index;
 	sprintf(primary_key, "/soc/lcd%d_%d", lcd->disp, index);
+	DE_INF("primary_key: %s \n", primary_key);
 	ret = disp_sys_script_get_item(primary_key, "lcd_driver_name",  (int *)drv_name, 2);
-	DE_INF("lcd %d, driver_name %s,  panel_name %s\n", lcd->disp, drv_name, name);
 	if ((2 == ret) && !strcmp(drv_name, name)) {
 		memset(&lcdp->lcd_panel_fun, 0, sizeof(disp_lcd_panel_fun));
 		lcdp->lcd_panel_fun.cfg_panel_info = lcd_cfg->cfg_panel_info;
@@ -2761,7 +2821,9 @@ static s32 disp_lcd_init(struct disp_device* lcd)
 		DE_WRN("NULL hdl!\n");
 		return DIS_FAIL;
 	}
+
 	DE_INF("lcd %d\n", lcd->disp);
+
 	if (!lcdp->compat_panel_index)
 		lcd_get_sys_config(lcd->disp, &lcdp->lcd_cfg, 0);
 	if (disp_lcd_is_used(lcd)) {
@@ -2822,7 +2884,6 @@ static s32 disp_lcd_init(struct disp_device* lcd)
 		lcd_clk_init(lcd);
 	}
 
-	//lcd_panel_parameter_check(lcd->disp, lcd);
 	return 0;
 }
 
@@ -2904,7 +2965,6 @@ s32 disp_init_lcd(disp_bsp_init_para * para)
 	struct disp_device *lcd;
 	struct disp_lcd_private_data *lcdp;
 	u32 hwdev_index = 0;
-	u32 num_devices_support_lcd = 0;
 	u32 i = 0;
 #if defined(SUPPORT_DSI)
 	u32 j = 0;
@@ -2920,6 +2980,7 @@ s32 disp_init_lcd(disp_bsp_init_para * para)
 	spin_lock_init(&lcd_data_lock);
 #endif
 	num_devices = bsp_disp_feat_get_num_devices();
+
 	for (hwdev_index=0; hwdev_index<num_devices; hwdev_index++) {
 		if (bsp_disp_feat_is_supported_output_types(hwdev_index, DISP_OUTPUT_TYPE_LCD))
 			num_devices_support_lcd ++;
@@ -2939,12 +3000,15 @@ s32 disp_init_lcd(disp_bsp_init_para * para)
 			(unsigned int)sizeof(struct disp_lcd_private_data) * num_devices_support_lcd);
 		return DIS_FAIL;
 	}
-	g_compat_index = disp_get_compat_lcd_panel_num(0) == 0 ? 0 : disp_get_set_lcd_param_index_from_flash(false, g_compat_index);
-	DE_WRN("get flash lcd idx %d\n", g_compat_index);
+
+	g_compat_index = disp_get_set_lcd_param_index_from_flash(READ, &g_disp_index, 0);
 	if (g_compat_index < 0) {
 		g_compat_index = 0;
 		for (i = 0; i < num_devices_support_lcd; i++) {
-			num_compat += disp_get_compat_lcd_panel_num(i);
+			int num = disp_get_compat_lcd_panel_num(i);
+			num_compat += num;
+			g_lcd_compat_msg[i][0] = i;
+			g_lcd_compat_msg[i][1] = num;
 		}
 	}
 
@@ -3004,8 +3068,14 @@ s32 disp_init_lcd(disp_bsp_init_para * para)
 #endif
 #if defined(SUPPORT_DSI)
 		lcdp->irq_no_dsi = para->irq_no[DISP_MOD_DSI0 + disp];
-		for (i = 0; i < CLK_DSI_NUM; ++i)
+	//	index_base = CLK_NUM_PER_DSI * lcd->hwdev_index;
+		/* TCON0->DSI0 & DSI1, TCON1-> DSI1  */
+		for (i = 0; i < CLK_DSI_NUM; ++i) {
 			lcdp->dsi_clk[i] = para->mclk[DISP_MOD_DSI0 + i];
+#if defined(DE_VERSION_V35X)
+			lcdp->clk_mipi_dsi_combphy[i] = para->mclk[DSIP_MOD_COMBPHY0 + i];
+#endif  /* DE_VERSION_V35X */
+		}
 		DE_INF("total number of clk in dsi:%d\n", CLK_DSI_NUM);
 #endif
 		DE_INF("lcd %d, irq_no=%d, irq_no_dsi=%d\n", disp, lcdp->irq_no, lcdp->irq_no_dsi);
@@ -3043,6 +3113,8 @@ s32 disp_init_lcd(disp_bsp_init_para * para)
 		lcd->get_open_flow = disp_lcd_get_open_flow;
 		lcd->get_close_flow  = disp_lcd_get_close_flow;
 		lcd->gpio_set_value = disp_lcd_gpio_set_value;
+		/**** add for lcd read gpio level id by lxm 20220310 ***/
+		lcd->gpio_get_value = disp_lcd_gpio_get_value;
 		lcd->gpio_set_direction = disp_lcd_gpio_set_direction;
 		lcd->get_dimensions = disp_lcd_get_dimensions;
 		lcd->get_status = disp_lcd_get_status;
@@ -3061,27 +3133,33 @@ s32 disp_init_lcd(disp_bsp_init_para * para)
 		disp ++;
 	}
 
-
-
-/*now only support single tcon(LCD0) is compatible with mult panel*/
 	if (!num_compat)
 		return 0;
-	i = 0;
+
 	disp = 0;
-	for (hwdev_index = 0; hwdev_index < 1 || i < num_compat; hwdev_index++) {
+	i = 0;
+	int curr_compat_index;
+	DE_INF("num_devices: %d, num_compat: %d \n", num_devices, num_compat);
+	for (hwdev_index = 0; hwdev_index < num_devices; hwdev_index++, disp++) {
 		if (!bsp_disp_feat_is_supported_output_types(hwdev_index, DISP_OUTPUT_TYPE_LCD)) {
 			continue;
 		}
 		sprintf(primary_key, "lcd%d", disp);
+		printk("[DEBUG] primary_key: %s \n", primary_key);
 		ret = disp_sys_script_get_item(primary_key, "status",
 					       (int *)str, 2);
-		if (ret != 2 || strncmp(str, "okay", 10) != 0)
+		if (ret != 2 || strncmp(str, "okay", 10) != 0) {
+			printk("skip lcd%d \n", disp);
 			continue;
-		if (hwdev_index_of_lcd0 == -1)
-			hwdev_index_of_lcd0 = hwdev_index;
+		}
+		hwdev_index_of_lcd0 = hwdev_index;
+		num_compat = disp_get_compat_lcd_panel_num(hwdev_index);
+
+		DE_INF("num_compat is %d with lcd%d \n", num_compat, hwdev_index);
+	for (curr_compat_index = 0; curr_compat_index < num_compat;  curr_compat_index++, i++) {
 		lcd = &lcds_compat[i];
 		lcdp = &lcd_compat_private[i];
-		lcdp->compat_panel_index = i + 1;
+		lcdp->compat_panel_index = curr_compat_index + 1;
 		lcd->priv_data = (void *)lcdp;
 
 		sprintf(lcd->name, "lcd%d", disp);
@@ -3102,6 +3180,7 @@ s32 disp_init_lcd(disp_bsp_init_para * para)
 			lcd->hwdev_index = (use_dsi_flag == 1) ? 0 : hwdev_index_of_lcd0;
 #else
 		lcd->hwdev_index = hwdev_index_of_lcd0;
+		printk("lcd->hwdev_index: %d \n", lcd->hwdev_index);
 #endif
 		lcd->type = DISP_OUTPUT_TYPE_LCD;
 		lcdp->irq_no = para->irq_no[DISP_MOD_LCD0 + hwdev_index_of_lcd0];
@@ -3113,8 +3192,12 @@ s32 disp_init_lcd(disp_bsp_init_para * para)
 #endif
 #if defined(SUPPORT_DSI)
 		lcdp->irq_no_dsi = para->irq_no[DISP_MOD_DSI0 + disp];
-		for (j = 0; j < CLK_DSI_NUM; ++j)
+		for (j = 0; j < CLK_DSI_NUM; ++j) {
 			lcdp->dsi_clk[j] = para->mclk[DISP_MOD_DSI0 + j];
+#if defined(DE_VERSION_V35X)
+			lcdp->clk_mipi_dsi_combphy[lcd->hwdev_index] = para->mclk[DSIP_MOD_COMBPHY0 + lcd->hwdev_index];
+#endif  /* DE_VERSION_V35X */
+		}
 		DE_INF("total number of clk in dsi:%d\n", CLK_DSI_NUM);
 #endif
 		DE_INF("lcd %d compatible, irq_no=%d, irq_no_dsi=%d\n", disp, lcdp->irq_no, lcdp->irq_no_dsi);
@@ -3152,6 +3235,8 @@ s32 disp_init_lcd(disp_bsp_init_para * para)
 		lcd->get_open_flow = disp_lcd_get_open_flow;
 		lcd->get_close_flow  = disp_lcd_get_close_flow;
 		lcd->gpio_set_value = disp_lcd_gpio_set_value;
+		/**** add for lcd read gpio level id by lxm 20220310 ***/
+		lcd->gpio_get_value = disp_lcd_gpio_get_value;
 		lcd->gpio_set_direction = disp_lcd_gpio_set_direction;
 		lcd->get_dimensions = disp_lcd_get_dimensions;
 		lcd->get_status = disp_lcd_get_status;
@@ -3165,10 +3250,7 @@ s32 disp_init_lcd(disp_bsp_init_para * para)
 		lcd->exit = disp_lcd_exit;
 
 		disp_compat_lcd_init(lcd);
-/*		lcd->init(lcd);*/
-/*		disp_device_register(lcd);*/
-/*		disp ++;*/
-		i++;
+	}
 	}
 
 	return 0;

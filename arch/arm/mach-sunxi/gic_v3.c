@@ -26,6 +26,7 @@
 #include <asm/io.h>
 #include <asm/arch/gic.h>
 #include <sunxi_board.h>
+#include <asm/arch/clock.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -323,6 +324,9 @@ static void gic_spi_set_target(int irq_no, int cpu_id)
 int arch_interrupt_init(void)
 {
 	int i;
+#if defined(CONFIG_MACH_SUN55IW3)
+	clock_set_gic();
+#endif
 	if ((get_cpu_id() == 0) && (get_cluster_id() == 0)) {
 		for (i				     = 0; i < GIC_IRQ_NUM; i++)
 			sunxi_int_handlers[i].m_data = default_isr;

@@ -131,6 +131,104 @@ static void aw_nfc_reg_prepare(struct nfc_reg *reg)
 
 }
 
+int aw_rawnand_get_ecc_mode(int sparesize, int pagesize)
+{
+	int cal_ecc = (((sparesize / B_TO_KB(pagesize)) - 4) / 14) * 8;
+	int ecc_mode = 0;
+
+	if (cal_ecc >= 16 && cal_ecc < 24)
+		ecc_mode = BCH_16;
+	else if (cal_ecc >= 24 && cal_ecc < 28)
+		ecc_mode = BCH_24;
+	else if (cal_ecc >= 28 && cal_ecc < 32)
+		ecc_mode = BCH_28;
+	else if (cal_ecc >= 32 && cal_ecc < 40)
+		ecc_mode = BCH_32;
+	else if (cal_ecc >= 40 && cal_ecc < 44)
+		ecc_mode = BCH_40;
+	else if (cal_ecc >= 44 && cal_ecc < 48)
+		ecc_mode = BCH_44;
+	else if (cal_ecc >= 48 && cal_ecc < 52)
+		ecc_mode = BCH_48;
+	else if (cal_ecc >= 52 && cal_ecc < 56)
+		ecc_mode = BCH_52;
+	else if (cal_ecc >= 56 && cal_ecc < 60)
+		ecc_mode = BCH_56;
+	else if (cal_ecc >= 60 && cal_ecc < 64)
+		ecc_mode = BCH_60;
+	else if (cal_ecc >= 64 && cal_ecc < 68)
+		ecc_mode = BCH_64;
+	else if (cal_ecc >= 68 && cal_ecc < 72)
+		ecc_mode = BCH_68;
+	else if (cal_ecc >= 72 && cal_ecc < 76)
+		ecc_mode = BCH_72;
+	else if (cal_ecc >= 76 && cal_ecc < 80)
+		ecc_mode = BCH_76;
+	else if (cal_ecc >= 80)
+		ecc_mode = BCH_80;
+	else
+		ecc_mode = BCH_NO;
+
+	return ecc_mode;
+}
+
+int aw_rawnand_get_ecc_bits(int bch_mode)
+{
+	int ecc_bits = 0;
+	switch (bch_mode) {
+	case BCH_16:
+		ecc_bits = 16;
+		break;
+	case BCH_24:
+		ecc_bits = 24;
+		break;
+	case BCH_28:
+		ecc_bits = 28;
+		break;
+	case BCH_32:
+		ecc_bits = 32;
+		break;
+	case BCH_40:
+		ecc_bits = 40;
+		break;
+	case BCH_44:
+		ecc_bits = 44;
+		break;
+	case BCH_48:
+		ecc_bits = 48;
+		break;
+	case BCH_52:
+		ecc_bits = 52;
+		break;
+	case BCH_56:
+		ecc_bits = 56;
+		break;
+	case BCH_60:
+		ecc_bits = 60;
+		break;
+	case BCH_64:
+		ecc_bits = 64;
+		break;
+	case BCH_68:
+		ecc_bits = 68;
+		break;
+	case BCH_72:
+		ecc_bits = 72;
+		break;
+	case BCH_76:
+		ecc_bits = 76;
+		break;
+	case BCH_80:
+		ecc_bits = 80;
+		break;
+	default:
+		awrawnand_err("get ecc bits err\n");
+		ecc_bits = -1;
+		break;
+	}
+
+	return ecc_bits;
+}
 
 static int aw_host_set_pin(struct aw_nand_host *host)
 {

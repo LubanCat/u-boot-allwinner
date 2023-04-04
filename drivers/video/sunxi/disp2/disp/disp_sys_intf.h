@@ -20,6 +20,8 @@
 #include <clk/clk.h>
 #include <asm/arch/gic.h>
 #include <linux/compat.h>
+#include <fdtdec.h>
+#include "disp_api.h"
 
 /* cache flush flags */
 #define  CACHE_FLUSH_I_CACHE_REGION       0
@@ -29,6 +31,10 @@
 #define  CACHE_CLEAN_FLUSH_D_CACHE_REGION 4
 #define  CACHE_CLEAN_FLUSH_CACHE_REGION   5
 
+#define READ  false
+#define WRITE true
+#define SAVE_INDEX   1
+#define UPDATE_PARAM 0
 
 void disp_fdt_init(void);
 int  disp_fdt_nodeoffset(char *main_name);
@@ -75,7 +81,7 @@ int disp_sys_script_get_item(char *main_name, char *sub_name, int value[], int c
 uintptr_t disp_sys_getprop_regbase(char *main_name, char *sub_name, u32 index);
 u32 disp_sys_getprop_irq(char *main_name, char *sub_name, u32 index);
 int disp_get_compat_lcd_panel_num(int disp);
-int disp_get_set_lcd_param_index_from_flash(bool is_set, int idx);
+int disp_get_set_lcd_param_index_from_flash(bool is_set, int *disp, int idx);
 
 int disp_sys_get_ic_ver(void);
 
@@ -89,6 +95,9 @@ int disp_sys_gpio_get_value(u32 p_handler, const char *gpio_name);
 int disp_sys_gpio_set_value(u32 p_handler, u32 value_to_gpio, const char *gpio_name);
 int disp_sys_pin_set_state(char *dev_name, char *name);
 
+char *disp_sys_power_get(int nodeoffset, const char *name);
+int disp_sys_power_set_voltage(char *name, u32 vol);
+int disp_sys_power_get_voltage(char *name);
 int disp_sys_power_enable(char *name);
 int disp_sys_power_disable(char *name);
 

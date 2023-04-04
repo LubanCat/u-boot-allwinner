@@ -20,8 +20,8 @@
 static uint android_format_checksum;
 static uint sparse_format_type;
 static uint chunk_count;
-static int last_rest_size;
-static int chunk_length;
+static uint last_rest_size;
+static uint chunk_length;
 static uint flash_start;
 static sparse_header_t globl_header;
 static uint total_chunks;
@@ -128,6 +128,11 @@ int unsparse_direct_write(void *pbuf, uint length)
 				chunk->chunk_sz *
 				globl_header
 					.blk_sz; //当前数据块需要写入的数据长度
+			if (chunk_length == 0) {
+				sparse_format_type =
+					SPARSE_FORMAT_TYPE_CHUNK_HEAD;
+				continue;
+			}
 			printf("chunk %d(%d)\n", chunk_count++, total_chunks);
 #ifdef CONFIG_SUNXI_SPRITE_CARTOON
 			sprite_cartoon_upgrade(10 + (70 * chunk_count)/total_chunks);

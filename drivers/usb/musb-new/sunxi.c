@@ -283,34 +283,44 @@ static int sunxi_musb_init(struct musb *musb)
 	return 0;
 }
 
+static void sunxi_musb_pre_root_reset_end(struct musb *musb)
+{
+	struct sunxi_glue *glue = to_sunxi_glue(musb->controller);
+
+	sun4i_usb_phy_set_squelch_detect(glue->phy, false);
+}
+
+static void sunxi_musb_post_root_reset_end(struct musb *musb)
+{
+	struct sunxi_glue *glue = to_sunxi_glue(musb->controller);
+
+	sun4i_usb_phy_set_squelch_detect(glue->phy, true);
+}
+
 static const struct musb_platform_ops sunxi_musb_ops = {
 	.init		= sunxi_musb_init,
 	.enable		= sunxi_musb_enable,
 	.disable	= sunxi_musb_disable,
+	.pre_root_reset_end = sunxi_musb_pre_root_reset_end,
+	.post_root_reset_end = sunxi_musb_post_root_reset_end,
 };
+
+/* Allwinner OTG supports up to 5 endpoints */
+#define SUNXI_MUSB_MAX_EP_NUM		6
+#define SUNXI_MUSB_RAM_BITS		11
 
 static struct musb_hdrc_config musb_config = {
-	.multipoint     = 1,
-	.dyn_fifo       = 1,
-	.num_eps        = 6,
-	.ram_bits       = 11,
-};
-
-static struct musb_hdrc_platform_data musb_plat = {
-#if defined(CONFIG_USB_MUSB_HOST)
-	.mode           = MUSB_HOST,
-#else
-	.mode		= MUSB_PERIPHERAL,
-#endif
-	.config         = &musb_config,
-	.power          = 250,
-	.platform_ops	= &sunxi_musb_ops,
+	.multipoint	= true,
+	.dyn_fifo	= true,
+	.num_eps	= SUNXI_MUSB_MAX_EP_NUM,
+	.ram_bits	= SUNXI_MUSB_RAM_BITS,
 };
 
 static int musb_usb_probe(struct udevice *dev)
 {
 	struct musb_host_data *host = dev_get_priv(dev);
 	struct usb_bus_priv *priv = dev_get_uclass_priv(dev);
+	struct musb_hdrc_platform_data pdata;
 	void *base = dev_read_addr_ptr(dev);
 	int ret;
 
@@ -319,8 +329,14 @@ static int musb_usb_probe(struct udevice *dev)
 
 	priv->desc_before_addr = true;
 
+	memset(&pdata, 0, sizeof(pdata));
+	pdata.power = 250;
+	pdata.platform_ops = &sunxi_musb_ops;
+	pdata.config = &musb_config;
+
 #ifdef CONFIG_USB_MUSB_HOST
-	host->host = musb_init_controller(&musb_plat, NULL, base);
+	pdata.mode = MUSB_HOST;
+	host->host = musb_init_controller(&pdata, &glue->dev, base);
 	if (!host->host)
 		return -EIO;
 
@@ -328,7 +344,8 @@ static int musb_usb_probe(struct udevice *dev)
 	if (!ret)
 		printf("Allwinner mUSB OTG (Host)\n");
 #else
-	ret = musb_register(&musb_plat, NULL, base);
+	pdata.mode = MUSB_PERIPHERAL;
+	ret = musb_register(&pdata, &glue->dev, base);
 	if (!ret)
 		printf("Allwinner mUSB OTG (Peripheral)\n");
 #endif

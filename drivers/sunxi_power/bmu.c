@@ -38,7 +38,7 @@ static struct sunxi_bmu_dev_t *bmu_get_axp_dev_t(void)
 	return NULL;
 }
 
-/* matches chipid*/
+/* matches chipid */
 int bmu_probe(void)
 {
 	sunxi_bmu_dev = bmu_get_axp_dev_t();
@@ -46,6 +46,16 @@ int bmu_probe(void)
 		return -1;
 	return 0;
 }
+
+/* reg debug */
+int bmu_reg_debug(void)
+{
+	if ((sunxi_bmu_dev) && (sunxi_bmu_dev->reg_debug))
+		return sunxi_bmu_dev->reg_debug();
+	axp_err("not imple:%s\n", __func__);
+	return -1;
+}
+
 
 /*Set shutdown*/
 int bmu_set_power_off(void)
@@ -57,10 +67,19 @@ int bmu_set_power_off(void)
 }
 
 /*Set ntc onoff*/
-int bmu_set_ntc_onoff(int onoff)
+int bmu_set_ntc_onoff(int onoff, int ntc_cur)
 {
 	if ((sunxi_bmu_dev) && (sunxi_bmu_dev->set_ntc_onoff))
-		return sunxi_bmu_dev->set_ntc_onoff(onoff);
+		return sunxi_bmu_dev->set_ntc_onoff(onoff, ntc_cur);
+	axp_err("not imple:%s\n", __func__);
+	return -1;
+}
+
+/*get ntc temp*/
+int bmu_get_ntc_temp(int param[16])
+{
+	if ((sunxi_bmu_dev) && (sunxi_bmu_dev->get_ntc_temp))
+		return sunxi_bmu_dev->get_ntc_temp((int *)param);
 	axp_err("not imple:%s\n", __func__);
 	return -1;
 }

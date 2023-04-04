@@ -118,10 +118,22 @@
 #define NFC_ECC_EN		BIT(0)
 #define NFC_ECC_PIPELINE	BIT(3)
 #define NFC_ECC_EXCEPTION	BIT(4)
+
+#ifdef CONFIG_MACH_SUN8IW11
+#define NFC_ECC_BLOCK_SIZE	BIT(5)
+#define NFC_RANDOM_EN		BIT(9)
+#define NFC_RANDOM_DIR		BIT(10)
+#define NFC_RANDOM_SIZE		BIT(11)
+#define NFC_ECC_MODE_MSK	(0xf << 12)
+#define NFC_ECC_SEL(x)		((x) << 12)
+#define NFC_ECC_GET(x)		(((x) >> 12)&0xf)
+#else
 #define NFC_RANDOM_EN		BIT(5)
 #define NFC_ECC_MODE_MSK	(0xff << 8)
 #define NFC_ECC_SEL(x)		((x) << 8)
 #define NFC_ECC_GET(x)		(((x) >> 8)&0xff)
+#endif
+
 #define NFC_RANDOM_SEED_MSK	(0x7fff << 16)
 #define NFC_RANDOM_SEED_SEL(x)	((x) << 16)
 
@@ -162,8 +174,14 @@ static const uint32_t random_seed[128] = {
 };
 
 
+#ifdef CONFIG_MACH_SUN8IW11
+static uint8_t ecc_bits_tbl[9] = {16, 24, 28, 32, 40, 48, 56, 60, 64};
+static uint8_t ecc_limit_tab[9] = {13, 20, 23, 27, 35, 42, 50, 54, 58};
+#else
 static uint8_t ecc_bits_tbl[15] = {16, 24, 28, 32, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80};
 static uint8_t ecc_limit_tab[15] = {13, 20, 23, 27, 35, 39, 42, 46, 50, 54, 58, 62, 66, 68, 72};
+#endif
+
 #define MAX_ECC_BCH_80	((sizeof(ecc_bits_tbl)/sizeof(ecc_bits_tbl[0])) - 1)
 
 
@@ -268,6 +286,28 @@ static inline void aw_host_nfc_randomize_disable(struct nfc_reg *nfc)
 }
 
 /*enable randomizer and set random seed*/
+#ifdef CONFIG_MACH_SUN8IW11
+static inline void aw_host_nfc_randomize_enable(struct nfc_reg *nfc, uint32_t page)
+{
+	uint32_t cfg = 0, seed = 0;
+	struct aw_nand_chip *chip = get_rawnand();
+
+	seed = random_seed[page % 128];
+
+	cfg = readl(nfc->ecc_ctl);
+
+	if (!chip->operate_boot0) {
+		cfg &= 0x0000ffff;
+		cfg |= NFC_RANDOM_SEED_SEL(seed);
+	} else {
+		cfg &= 0x0000ffff;
+		cfg |= NFC_RANDOM_SEED_DEFAULT;
+	}
+	cfg |= NFC_RANDOM_EN;
+
+	writel(cfg, nfc->ecc_ctl);
+}
+#else
 static inline void aw_host_nfc_randomize_enable(struct nfc_reg *nfc, uint32_t page)
 {
 	uint32_t cfg = 0, seed = 0;
@@ -282,7 +322,7 @@ static inline void aw_host_nfc_randomize_enable(struct nfc_reg *nfc, uint32_t pa
 
 	writel(cfg, nfc->ecc_ctl);
 }
-
+#endif
 
 static inline void aw_host_nfc_set_ecc_mode(struct nfc_reg *nfc, uint8_t ecc_mode)
 {

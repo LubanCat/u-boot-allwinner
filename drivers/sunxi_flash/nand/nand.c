@@ -11,6 +11,26 @@
 #include <sunxi_nand.h>
 #include <sunxi_board.h>
 
+/*
+ * @start_block : Start address (byte)
+ * @nblock :      The length of the data (sector)
+ *
+ * Access to physical partitioned data through the MTD layer
+ */
+#if defined(CONFIG_AW_MTD_SPINAND) || defined(CONFIG_AW_MTD_RAWNAND)
+static int
+sunxi_flash_nand_phyread(uint start_block, uint nblock, void *buffer)
+{
+	return mtd_nand_read(start_block, nblock, buffer);
+}
+
+static int
+sunxi_flash_nand_phywrite(uint start_block, uint nblock, void *buffer)
+{
+	return mtd_nand_write(start_block, nblock, buffer);
+}
+#endif
+
 static int
 sunxi_flash_nand_read(uint start_block, uint nblock, void *buffer)
 {
@@ -129,6 +149,16 @@ sunxi_flash_nand_download_toc(unsigned char *buf, int len,  unsigned int ext)
 }
 
 static int
+sunxi_flash_nand_upload_toc(void *buf, uint len)
+{
+#ifdef CONFIG_SUNXI_UBIFS
+	if (nand_use_ubi())
+		return ubi_nand_upload_uboot(buf, len);
+#endif
+	return 0;
+}
+
+static int
 sunxi_flash_nand_write_end(void)
 {
 #ifdef CONFIG_SUNXI_UBIFS
@@ -178,6 +208,10 @@ sunxi_flash_desc sunxi_nand_desc =
 	.init = sunxi_flash_nand_init,
 	.exit = sunxi_flash_nand_exit,
 	.read = sunxi_flash_nand_read,
+#if defined(CONFIG_AW_MTD_SPINAND) || defined(CONFIG_AW_MTD_RAWNAND)
+	.phyread = sunxi_flash_nand_phyread,
+	.phywrite = sunxi_flash_nand_phywrite,
+#endif
 	.write = sunxi_flash_nand_write,
 	.erase = sunxi_flash_nand_erase,
 	.force_erase = sunxi_flash_nand_force_erase,
@@ -191,6 +225,7 @@ sunxi_flash_desc sunxi_nand_desc =
 #endif
 	.download_spl = sunxi_flash_nand_download_spl,
 	.download_toc = sunxi_flash_nand_download_toc,
+	.upload_toc = sunxi_flash_nand_upload_toc,
 	.write_end = sunxi_flash_nand_write_end,
 };
 

@@ -14,6 +14,7 @@
 #include <private_boot0.h>
 #include <private_uboot.h>
 #include <private_toc.h>
+#include <sunxi_flashmap.h>
 //#include "encrypt/encrypt.h"
 //#include "sprite_queue.h"
 #include "sprite_download.h"
@@ -234,6 +235,9 @@ __download_udisk_err1:
 
 		return -1;
 	}
+
+	sunxi_flash_write_end();
+	sunxi_flash_flush();
 
 	return ret;
 }
@@ -1094,24 +1098,24 @@ int card_download_uboot(uint length, void *buffer)
 {
 	int ret;
 
-	ret = sunxi_flash_phywrite(UBOOT_START_SECTOR_IN_SDMMC, length / 512,
+	ret = sunxi_flash_phywrite(sunxi_flashmap_offset(FLASHMAP_SDMMC, TOC1), length / 512,
 				   buffer);
 	if (!ret) {
 		printf("%s: write uboot from %d fail\n", __func__,
-		       UBOOT_START_SECTOR_IN_SDMMC);
+		       sunxi_flashmap_offset(FLASHMAP_SDMMC, TOC1));
 		return -1;
 	}
-	ret = card_verify_uboot(UBOOT_START_SECTOR_IN_SDMMC, length);
+	ret = card_verify_uboot(sunxi_flashmap_offset(FLASHMAP_SDMMC, TOC1), length);
 	if (ret < 0) {
 		printf("%s: verify uboot checksum from %d fail\n", __func__,
-		       UBOOT_START_SECTOR_IN_SDMMC);
+		       sunxi_flashmap_offset(FLASHMAP_SDMMC, TOC1));
 		return -1;
 	}
-	ret = sunxi_flash_phywrite(UBOOT_BACKUP_START_SECTOR_IN_SDMMC,
+	ret = sunxi_flash_phywrite(sunxi_flashmap_offset(FLASHMAP_SDMMC, TOC1_BAK),
 				   length / 512, buffer);
 	if (!ret) {
 		printf("%s: write uboot from %d fail\n", __func__,
-		       UBOOT_BACKUP_START_SECTOR_IN_SDMMC);
+		       sunxi_flashmap_offset(FLASHMAP_SDMMC, TOC1_BAK));
 		return -1;
 	}
 
@@ -1517,7 +1521,7 @@ int card_erase(int erase, void *mbr_buffer)
 			erase_tail_addr    = mbr->array[i].addrlo;
 		}
 
-		from = mbr->array[i].addrlo + CONFIG_MMC_LOGICAL_OFFSET;
+		from = mbr->array[i].addrlo + sunxi_flashmap_logical_offset(FLASHMAP_SDMMC, LINUX_LOGIC_OFFSET);
 		nr   = mbr->array[i].lenlo;
 		ret  = sunxi_sprite_phyerase(from, nr, skip_space);
 		if (ret == 0) {

@@ -332,7 +332,7 @@ int __attribute__((no_instrument_function)) trace_init(void *buff,
 	add_textbase();
 
 	puts("trace: enabled\n");
-	hdr->depth_limit = 8;
+	hdr->depth_limit = 15;
 	trace_enabled = 1;
 	trace_inited = 1;
 	return 0;

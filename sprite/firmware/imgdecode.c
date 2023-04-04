@@ -288,8 +288,12 @@ HIMAGEITEM Img_OpenItem(HIMAGE hImage, char *MainType, char *subType)
 		//				}
 		//			}
 		//		}
-		if (!memcmp(subType, pImage->ItemTable[i].subType,
-			    SUBTYPE_LEN)) {
+		int img_subtype_len = strnlen(
+			(char *)(pImage->ItemTable[i].subType), SUBTYPE_LEN);
+		int subtype_len = strnlen(subType, SUBTYPE_LEN);
+		if ((img_subtype_len == subtype_len) &&
+		    (!memcmp(subType, pImage->ItemTable[i].subType,
+			     SUBTYPE_LEN))) {
 			pItem->index = i;
 			//debug("try to malloc %x\n", (uint)pItem);
 

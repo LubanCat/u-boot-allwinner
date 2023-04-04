@@ -36,6 +36,11 @@ config SPI_FLASH
 
 	  If unsure, say N
 
+config SPI_FLASH_SR
+	bool "SPI FLASH security register function"
+	help
+	    when set, enable security register write, read, earse functions.
+
 config SF_DEFAULT_BUS
 	int "SPI Flash default bus identifier"
 	depends on SPI_FLASH || DM_SPI_FLASH

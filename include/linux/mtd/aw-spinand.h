@@ -147,6 +147,7 @@ enum ecc_limit_err {
 	BIT3_LIMIT2_TO_6_ERR7,
 	BIT2_LIMIT1_ERR2,
 	BIT2_LIMIT1_ERR2_LIMIT3,
+	BIT2_ERR2_LIMIT3,
 	BIT4_LIMIT3_TO_4_ERR15,
 	BIT3_LIMIT3_TO_4_ERR7,
 	BIT3_LIMIT5_ERR2,
@@ -286,13 +287,14 @@ extern bool support_spinand(void);
 extern struct aw_spinand *get_spinand(void);
 extern int spinand_mtd_download_boot0(unsigned int len, void *buf);
 extern int spinand_mtd_download_uboot(unsigned int len, void *buf);
+extern int spinand_mtd_upload_uboot(void *buf, unsigned int len);
 extern int spinand_mtd_flush(void);
 extern int spinand_mtd_write_end(void);
 extern int spinand_mtd_get_flash_info(void *info, unsigned int len);
 extern unsigned int spinand_mtd_blksize(void);
 extern unsigned int spinand_mtd_pagesize(void);
-extern int spinand_mtd_read(unsigned int start, unsigned int sects, void *buf);
-extern int spinand_mtd_write(unsigned int start, unsigned int sects, void *buf);
+extern int aw_spinand_mtd_read(unsigned int start, unsigned int sects, void *buf);
+extern int aw_spinand_mtd_write(unsigned int start, unsigned int sects, void *buf);
 extern int spinand_mtd_erase(int force);
 extern int spinand_mtd_force_erase(void);
 extern int spinand_mtd_update_ubi_env(void);
@@ -302,4 +304,6 @@ extern int spinand_mtd_secure_storage_read(int item, char *buf,
 extern int spinand_mtd_secure_storage_write(int item, char *buf,
 		unsigned int len);
 extern uint64_t spinand_sys_part_offset(void);
+
+extern void disable_spinand(void);
 #endif

@@ -839,23 +839,22 @@ int sunxi_dsp_init(u32 img_addr, u32 run_ddr, u32 dsp_id)
 		/* set uboot use local ram */
 		sram_remap_set(1);
 
-		/* set dsp clk value 600M
+		/* set dsp clk value 600M */
 		reg_val = readl(SUNXI_PRCM_BASE + PRCM_DSP0_CLK_CFG_REG);
 		reg_val |= (1 << BIT_DSP0_SCLK_GATING);
 		reg_val |= (3 << BIT_DSP0_CLK_SRC_SEL);
 		reg_val |= (0 << BIT_DSP0_CLK_DIV_RATIO_N);
 		reg_val |= (1 << BIT_DSP0_FACTOR_M);
 		writel(reg_val, SUNXI_PRCM_BASE + PRCM_DSP0_CLK_CFG_REG);
-		*/
 
-		/* set dsp clk value 516M */
+		/* set dsp clk value 516M
 		reg_val = readl(SUNXI_PRCM_BASE + PRCM_DSP0_CLK_CFG_REG);
 		reg_val |= (1 << BIT_DSP0_SCLK_GATING);
 		reg_val |= (4 << BIT_DSP0_CLK_SRC_SEL);
 		reg_val |= (0 << BIT_DSP0_CLK_DIV_RATIO_N);
 		reg_val |= (0 << BIT_DSP0_FACTOR_M);
 		writel(reg_val, SUNXI_PRCM_BASE + PRCM_DSP0_CLK_CFG_REG);
-
+		*/
 
 		/* clock gating */
 		reg_val = readl(SUNXI_PRCM_BASE + PRCM_DSP_BGR_REG);

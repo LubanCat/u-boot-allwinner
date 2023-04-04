@@ -49,6 +49,7 @@ typedef enum  {
 } EINK_PANEL_TYPE;
 
 typedef struct {
+	u32 file_len;
 	u8 load_flag;			//when awf has been loaded, init_flag = 1
 	char *p_wf_vaddr;		//virtual address of waveform file
 	unsigned long p_wf_paddr;			//phy address of waveform file
@@ -77,6 +78,7 @@ static AWF_WAVEFILE g_waveform_file;
 static unsigned long wf_vaddr_array[MAX_MODE_CNT][MAX_TEMP_CNT];
 static unsigned long wf_paddr_array[MAX_MODE_CNT][MAX_TEMP_CNT];
 static u32 tframes_array[MAX_MODE_CNT][MAX_TEMP_CNT];
+extern int do_fat_size(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
 
 /*
 *Description	: get temperature range index from temperature table,
@@ -92,6 +94,7 @@ static __s32 get_temp_range_index(int temperature)
 
 	for (index = 0; index < C_TEMP_TBL_SIZE; index++) {
 		if (((g_waveform_file.wf_temp_area_tbl[index] == 0)) && (index > 0)) {
+			index -= 1;
 			break;
 		}
 
@@ -367,6 +370,7 @@ int get_waveform_data(enum upd_mode mode, u32 temp, u32 *total_frames, unsigned 
 	u8 *p_mode_virt_addr = NULL;
 	u32 mode_temp_offset = 0;
 	u8 *p_mode_temp_addr = NULL;
+	u32 mode_offset = 0;
 	//u16 *p_pointer = NULL;
 	u32 temp_range_id = 0;
 
@@ -394,6 +398,19 @@ int get_waveform_data(enum upd_mode mode, u32 temp, u32 *total_frames, unsigned 
 	}
 
 	mode_temp_offset =  *((u32 *)p_mode_virt_addr + temp_range_id);
+	if (!mode_temp_offset && temp_range_id > 0) {
+		temp_range_id -= 1;
+		mode_temp_offset =  *((u32 *)p_mode_virt_addr + temp_range_id);
+		if (!mode_temp_offset) {
+			pr_err("mode temperature offset is zero!!!:%u\n", temp_range_id);
+			return -EINVAL;
+		}
+	}
+	mode_offset = (unsigned int)(p_mode_phy_addr - g_waveform_file.p_wf_paddr);
+	if ((mode_offset + mode_temp_offset) >= g_waveform_file.file_len) {
+		pr_err("mode_temp_offset:0x%.8x out of file range!\n", mode_temp_offset);
+		return -EINVAL;
+	}
 
 	p_mode_temp_addr = (u8 *)p_mode_virt_addr + mode_temp_offset;
 
@@ -499,23 +516,38 @@ static void print_wavefile_mode_mapping(AWF_WAVEFILE wf)
 	EINK_DEFAULT_MSG("GLD16 mode wavefile offset = 0x%08x\n", (unsigned int)(wf.p_gld16_wf - wf.p_wf_paddr));
 }
 
+static int __set_waveform_mode_offset(unsigned long *mode_paddr,
+				      unsigned int offset)
+{
+	u32 *pAddr = NULL;
+
+	pAddr = (u32 *)(g_waveform_file.p_wf_vaddr + offset);
+
+	if (*pAddr >= g_waveform_file.file_len) {
+		return -1;
+	}
+
+	*mode_paddr = (unsigned long)(g_waveform_file.p_wf_paddr + *pAddr);
+	return 0;
+}
+
+
 int init_waveform(const char *path, u32 bit_num)
 {
 	char  waveform_path[32];
 	char  waveform_addr[32] = {0};
+	char  fatcmd[10] = {0};
+	char  partinfo[10] = {0};
 	char *waveform_buff = NULL;
 	int partno = -1;
 	int ret = 0;
-
-	u32 *pAddr = NULL;
 
 	if (!path) {
 		pr_err("path is null\n");
 		return -1;
 	}
 
-	size_t waveform_buff_len = 10 << 20;/* 10M */
-	char *waveform_argv[6] = { "fatload", "sunxi_flash", "0:0", "00000000", waveform_path, NULL };
+	char *waveform_argv[6] = { fatcmd, "sunxi_flash", partinfo, waveform_path, waveform_addr, NULL };
 
 	partno = sunxi_partition_get_partno_byname("bootloader");
 	if (partno < 0) {
@@ -527,11 +559,29 @@ int init_waveform(const char *path, u32 bit_num)
 	}
 
 	EINK_INFO_MSG("partno = %d\n", partno);
-	sprintf(waveform_argv[2], "0:%x", partno);
+	sprintf(partinfo, "0:%x", partno);
 
 	memset(&g_waveform_file, 0, sizeof(g_waveform_file));
 	EINK_INFO_MSG("starting to load awf waveform file(%s)\n", path);
-	g_waveform_file.p_wf_vaddr = (char *)malloc_aligned(waveform_buff_len, ARCH_DMA_MINALIGN);
+
+	memset(waveform_path, 0, 32);
+	strcpy(waveform_path, path);
+
+	if (!do_fat_size(0, 0, 4, waveform_argv)) {
+		g_waveform_file.file_len = env_get_hex("filesize", 0);
+	} else {
+		pr_err("Get waveform file len fail!\n");
+		g_waveform_file.file_len = 10 << 20;/* 10M */
+	}
+
+	if (g_waveform_file.file_len <
+	    (C_HEADER_INFO_SIZE + C_TEMP_TBL_SIZE + C_MODE_ADDR_TBL_SIZE)) {
+		pr_err("Invalid wavefile len:%u\n", g_waveform_file.file_len);
+		ret = -ENOMEM;
+		goto error;
+	}
+
+	g_waveform_file.p_wf_vaddr = (char *)malloc_aligned(g_waveform_file.file_len, ARCH_DMA_MINALIGN);
 
 	if (!g_waveform_file.p_wf_vaddr) {
 		pr_err("%s:fail to alloc memory for waveform file\n", __func__);
@@ -543,7 +593,7 @@ int init_waveform(const char *path, u32 bit_num)
 	g_waveform_file.p_wf_paddr = (unsigned long)g_waveform_file.p_wf_vaddr;
 
 #ifdef DRIVER_REMAP_WAVEFILE
-	g_waveform_file.rearray_vaddr = (char *)malloc_aligned(waveform_buff_len, ARCH_DMA_MINALIGN);
+	g_waveform_file.rearray_vaddr = (char *)malloc_aligned(g_waveform_file.file_len, ARCH_DMA_MINALIGN);
 	EINK_INFO_MSG("rearray_vaddr = 0x%p\n", g_waveform_file.rearray_vaddr);
 	if (!g_waveform_file.rearray_vaddr) {
 		pr_err("%s:fail to alloc mem for rearray waveform file\n", __func__);
@@ -552,14 +602,14 @@ int init_waveform(const char *path, u32 bit_num)
 	}
 	g_waveform_file.rearray_paddr = (unsigned long)g_waveform_file.rearray_vaddr;
 
-	memset(g_waveform_file.rearray_vaddr, 0, waveform_buff_len);
+	memset(g_waveform_file.rearray_vaddr, 0, g_waveform_file.file_len);
 #endif
 	/*set wav decode addr is CONFIG_SYS_SDRAM_BASE*/
+
+
 	sprintf(waveform_addr, "%lx", (ulong)g_waveform_file.p_wf_vaddr);
 	waveform_argv[3] = waveform_addr;
-
-	memset(waveform_path, 0, 32);
-	strcpy(waveform_path, path);
+	waveform_argv[4] = waveform_path;
 
 	if (do_fat_fsload(0, 0, 5, waveform_argv)) {
 		printf("sunxi loat wavfile error : unable to open wavfile %s\n", waveform_argv[4]);
@@ -577,41 +627,34 @@ int init_waveform(const char *path, u32 bit_num)
 	/* starting to load data */
 	memcpy(g_waveform_file.wf_temp_area_tbl, (g_waveform_file.p_wf_vaddr + C_TEMP_TBL_OFFSET), C_TEMP_TBL_SIZE);
 
-	pAddr = (u32 *)(g_waveform_file.p_wf_vaddr + C_INIT_MODE_ADDR_OFFSET);
-	g_waveform_file.p_init_wf = (unsigned long)(g_waveform_file.p_wf_paddr + *pAddr);//unsigned long吧？
+	ret = __set_waveform_mode_offset(&g_waveform_file.p_init_wf, C_INIT_MODE_ADDR_OFFSET);
 
-	pAddr = (u32 *)(g_waveform_file.p_wf_vaddr + C_GC16_MODE_ADDR_OFFSET);
-	g_waveform_file.p_gc16_wf = (unsigned long)(g_waveform_file.p_wf_paddr + *pAddr);
+	ret += __set_waveform_mode_offset(&g_waveform_file.p_gc16_wf, C_GC16_MODE_ADDR_OFFSET);
 
-	pAddr = (u32 *)(g_waveform_file.p_wf_vaddr + C_GC4_MODE_ADDR_OFFSET);
-	g_waveform_file.p_gc4_wf = (unsigned long)(g_waveform_file.p_wf_paddr + *pAddr);
+	ret += __set_waveform_mode_offset(&g_waveform_file.p_gc4_wf, C_GC4_MODE_ADDR_OFFSET);
 
-	pAddr = (u32 *)(g_waveform_file.p_wf_vaddr + C_DU_MODE_ADDR_OFFSET);
-	g_waveform_file.p_du_wf = (unsigned long)(g_waveform_file.p_wf_paddr + *pAddr);
+	ret += __set_waveform_mode_offset(&g_waveform_file.p_du_wf, C_DU_MODE_ADDR_OFFSET);
 
-	pAddr = (u32 *)(g_waveform_file.p_wf_vaddr + C_A2_MODE_ADDR_OFFSET);
-	g_waveform_file.p_A2_wf = (unsigned long)(g_waveform_file.p_wf_paddr + *pAddr);
+	ret += __set_waveform_mode_offset(&g_waveform_file.p_A2_wf, C_A2_MODE_ADDR_OFFSET);
 
-	pAddr = (u32 *)(g_waveform_file.p_wf_vaddr + C_GC16_LOCAL_MODE_ADDR_OFFSET);
-	g_waveform_file.p_gc16_local_wf = (unsigned long)(g_waveform_file.p_wf_paddr + *pAddr);
+	ret += __set_waveform_mode_offset(&g_waveform_file.p_gc16_local_wf, C_GC16_LOCAL_MODE_ADDR_OFFSET);
 
-	pAddr = (u32 *)(g_waveform_file.p_wf_vaddr + C_GC4_LOCAL_MODE_ADDR_OFFSET);
-	g_waveform_file.p_gc4_local_wf = (unsigned long)(g_waveform_file.p_wf_paddr + *pAddr);
+	ret += __set_waveform_mode_offset(&g_waveform_file.p_gc4_local_wf, C_GC4_LOCAL_MODE_ADDR_OFFSET);
 
-	pAddr = (u32 *)(g_waveform_file.p_wf_vaddr + C_A2_IN_MODE_ADDR_OFFSET);
-	g_waveform_file.p_A2_in_wf = (unsigned long)(g_waveform_file.p_wf_paddr + *pAddr);
+	ret += __set_waveform_mode_offset(&g_waveform_file.p_A2_in_wf, C_A2_IN_MODE_ADDR_OFFSET);
 
-	pAddr = (u32 *)(g_waveform_file.p_wf_vaddr + C_A2_OUT_MODE_ADDR_OFFSET);
-	g_waveform_file.p_A2_out_wf = (unsigned long)(g_waveform_file.p_wf_paddr + *pAddr);
+	ret += __set_waveform_mode_offset(&g_waveform_file.p_A2_out_wf, C_A2_OUT_MODE_ADDR_OFFSET);
 
-	pAddr = (u32 *)(g_waveform_file.p_wf_vaddr + C_GL16_MODE_ADDR_OFFSET);
-	g_waveform_file.p_gl16_wf = (unsigned long)(g_waveform_file.p_wf_paddr + *pAddr);
+	ret += __set_waveform_mode_offset(&g_waveform_file.p_gl16_wf, C_GL16_MODE_ADDR_OFFSET);
 
-	pAddr = (u32 *)(g_waveform_file.p_wf_vaddr + C_GLR16_MODE_ADDR_OFFSET);
-	g_waveform_file.p_glr16_wf = (unsigned long)(g_waveform_file.p_wf_paddr + *pAddr);
+	ret += __set_waveform_mode_offset(&g_waveform_file.p_glr16_wf, C_GLR16_MODE_ADDR_OFFSET);
 
-	pAddr = (u32 *)(g_waveform_file.p_wf_vaddr + C_GLD16_MODE_ADDR_OFFSET);
-	g_waveform_file.p_gld16_wf = (unsigned long)(g_waveform_file.p_wf_paddr + *pAddr);
+	ret += __set_waveform_mode_offset(&g_waveform_file.p_gld16_wf, C_GLD16_MODE_ADDR_OFFSET);
+	if (ret) {
+		pr_err("Invalid wave file!\n");
+		ret = -EAGAIN;
+		goto error;
+	}
 
 	print_wavefile_mode_mapping(g_waveform_file);
  #ifdef DRIVER_REMAP_WAVEFILE

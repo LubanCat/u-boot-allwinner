@@ -42,7 +42,7 @@ int do_burn_from_boot(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 
 	tick_printf("usb prepare ok\n");
 	begin_time = get_timer(0);
-	over_time = 800; /* 800ms */
+	over_time = 300;
 	while(1)
 	{
 		if(sunxi_usb_burn_from_boot_init)
@@ -63,7 +63,7 @@ int do_burn_from_boot(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	tick_printf("usb setup ok\n");
 
 	begin_time = get_timer(0);
-	over_time = 3000; /* 3000ms */
+	over_time = 400;
 	while(1)
 	{
 		ret = sunxi_usb_extern_loop();

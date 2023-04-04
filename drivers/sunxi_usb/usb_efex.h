@@ -130,6 +130,7 @@ struct sunxi_efex_csw_t
 #define FEX_CMD_fes_reset_cpu					0x0214
 #define FEX_CMD_fes_low_power_manger 			0x0215
 #define FEX_CMD_fes_nand			0x0301
+#define FEX_CMD_fes_spinand			0x0302
 #define FEX_CMD_fes_query_secure                0x0230
 #define FEX_CMD_fes_query_info               0x0231
 
@@ -415,6 +416,7 @@ efex_trans_set_t;
 #define  SUNXI_EFEX_NAND_IO_RPERF	(0x8800)
 #define  SUNXI_EFEX_NAND_BOOT0_SIZE	(0x10001)
 #define  SUNXI_EFEX_NAND_BOOT1_SIZE	(0x10002)
+#define  SUNXI_EFEX_NAND_PHY_BLOCK_OOB	(0x10004)
 
 #define  SUNXI_EFEX_TRANS_MASK			(0x30000)
 #define  SUNXI_EFEX_TRANS_START_TAG		(0x20000)

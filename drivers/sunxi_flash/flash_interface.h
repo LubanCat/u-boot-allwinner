@@ -33,6 +33,7 @@ typedef struct _sunxi_flash_desc {
 	int (*secstorage_fast_write) (int item, unsigned char *buf, unsigned int len);
 	int (*download_spl) (unsigned char *buf, int len, unsigned int ext);
 	int (*download_toc) (unsigned char *buf, int len, unsigned int ext);
+	int (*upload_toc) (void *buf, unsigned int len);
 	int (*write_end) (void);
 	int (*erase_area)(uint start_bloca, uint nblock);
 	int (*update_backup_boot0)(void);

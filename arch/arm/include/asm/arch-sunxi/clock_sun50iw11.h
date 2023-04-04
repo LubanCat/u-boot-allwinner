@@ -183,9 +183,7 @@ struct sunxi_ccm_reg {
 	u32 ahub_gate_reset;	/* 0xa6c Audio HUB gate/reset control */
 	u32 usb0_clk_cfg;	/* 0xa70 USB0(OTG) clock control */
 	u32 usb1_clk_cfg;	/* 0xa74 USB1(XHCI) clock control */
-	u8 reserved_0xa78[4];
-	u32 usb3_clk_cfg;	/* 0xa78 USB3 clock control */
-	u8 reserved_0xa80[12];
+	u8 reserved_0xa78[20];
 	u32 usb_gate_reset;	/* 0xa8c USB gate/reset control */
 	u8 reserved_0xa90[32];
 	u32 pcie_ref_clk_cfg;	/* 0xab0 PCIE REF clock control */
@@ -221,6 +219,17 @@ struct sunxi_ccm_reg {
 	u32 ccu_sec_switch;	/* 0xf00 CCU security switch */
 	u32 pll_lock_dbg_ctrl;	/* 0xf04 PLL lock debugging control */
 };
+
+//usb
+#define USBEHCI0_RST_BIT 20
+#define USBEHCI0_GATIING_BIT 4
+#define USBPHY0_RST_BIT 30
+#define USBPHY0_SCLK_GATING_BIT 29
+
+#define USBEHCI1_RST_BIT 21
+#define USBEHCI1_GATIING_BIT 5
+#define USBPHY1_RST_BIT 30
+#define USBPHY1_SCLK_GATING_BIT 29
 
 /* pll1 bit field */
 #define CCM_PLL1_CTRL_EN		BIT(31)

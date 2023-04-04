@@ -11,8 +11,8 @@
 #include <asm/arch/clock.h>
 #include <asm/arch/timer.h>
 #include <asm/arch/prcm.h>
-
-
+#include <asm/arch/efuse.h>
+#include "private_uboot.h"
 
 void clock_init_uart(void)
 {
@@ -27,20 +27,20 @@ void clock_init_uart(void)
 
 	/* open the clock for uart */
 	clrbits_le32(&ccm->uart_gate_reset,
-		     1 << (CONFIG_CONS_INDEX - 1));
+		     1 << (uboot_spare_head.boot_data.uart_port));
 	udelay(2);
 
 	clrbits_le32(&ccm->uart_gate_reset,
-		     1 << (RESET_SHIFT + CONFIG_CONS_INDEX - 1));
+		     1 << (RESET_SHIFT + uboot_spare_head.boot_data.uart_port));
 	udelay(2);
 
 	/* deassert uart reset */
 	setbits_le32(&ccm->uart_gate_reset,
-		     1 << (RESET_SHIFT + CONFIG_CONS_INDEX - 1));
+		     1 << (RESET_SHIFT + uboot_spare_head.boot_data.uart_port));
 
 	/* open the clock for uart */
 	setbits_le32(&ccm->uart_gate_reset,
-		     1 << (CONFIG_CONS_INDEX - 1));
+		     1 << (uboot_spare_head.boot_data.uart_port));
 }
 
 uint clock_get_pll_ddr(void)
@@ -272,18 +272,64 @@ static int clk_get_pll_para(struct core_pll_freq_tbl *factor, int pll_clk)
 	return 0;
 }
 
+static u32 get_efuse_data(u32 offset, u32 mask, u32 shift)
+{
+	u32 reg_val = 0x0;
+	u32 val = 0x0;
+
+	reg_val = readl((SID_EFUSE + offset));
+	val = (reg_val >> shift) & mask;
+
+	return val;
+}
+
+static int get_cpu_clock_type(void)
+{
+	u32 chip_type = 0;
+	u32 bin_type = 0;
+	u32 cpu_clock = -1;
+
+	chip_type = get_efuse_data(0x0, 0xffff, 0x0);
+
+	if (chip_type == 0x7400) {
+		cpu_clock = 1008;
+	} else if (chip_type == 0x5c00) {
+		bin_type = get_efuse_data(0x28, 0xf, 12);
+		if (bin_type & 0x8) { //force
+			cpu_clock = 720;
+		} else if ((bin_type & 0x3) == 0x2) { //slow
+			cpu_clock = 720;
+		} else if ((bin_type == 0x1) || (bin_type == 0x0)) { //normal
+			cpu_clock = 1008;
+		} else {
+			printf("can't support bin type %d\n", bin_type);
+			return -1;
+		}
+	} else {
+		printf("can't support chip type %d\n", chip_type);
+		return -1;
+	}
+
+	return cpu_clock;
+}
+
 int clock_set_corepll(int frequency)
 {
 	unsigned int reg_val = 0;
 	struct sunxi_ccm_reg *const ccm =
 		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
 	struct core_pll_freq_tbl  pll_factor;
+	u32 cpu_clock;
 
-	if (frequency == clock_get_corepll())
-		return 0;
-	else if (frequency >= 1008)
-		frequency = 1008;
-
+	cpu_clock = get_cpu_clock_type();
+	if (cpu_clock < 0) {
+		return -1;
+	} else {
+		if (frequency == clock_get_corepll())
+			return 0;
+		else if (frequency >= cpu_clock)
+			frequency = cpu_clock;
+	}
 
 	/* switch to 24M*/
 	reg_val   = readl(&ccm->riscv_clk_reg);

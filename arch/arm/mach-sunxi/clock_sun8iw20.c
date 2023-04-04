@@ -11,13 +11,22 @@
 #include <asm/arch/clock.h>
 #include <asm/arch/timer.h>
 #include <asm/arch/prcm.h>
-
-
+#include "private_uboot.h"
+void rtc_set_vccio_det_spare(void)
+{
+	u32 val = 0;
+	val = readl(SUNXI_RTC_BASE + 0x1f4);
+	val &= ~(0xff << 4);
+	val |= (VCCIO_THRESHOLD_VOLTAGE_2_9 | FORCE_DETECTER_OUTPUT);
+	val &= ~VCCIO_DET_BYPASS_EN;
+	writel(val, SUNXI_RTC_BASE + 0x1f4);
+}
 
 void clock_init_uart(void)
 {
 	struct sunxi_ccm_reg *const ccm =
 		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
+	extern struct spare_boot_head_t uboot_spare_head;
 
 	/* uart clock source is apb2 */
 	writel(APB2_CLK_SRC_OSC24M|
@@ -27,20 +36,20 @@ void clock_init_uart(void)
 
 	/* open the clock for uart */
 	clrbits_le32(&ccm->uart_gate_reset,
-		     1 << (CONFIG_CONS_INDEX - 1));
+		     1 << (uboot_spare_head.boot_data.uart_port));
 	udelay(2);
 
 	clrbits_le32(&ccm->uart_gate_reset,
-		     1 << (RESET_SHIFT + CONFIG_CONS_INDEX - 1));
+		     1 << (RESET_SHIFT + uboot_spare_head.boot_data.uart_port));
 	udelay(2);
 
 	/* deassert uart reset */
 	setbits_le32(&ccm->uart_gate_reset,
-		     1 << (RESET_SHIFT + CONFIG_CONS_INDEX - 1));
+		     1 << (RESET_SHIFT + uboot_spare_head.boot_data.uart_port));
 
 	/* open the clock for uart */
 	setbits_le32(&ccm->uart_gate_reset,
-		     1 << (CONFIG_CONS_INDEX - 1));
+		     1 << (uboot_spare_head.boot_data.uart_port));
 }
 
 uint clock_get_pll_ddr(void)

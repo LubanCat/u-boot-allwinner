@@ -15,6 +15,7 @@ obj-y += version.o
 # command
 obj-$(CONFIG_CMD_AB_SELECT) += ab_select.o
 obj-$(CONFIG_CMD_AES) += aes.o
+obj-$(CONFIG_CMD_ADC) += adc.o
 obj-$(CONFIG_CMD_ARMFLASH) += armflash.o
 obj-y += blk_common.o
 obj-$(CONFIG_SOURCE) += source.o
@@ -24,6 +25,7 @@ obj-$(CONFIG_CMD_BEDBUG) += bedbug.o
 obj-$(CONFIG_CMD_BINOP) += binop.o
 obj-$(CONFIG_CMD_BLOCK_CACHE) += blkcache.o
 obj-$(CONFIG_CMD_BMP) += bmp.o
+obj-$(CONFIG_CMD_BOOTCOUNT) += bootcount.o
 obj-$(CONFIG_CMD_BOOTEFI) += bootefi.o
 obj-$(CONFIG_CMD_BOOTMENU) += bootmenu.o
 obj-$(CONFIG_CMD_BOOTSTAGE) += bootstage.o
@@ -63,6 +65,7 @@ obj-$(CONFIG_CMD_FS_GENERIC) += fs.o
 obj-$(CONFIG_CMD_FUSE) += fuse.o
 obj-$(CONFIG_CMD_GETTIME) += gettime.o
 obj-$(CONFIG_CMD_GPIO) += gpio.o
+obj-$(CONFIG_CMD_HVC) += smccc.o
 obj-$(CONFIG_CMD_I2C) += i2c.o
 obj-$(CONFIG_CMD_IOTRACE) += iotrace.o
 obj-$(CONFIG_CMD_HASH) += hash.o
@@ -93,6 +96,7 @@ obj-$(CONFIG_CMD_MMC_SPI) += mmc_spi.o
 obj-$(CONFIG_MP) += mp.o
 obj-$(CONFIG_CMD_MTDPARTS) += mtdparts.o
 obj-$(CONFIG_CMD_NAND) += nand.o
+obj-$(CONFIG_CMD_AWNAND) += awnand.o
 obj-$(CONFIG_CMD_NET) += net.o
 obj-$(CONFIG_CMD_ONENAND) += onenand.o
 obj-$(CONFIG_CMD_PART) += part.o
@@ -101,6 +105,7 @@ obj-$(CONFIG_CMD_PCI) += pci.o
 endif
 obj-y += pcmcia.o
 obj-$(CONFIG_CMD_PXE) += pxe.o
+obj-$(CONFIG_CMD_WOL) += wol.o
 obj-$(CONFIG_CMD_QFW) += qfw.o
 obj-$(CONFIG_CMD_READ) += read.o
 obj-$(CONFIG_CMD_REGINFO) += reginfo.o
@@ -116,12 +121,15 @@ obj-$(CONFIG_CMD_SHA1SUM) += sha1sum.o
 obj-$(CONFIG_CMD_SETEXPR) += setexpr.o
 obj-$(CONFIG_CMD_SPI) += spi.o
 obj-$(CONFIG_CMD_STRINGS) += strings.o
+obj-$(CONFIG_CMD_SMC) += smccc.o
 obj-$(CONFIG_CMD_TERMINAL) += terminal.o
 obj-$(CONFIG_CMD_TIME) += time.o
 obj-$(CONFIG_CMD_TRACE) += trace.o
 obj-$(CONFIG_HUSH_PARSER) += test.o
-obj-$(CONFIG_CMD_TPM) += tpm.o
+obj-$(CONFIG_CMD_TPM) += tpm-common.o
+obj-$(CONFIG_CMD_TPM_V1) += tpm-v1.o
 obj-$(CONFIG_CMD_TPM_TEST) += tpm_test.o
+obj-$(CONFIG_CMD_TPM_V2) += tpm-v2.o
 obj-$(CONFIG_CMD_CROS_EC) += cros_ec.o
 obj-$(CONFIG_CMD_TSI148) += tsi148.o
 obj-$(CONFIG_CMD_UBI) += ubi.o
@@ -157,14 +165,19 @@ obj-$(CONFIG_CMD_BLOB) += blob.o
 # sunxi
 obj-$(CONFIG_CMD_SUNXI_TIMER) += sunxi_timer.o
 obj-$(CONFIG_CMD_SUNXI_CLK) += sunxi_clk.o
+obj-$(CONFIG_CMD_SUNXI_GPIO) += sunxi_gpio.o
 obj-$(CONFIG_CMD_SUNXI_SPRITE) += sunxi_sprite.o
 obj-$(CONFIG_CMD_SUNXI_FLASH) += sunxi_flash.o
+ccflags-$(CONFIG_CMD_SUNXI_SSPI) += -I$(src)/../drivers/spi/
+obj-$(CONFIG_CMD_SUNXI_SSPI) += sunxi_sspi.o
 obj-$(CONFIG_SUNXI_RTOS) += sunxi_rtos.o
 obj-$(CONFIG_CMD_SUNXI_DMA) += sunxi_dma.o
+obj-$(CONFIG_CMD_SUNXI_PWM) += sunxi_pwm_test.o
 obj-$(CONFIG_CMD_SUNXI_EFEX) += sunxi_efex.o
 obj-$(CONFIG_CMD_SUNXI_NAND) += sunxi_nand.o
 obj-$(CONFIG_CMD_SUNXI_BURN) += sunxi_burn.o
 obj-$(CONFIG_CMD_SUNXI_BOOTR) += sunxi_bootr.o
+obj-$(CONFIG_CMD_SUNXI_BOOTRV) += sunxi_bootrv.o
 ifdef CONFIG_SUNXI_SECURE_STORAGE
 obj-y += sunxi_svudata.o
 endif
@@ -177,6 +190,8 @@ obj-$(CONFIG_CMD_SUNXI_MEMTEST) += sunxi_memtest.o ./memtest/mem_tests.o
 obj-$(CONFIG_CMD_SUNXI_CE_TEST) += sunxi_ce_test.o
 
 obj-$(CONFIG_CMD_SUNXI_SYSRECOVERY_TEST) += sunxi_sysrecovery_test.o
+# Android Verified Boot 2.0
+obj-$(CONFIG_CMD_AVB) += avb.o
 
 obj-$(CONFIG_X86) += x86/
 endif # !CONFIG_SPL_BUILD

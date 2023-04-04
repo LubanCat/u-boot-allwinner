@@ -259,6 +259,7 @@ static int __sunxi_replace_fdt_v2(void *buffer)
 			new_fdt_totalsize, gd->fdt_ext_size);
 		return -1;
 	}
+	gd->uboot_fdt_blob = working_fdt;
 	pr_force("change working_fdt 0x%x to 0x%x\n", (ulong)working_fdt, (ulong)gd->new_ext_fdt);
 	working_fdt = (struct fdt_header *)gd->new_ext_fdt;
 	gd->fdt_blob = gd->new_ext_fdt;

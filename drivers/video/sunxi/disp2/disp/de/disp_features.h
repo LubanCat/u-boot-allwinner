@@ -25,6 +25,12 @@
 #endif
 #include "./lowlevel_v33x/de330/de_feat.h"
 #include "./lowlevel_v33x/tcon_feat.h"
+#elif defined(CONFIG_MACH_SUN55IW3)
+#ifndef DE_VERSION_V35X
+#define DE_VERSION_V35X
+#endif
+#include "./lowlevel_v35x/de35x/de_feat.h"
+#include "./lowlevel_v35x/tcon_feat.h"
 #elif defined(CONFIG_MACH_SUN8IW10)
 #include "./lowlevel_sun8iw10/de_feat.h"
 #elif defined(CONFIG_MACH_SUN8IW11) || defined(CONFIG_MACH_SUN8IW15)

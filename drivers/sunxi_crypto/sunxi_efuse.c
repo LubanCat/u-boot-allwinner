@@ -11,6 +11,8 @@
 
 #ifdef CONFIG_ARCH_SUN8IW12P1
 #define SECURE_BIT_OFFSET 31
+#elif CONFIG_MACH_SUN55IW3
+#define SECURE_BIT_OFFSET 0
 #else
 #define SECURE_BIT_OFFSET 11
 #endif
@@ -113,6 +115,9 @@ static efuse_key_map_new_t g_key_info[] = {
 #endif
 /*Please extend key_maps for new arch here*/
 static efuse_key_map_new_t g_key_info[] = {
+#ifdef EFUSE_CHIPID
+	EFUSE_DEF_ITEM(EFUSE_CHIPID_NAME, EFUSE_CHIPID, 128, -1, 0, EFUSE_RO),
+#endif
 #ifdef EFUSE_ROTPK
 	EFUSE_DEF_ITEM(EFUSE_ROTPK_NAME, EFUSE_ROTPK, 256, -1, SCC_ROTPK_BURNED_FLAG, EFUSE_RO),
 #endif

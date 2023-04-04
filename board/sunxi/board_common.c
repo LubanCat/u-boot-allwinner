@@ -62,7 +62,7 @@
 #include <fastlogo.h>
 #include <sunxi_eink.h>
 
-int  __attribute__((weak)) sunxi_platform_power_off(void)
+int  __attribute__((weak)) sunxi_platform_power_off(int status)
 {
 	return 0;
 }
@@ -116,6 +116,14 @@ extern int ephy_init(void);
 #endif
 #endif
 
+#ifdef CONFIG_SUNXI_EMAC
+extern int sunxi_emac_initialize(void);
+#endif
+
+#ifdef CONFIG_SUNXI_GMAC
+extern int sunxi_gmac_initialize(void);
+#endif
+
 int board_eth_init(bd_t *bis)
 {
 	int rc = 0;
@@ -132,6 +140,14 @@ int board_eth_init(bd_t *bis)
 	ephy_init();
 #endif
 	rc = geth_initialize(bis);
+#endif
+
+#ifdef CONFIG_SUNXI_EMAC
+	rc = sunxi_emac_initialize();
+#endif
+
+#ifdef CONFIG_SUNXI_GMAC
+	rc = sunxi_gmac_initialize();
 #endif
 
 	return rc;
@@ -543,7 +559,6 @@ int board_early_init_r(void)
 		(work_mode == WORK_MODE_CARD_PRODUCT) ||
 		(work_mode == WORK_MODE_USB_PRODUCT) ||
 		(work_mode == WORK_MODE_CARD_UPDATE)) {
-		clk_init();
 		ret  = initr_sunxi_display();
 #ifdef CONFIG_EINK200_SUNXI
 		ret = initr_sunxi_eink();
@@ -878,7 +893,25 @@ int sunxi_board_shutdown(void)
 {
 	sunxi_board_close_source();
 #ifdef CONFIG_SUNXI_UBOOT_POWER_OFF
-	sunxi_platform_power_off();
+	sunxi_platform_power_off(0);
+#endif
+#ifdef CONFIG_SUNXI_BMU
+	bmu_set_power_off();
+#endif
+#ifdef CONFIG_SUNXI_PMU
+	pmu_set_power_off();
+#endif
+	while (1) {
+		asm volatile ("wfi");
+	}
+	return 0;
+}
+
+int sunxi_board_shutdown_charge(void)
+{
+	sunxi_board_close_source();
+#ifdef CONFIG_SUNXI_UBOOT_POWER_OFF
+	sunxi_platform_power_off(1);
 #endif
 #ifdef CONFIG_SUNXI_BMU
 	bmu_set_power_off();

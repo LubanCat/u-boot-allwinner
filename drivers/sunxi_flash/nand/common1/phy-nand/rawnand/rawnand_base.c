@@ -791,10 +791,13 @@ int rawnand_physic_block_copy(unsigned int chip_s, unsigned int block_s, unsigne
  */
 int get_nand_structure(struct _nand_super_storage_info *nssi)
 {
+	nssi->support_two_plane = 1;
+	nssi->support_v_interleave = 1;
+	nssi->support_dual_channel = 1;
+#if 0
 	int good_block, ret;
 
 	rawnand_storage_info_t *nand_storage;
-
 	nssi->support_two_plane = 1;
 	nssi->support_v_interleave = 1;
 	nssi->support_dual_channel = 1;
@@ -844,6 +847,7 @@ int get_nand_structure(struct _nand_super_storage_info *nssi)
 	phyinfo_buf->storage_info.data.support_v_interleave = nssi->support_v_interleave;
 	phyinfo_buf->storage_info.data.support_dual_channel = nssi->support_dual_channel;
 
+#endif
 	return 0;
 }
 /*****************************************************************************

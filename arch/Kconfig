@@ -5,7 +5,7 @@ config HAVE_ARCH_IOREMAP
 	bool
 
 config SUNXI_TEXT_SIZE
-	hex
+	hex "SUNXI TEXT LIMIT"
 	default 0x100000
 
 choice

@@ -107,6 +107,12 @@ void reset_cpu(ulong addr)
 	/*wait deinit done, so we wont freeze on reboot*/
 	mdelay(500);
 #endif
+
+#if defined(CONFIG_MACH_SUN55IW3)
+	/*adjust reset timer of wdt to do not reset axp*/
+	if (0 == (readl(SUNXI_SYSCTRL_BASE + 0x24) & 0x7))
+		writel(((WDT_CFG_KEY << 16) | 0x02), SUNXI_WDT_BASE + 0x18);
+#endif
 	/* Set the watchdog for its shortest interval (.5s) and wait */
 	writel(((WDT_CFG_KEY << 16) | WDT_MODE_EN), &wdog->srst);
 	while (1) { }
@@ -168,7 +174,3 @@ void enable_caches(void)
 	dcache_enable();
 }
 #endif
-
-
-
-

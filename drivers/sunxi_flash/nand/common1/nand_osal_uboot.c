@@ -55,7 +55,7 @@ DECLARE_GLOBAL_DATA_PTR;
 
 /*nand common1 version rule vx.ab date time
  * x >= 1 ; 00 <= ab <= 99;*/
-#define NAND_COMMON1_DRV_VERSION "v2.05 2022-01-13 16:53"
+#define NAND_COMMON1_DRV_VERSION "v2.09 2023-1-05 16:00"
 
 /*
  *1755--AW1755--A50
@@ -80,7 +80,17 @@ DECLARE_GLOBAL_DATA_PTR;
 #define NDFC0_BASE_ADDR                 (SUNXI_NFC_BASE)
 #define NDFC1_BASE_ADDR                 (NULL)
 #endif
+
+#if defined(CONFIG_MACH_SUN55IW3)
+#define NAND_PIO_WITHSTAND_VOL_MODE	(0x0380)
+#define NAND_PC_POWER_SELECT_3_3	(1 << 2)
+#define NAND_PC_POWER_SELECT_1_8	(0 << 2)
+#else
 #define NAND_PIO_WITHSTAND_VOL_MODE	(0x0340)
+#define NAND_PC_POWER_SELECT_3_3	(0 << 2)
+#define NAND_PC_POWER_SELECT_1_8	(1 << 2)
+#endif
+#define NAND_PC_POWER_SELECT_MASK	(1 << 2)
 
 #define NAND_STORAGE_TYPE_NULL (0)
 #define NAND_STORAGE_TYPE_RAWNAND (1)
@@ -357,7 +367,7 @@ __s32 NAND_3DNand_Request(void)
 	cfg = *(volatile __u32 *)(SUNXI_PIO_BASE + NAND_PIO_WITHSTAND_VOL_MODE);
 	cfg ^= 0x4;
 	*(volatile __u32 *)(SUNXI_PIO_BASE + NAND_PIO_WITHSTAND_VOL_MODE) = cfg;
-	if ((cfg >> 2) == 1)
+	if (cfg == NAND_PC_POWER_SELECT_1_8)
 		printf("Change PC_Power Mode Select to 1.8V\n");
 	else
 		printf("Change PC_Power Mode Select to 3.3V\n");
@@ -371,7 +381,8 @@ __s32 NAND_Check_3DNand(void)
 
 	cfg = *(volatile __u32 *)(SUNXI_PIO_BASE + NAND_PIO_WITHSTAND_VOL_MODE);
 	if ((cfg >> 2) == 0) {
-		cfg |= 0x4;
+		cfg &= ~NAND_PC_POWER_SELECT_MASK;
+		cfg |= NAND_PC_POWER_SELECT_1_8;
 		*(volatile __u32 *)(SUNXI_PIO_BASE + NAND_PIO_WITHSTAND_VOL_MODE) = cfg;
 		printf("Change PC_Power Mode Select to 1.8V\n");
 	}
@@ -1198,7 +1209,8 @@ void nand_enable_vccq_3p3v(void)
 
 	reg_val = readl((void *)(SUNXI_PIO_BASE + NAND_PIO_WITHSTAND_VOL_MODE));
 	/*bit2: PC_POWER MODE SELECT*/
-	reg_val &= (~(1 << 2));
+	reg_val &= ~NAND_PC_POWER_SELECT_MASK;
+	reg_val |= NAND_PC_POWER_SELECT_3_3;
 	writel(reg_val, (void *)(SUNXI_PIO_BASE + NAND_PIO_WITHSTAND_VOL_MODE));
 }
 
@@ -1208,7 +1220,8 @@ void nand_enable_vccq_1p8v(void)
 
 	reg_val = readl((void *)(SUNXI_PIO_BASE + NAND_PIO_WITHSTAND_VOL_MODE));
 	/*bit2: PC_POWER MODE SELECT*/
-	reg_val |= 0x04;
+	reg_val &= ~NAND_PC_POWER_SELECT_MASK;
+	reg_val |= NAND_PC_POWER_SELECT_1_8;
 	writel(reg_val, (void *)(SUNXI_PIO_BASE + NAND_PIO_WITHSTAND_VOL_MODE));
 }
 

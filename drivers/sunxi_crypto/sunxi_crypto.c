@@ -162,8 +162,11 @@ int sunxi_trng_gen(u8 *rng_buf, u32 rng_byte)
 
 	task0.task_id = CHANNEL_0;
 	task0.common_ctl = (ALG_TRANG) | (0x1 << 31);
-	task0.data_len = word_len;
-
+	if (ss_get_ver() < 2) {
+		task0.data_len = word_len;
+	} else {
+		task0.data_len = rng_byte;
+	}
 
 	task0.source[0].addr	= 0;
 	task0.source[0].length      = 0;

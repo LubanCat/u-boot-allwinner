@@ -23,6 +23,7 @@
 DECLARE_GLOBAL_DATA_PTR;
 
 #define DISP_FDT_NODE "/soc/disp"
+int disp_fat_load(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
 
 int hal_reserve_logo_mem(uint64_t addr, uint64_t size)
 {
@@ -188,7 +189,7 @@ int hal_fat_fsload(char *part_name, char *file_name, char *buf, ulong length)
 	snprintf(len, 16, "%lu", length);
 	sprintf(load_addr, "%lx", (ulong)buf);
 
-	if (!do_fat_fsload(0, 0, 5, part_argv))
+	if (!disp_fat_load(0, 0, 5, part_argv))
 		ret = length;
 #endif
 

@@ -110,6 +110,20 @@ static int pmu_axp2101_ap_reset_enable(void)
 	return 0;
 }
 
+static int pmu_axp2101_enable_vbus_irq(void)
+{
+	u8 reg_value;
+
+	if (pmic_bus_read(AXP2101_RUNTIME_ADDR, AXP2101_INTEN1, &reg_value))
+		return -1;
+
+	reg_value |= 1 << 7;
+	if (pmic_bus_write(AXP2101_RUNTIME_ADDR, AXP2101_INTEN1, reg_value))
+		return -1;
+
+	return 0;
+}
+
 static int pmu_axp2101_probe(void)
 {
 	u8 pmu_chip_id;
@@ -131,6 +145,7 @@ static int pmu_axp2101_probe(void)
 	if (pmu_chip_id == 0x47 || pmu_chip_id == 0x4a) {
 		/*pmu type AXP21*/
 		pmu_axp2101_ap_reset_enable();
+		pmu_axp2101_enable_vbus_irq();
 		tick_printf("PMU: AXP21\n");
 		return 0;
 	}

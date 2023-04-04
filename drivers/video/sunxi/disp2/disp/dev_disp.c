@@ -40,7 +40,7 @@ uintptr_t disp_getprop_regbase(char *main_name, char *sub_name, u32 index)
 	u32 len = 0;
 	int node;
 	int ret = -1;
-	int value[32] = {0};
+	int value[64] = {0};
 	uintptr_t reg_base = 0;
 
 	len = sprintf(compat, "%s", main_name);
@@ -465,7 +465,7 @@ s32 drv_disp_init(void)
 	counter = 0;
 
 
-#ifdef DE_VERSION_V33X
+#if defined(DE_VERSION_V33X) || defined(DE_VERSION_V35X)
 	para->irq_no[DISP_MOD_DE] =
 	    disp_getprop_irq(FDT_DISP_PATH, "interrupts", counter);
 	if (!para->irq_no[DISP_MOD_DE]) {
@@ -572,6 +572,15 @@ s32 drv_disp_init(void)
 	}
 #endif
 
+#if defined(DE_VERSION_V35X)
+	for (i = 0; i < CLK_DSI_NUM; ++i) {
+		para->mclk[DSIP_MOD_COMBPHY0 + i] =
+		    of_clk_get(node_offset, counter);
+		if (IS_ERR(para->mclk[DSIP_MOD_COMBPHY0 + i]))
+			__wrn("fail to get clk %d for dsi combphy\n", i);
+		counter++;
+	}
+#endif
 #if defined(SUPPORT_EINK)
 	para->mclk[DISP_MOD_EINK] = of_clk_get(node_offset, counter);
 	if (IS_ERR(para->mclk[DISP_MOD_EINK])) {
@@ -628,6 +637,15 @@ s32 drv_disp_init(void)
 	g_disp_drv.disp_init.chn_cfg_mode = (ret != 1) ? 0 : value;
 
 	para->feat_init.chn_cfg_mode = g_disp_drv.disp_init.chn_cfg_mode;
+
+	ret =
+	    disp_sys_script_get_item(FDT_DISP_PATH, "screen0_to_lcd_index", &value, 1);
+	g_disp_drv.disp_init.to_lcd_index[0] = (ret != 1) ? 0 : value;
+
+	ret =
+	    disp_sys_script_get_item(FDT_DISP_PATH, "screen1_to_lcd_index", &value, 1);
+	g_disp_drv.disp_init.to_lcd_index[1] = (ret != 1) ? 0 : value;
+
 	ret = bsp_disp_init(para);
 	num_screens = bsp_disp_feat_get_num_screens();
 	for (disp=0; disp<num_screens; disp++) {
@@ -648,6 +666,10 @@ s32 drv_disp_init(void)
 
 #if defined(SUPPORT_EDP) && defined(CONFIG_EDP_DISP2_SUNXI)
 	edp_init();
+#endif
+
+#if defined(SUPPORT_EDP) && defined(CONFIG_EDP2_DISP2_SUNXI)
+	edp2_init();
 #endif
 
 #if defined(CONFIG_DISP2_TV_AC200)
@@ -692,6 +714,8 @@ int sunxi_disp_get_source_ops(struct sunxi_disp_source_ops *src_ops)
 	src_ops->sunxi_lcd_tcon_disable = bsp_disp_lcd_tcon_disable;
 	src_ops->sunxi_lcd_pin_cfg = bsp_disp_lcd_pin_cfg;
 	src_ops->sunxi_lcd_gpio_set_value = bsp_disp_lcd_gpio_set_value;
+	/**** add for lcd read gpio level id by lxm 20220310 ***/
+	src_ops->sunxi_lcd_gpio_get_value = bsp_disp_lcd_gpio_get_value;
 	src_ops->sunxi_lcd_gpio_set_direction = bsp_disp_lcd_gpio_set_direction;
 #ifdef SUPPORT_DSI
 	src_ops->sunxi_lcd_dsi_dcs_write = bsp_disp_lcd_dsi_dcs_wr;
@@ -709,6 +733,27 @@ int sunxi_disp_get_source_ops(struct sunxi_disp_source_ops *src_ops)
 	src_ops->sunxi_lcd_switch_compat_panel = bsp_disp_lcd_switch_compat_panel;
 	return 0;
 }
+
+int sunxi_disp_get_edp_ops(struct sunxi_disp_edp_ops *edp_ops)
+{
+	memset((void *)edp_ops, 0, sizeof(struct sunxi_disp_edp_ops));
+
+	edp_ops->sunxi_edp_set_panel_funs = bsp_disp_edp_set_panel_funs;
+	edp_ops->sunxi_edp_delay_ms = disp_delay_ms;
+	edp_ops->sunxi_edp_delay_us = disp_delay_us;
+	edp_ops->sunxi_edp_backlight_enable = bsp_disp_edp_backlight_enable;
+	edp_ops->sunxi_edp_backlight_disable = bsp_disp_edp_backlight_disable;
+	edp_ops->sunxi_edp_pwm_enable = bsp_disp_edp_pwm_enable;
+	edp_ops->sunxi_edp_pwm_disable = bsp_disp_edp_pwm_disable;
+	edp_ops->sunxi_edp_power_enable = bsp_disp_edp_power_enable;
+	edp_ops->sunxi_edp_power_disable = bsp_disp_edp_power_disable;
+	edp_ops->sunxi_edp_pin_cfg = bsp_disp_edp_pin_cfg;
+	edp_ops->sunxi_edp_gpio_set_value = bsp_disp_edp_gpio_set_value;
+	edp_ops->sunxi_edp_gpio_set_direction = bsp_disp_edp_gpio_set_direction;
+
+	return 0;
+}
+EXPORT_SYMBOL(sunxi_disp_get_edp_ops);
 
 static int disp_blank(bool blank)
 {
@@ -886,8 +931,14 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	case DISP_DEVICE_SWITCH:
 	{
-		if (ubuffer[1] == (unsigned long)DISP_OUTPUT_TYPE_LCD)
-			ret = drv_lcd_enable(ubuffer[0]);
+		if (ubuffer[1] == (unsigned long)DISP_OUTPUT_TYPE_LCD) {
+			u32 tcon_sel = ubuffer[0];
+
+			if (g_disp_drv.disp_init.to_lcd_index[ubuffer[0]] != DE_TO_TCON_NOT_DEFINE)
+				tcon_sel = g_disp_drv.disp_init.to_lcd_index[ubuffer[0]];
+
+			ret = drv_lcd_enable(tcon_sel);
+		}
 		else
 			ret = bsp_disp_device_switch(ubuffer[0], (enum disp_output_type)ubuffer[1], (enum disp_tv_mode)ubuffer[2]);
 		suspend_output_type[ubuffer[0]] = ubuffer[1];
@@ -992,6 +1043,17 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	//----layer----
 	case DISP_LAYER_SET_CONFIG:
 	{
+
+		const unsigned int lyr_cfg_size = ARRAY_SIZE(lyr_cfg);
+
+		if (IS_ERR_OR_NULL((void __user *)ubuffer[1])) {
+			__wrn("incoming pointer of user is ERR or NULL");
+			return -EFAULT;
+		}
+		if (ubuffer[2] == 0 || ubuffer[2] > lyr_cfg_size) {
+			__wrn("layer number need to be set from 1 to %d\n", lyr_cfg_size);
+			return -EFAULT;
+		}
 		if (copy_from_user(lyr_cfg,
 			(void __user *)ubuffer[1],
 			sizeof(struct disp_layer_config) * ubuffer[2]))	{
@@ -1005,6 +1067,17 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	case DISP_LAYER_GET_CONFIG:
 	{
+
+		const unsigned int lyr_cfg_size = ARRAY_SIZE(lyr_cfg);
+
+		if (IS_ERR_OR_NULL((void __user *)ubuffer[1])) {
+			__wrn("incoming pointer of user is ERR or NULL");
+			return -EFAULT;
+		}
+		if (ubuffer[2] == 0 || ubuffer[2] > lyr_cfg_size) {
+			__wrn("layer number need to be set from 1 to %d\n", lyr_cfg_size);
+			return -EFAULT;
+		}
 		if (copy_from_user(lyr_cfg,
 			(void __user *)ubuffer[1],
 			sizeof(struct disp_layer_config) * ubuffer[2]))	{
@@ -1026,6 +1099,17 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	case DISP_LAYER_SET_CONFIG2:
 	{
+
+		const unsigned int lyr_cfg_size = ARRAY_SIZE(lyr_cfg2);
+
+		if (IS_ERR_OR_NULL((void __user *)ubuffer[1])) {
+			__wrn("incoming pointer of user is ERR or NULL");
+			return -EFAULT;
+		}
+		if (ubuffer[2] == 0 || ubuffer[2] > lyr_cfg_size) {
+			__wrn("layer number need to be set from 1 to %d\n", lyr_cfg_size);
+			return -EFAULT;
+		}
 		if (copy_from_user(lyr_cfg2,
 		    (void __user *)ubuffer[1],
 		    sizeof(struct disp_layer_config2) * ubuffer[2])) {
@@ -1040,6 +1124,17 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	case DISP_LAYER_GET_CONFIG2:
 	{
+
+		const unsigned int lyr_cfg_size = ARRAY_SIZE(lyr_cfg2);
+
+		if (IS_ERR_OR_NULL((void __user *)ubuffer[1])) {
+			__wrn("incoming pointer of user is ERR or NULL");
+			return -EFAULT;
+		}
+		if (ubuffer[2] == 0 || ubuffer[2] > lyr_cfg_size) {
+			__wrn("layer number need to be set from 1 to %d\n", lyr_cfg_size);
+			return -EFAULT;
+		}
 		if (copy_from_user(lyr_cfg2,
 		    (void __user *)ubuffer[1],
 		    sizeof(struct disp_layer_config2) * ubuffer[2])) {

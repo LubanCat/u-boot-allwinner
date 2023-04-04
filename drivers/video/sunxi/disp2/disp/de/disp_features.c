@@ -65,7 +65,7 @@ int bsp_disp_feat_is_support_capture(unsigned int disp)
 
 int disp_init_feat(struct disp_feat_init *feat_init)
 {
-#ifdef DE_VERSION_V33X
+#if defined(DE_VERSION_V33X) || defined(DE_VERSION_V35X)
 	struct de_feat_init de_feat;
 	de_feat.chn_cfg_mode = feat_init->chn_cfg_mode;
 	return de_feat_init_config(&de_feat);
@@ -76,7 +76,7 @@ int disp_init_feat(struct disp_feat_init *feat_init)
 
 int disp_feat_is_using_rcq(unsigned int disp)
 {
-#if defined(DE_VERSION_V33X)
+#if defined(DE_VERSION_V33X) || defined(DE_VERSION_V35X)
        return de_feat_is_using_rcq(disp);
 #endif
        return 0;
@@ -84,7 +84,7 @@ int disp_feat_is_using_rcq(unsigned int disp)
 
 int disp_feat_is_using_wb_rcq(unsigned int wb)
 {
-#if defined(DE_VERSION_V33X)
+#if defined(DE_VERSION_V33X) || defined(DE_VERSION_V35X)
        return de_feat_is_using_wb_rcq(wb);
 #endif
        return 0;

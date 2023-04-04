@@ -5,5 +5,5 @@
 
 
 obj-$(CONFIG_SUNXI_FLASH) += sunxi_flash.o
-
+obj-$(CONFIG_SUNXI_FLASH) += sunxi_flashmap.o
 

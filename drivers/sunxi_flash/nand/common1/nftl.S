@@ -9165,41 +9165,42 @@ nftl_clean_invalid_list:
 clean_zone:
 	@ args = 0, pretend = 0, frame = 16
 	@ frame_needed = 0, uses_anonymous_args = 0
-	push	{r0, r1, r2, r3, r4, r5, r6, r7, r8, lr}
+	push	{r4, r5, r6, r7, r8, r10, lr}
 	mov	r4, r0
+	sub	sp, sp, #20
 	cbz	r0, .L1213
-	ldrb	r6, [r0, #1976]	@ zero_extendqisi2
-	cmp	r6, #0
+	ldrb	r7, [r0, #1976]	@ zero_extendqisi2
+	cmp	r7, #0
 	beq	.L1214
 .L1213:
 	ldr	r5, [r4, #172]
-	movs	r6, #0
-	ldr	r7, .L1242
-	ldr	r8, .L1242+4
+	movs	r7, #0
+	ldr	r8, .L1242
+	ldr	r10, .L1242+4
 .L1215:
 	cmp	r5, #0
 	bne	.L1217
 	ldr	r5, [r4, #252]
-	ldr	r7, .L1242
+	ldr	r6, .L1242
 	ldr	r8, .L1242+12
 .L1218:
 	cmp	r5, #0
 	bne	.L1220
-	ldr	r3, [r4, #292]
-	cbz	r3, .L1221
-	ldrh	r2, [r3]
-	mov	r1, sp
+	ldr	r6, [r4, #292]
+	cbz	r6, .L1221
 	ldr	r3, [r4, #4]
+	mov	r1, sp
+	ldrh	r2, [r6]
 	mov	r0, r4
 	strh	r5, [sp]	@ movhi
-	strh	r2, [sp, #2]	@ movhi
 	ldrh	r3, [r3, #28]
+	strh	r2, [sp, #2]	@ movhi
 	strd	r5, r5, [sp, #8]
 	strh	r3, [sp, #4]	@ movhi
 	ldr	r3, [r4, #1980]
 	blx	r3
 	cbz	r0, .L1222
-	ldrh	r2, [r5]
+	ldrh	r2, [r6]
 	ldr	r1, .L1242
 	ldr	r0, .L1242+4
 	bl	NAND_Print
@@ -9211,14 +9212,15 @@ clean_zone:
 	adds	r3, r3, #1
 	strh	r3, [r4, #20]	@ movhi
 .L1222:
-	movs	r1, #0
-	movs	r6, #1
-	ldrh	r3, [r1, #6]
-	mov	r0, r4
-	strh	r1, [r1, #2]	@ movhi
-	strh	r1, [r1, #4]	@ movhi
+	ldrh	r3, [r6, #6]
+	movs	r2, #0
+	movs	r7, #1
+	strh	r2, [r6, #2]	@ movhi
+	strh	r2, [r6, #4]	@ movhi
+	mov	r1, r6
 	adds	r3, r3, #1
-	strh	r3, [r1, #6]	@ movhi
+	mov	r0, r4
+	strh	r3, [r6, #6]	@ movhi
 	bl	put_phy_block_to_free_list
 .L1221:
 	mov	r0, r4
@@ -9239,10 +9241,10 @@ clean_zone:
 	adds	r3, r3, #1
 	str	r3, [r2, #8]
 .L1214:
-	mov	r0, r6
-	add	sp, sp, #16
+	mov	r0, r7
+	add	sp, sp, #20
 	@ sp needed
-	pop	{r4, r5, r6, r7, r8, pc}
+	pop	{r4, r5, r6, r7, r8, r10, pc}
 .L1217:
 	ldr	r3, [r4, #4]
 	movs	r6, #0
@@ -9258,8 +9260,8 @@ clean_zone:
 	blx	r3
 	cbz	r0, .L1216
 	ldrh	r2, [r5]
-	mov	r1, r7
-	mov	r0, r8
+	mov	r1, r8
+	mov	r0, r10
 	bl	NAND_Print
 	ldr	r3, [r4, #2000]
 	mov	r1, sp
@@ -9276,7 +9278,7 @@ clean_zone:
 	bl	out_phy_block_from_free_list_by_block
 .L1216:
 	ldrh	r3, [r5, #6]
-	movs	r6, #1
+	movs	r7, #1
 	adds	r3, r3, #1
 	strh	r3, [r5, #6]	@ movhi
 	ldr	r5, [r5, #20]
@@ -9296,7 +9298,7 @@ clean_zone:
 	blx	r3
 	cbz	r0, .L1219
 	ldrh	r2, [r5]
-	mov	r1, r7
+	mov	r1, r6
 	mov	r0, r8
 	bl	NAND_Print
 	ldr	r3, [r4, #2000]
@@ -9314,7 +9316,7 @@ clean_zone:
 	strh	r2, [r5, #4]	@ movhi
 	mov	r0, r4
 	adds	r3, r3, #1
-	movs	r6, #1
+	movs	r7, #1
 	strh	r3, [r5, #6]	@ movhi
 	bl	put_phy_block_to_free_list
 	ldr	r5, [r5, #28]
@@ -12238,12 +12240,8 @@ malloc_logic_page_map:
 	str	r1, [r3], #4
 	cmp	r3, r2
 	bne	.L1570
-	ldr	r8, .L1582+16
+	ldr	r8, .L1582+12
 	movs	r5, #0
-	mov	r2, #262144
-	mov	r1, r4
-	ldr	r0, .L1582
-	bl	NAND_Print
 .L1574:
 	cmp	r4, r8
 	bls	.L1571
@@ -12251,7 +12249,7 @@ malloc_logic_page_map:
 	bl	NAND_Malloc
 	str	r0, [r7], #4
 	cbnz	r0, .L1572
-	ldr	r0, .L1582+4
+	ldr	r0, .L1582
 	mov	r1, r5
 .L1581:
 	bl	NAND_Print
@@ -12268,7 +12266,7 @@ malloc_logic_page_map:
 	bne	.L1574
 	cbz	r4, .L1577
 	mov	r1, r4
-	ldr	r0, .L1582+8
+	ldr	r0, .L1582+4
 	b	.L1581
 .L1571:
 	lsls	r4, r4, #2
@@ -12278,7 +12276,7 @@ malloc_logic_page_map:
 	str	r0, [r3, #52]
 	cbnz	r0, .L1576
 	mov	r1, r5
-	ldr	r0, .L1582+12
+	ldr	r0, .L1582+8
 	b	.L1581
 .L1576:
 	mov	r2, r4
@@ -12293,9 +12291,8 @@ malloc_logic_page_map:
 	.align	2
 .L1582:
 	.word	.LC201
-	.word	.LC202
-	.word	.LC204
 	.word	.LC203
+	.word	.LC202
 	.word	262143
 	.size	malloc_logic_page_map, .-malloc_logic_page_map
 	.section	.text.zone_param_init,"ax",%progbits
@@ -12472,12 +12469,12 @@ zone_param_init:
 	.align	2
 .L1596:
 	.word	.LANCHOR100
+	.word	.LC204
 	.word	.LC205
 	.word	.LC206
 	.word	.LC207
 	.word	.LC208
 	.word	.LC209
-	.word	.LC210
 	.word	-1431655765
 	.size	zone_param_init, .-zone_param_init
 	.section	.text.free_logic_page_map,"ax",%progbits
@@ -12605,7 +12602,7 @@ nftl_sector_cache_init:
 	.align	2
 .L1612:
 	.word	.LANCHOR101
-	.word	.LC211
+	.word	.LC210
 	.size	nftl_sector_cache_init, .-nftl_sector_cache_init
 	.section	.text.nftl_sector_cache_exit,"ax",%progbits
 	.align	1
@@ -12912,28 +12909,28 @@ first_scan_all_blocks:
 	bl	NAND_Print_DBG
 	strh	r7, [r5, #18]	@ movhi
 .L1655:
-	ldr	r3, [r5, #4]
-	mov	r10, #0
-	ldrh	r2, [r4]
-	ldrh	r3, [r3, #24]
-	cmp	r3, r2
+	ldr	r2, [r5, #4]
+	mov	r8, #0
+	ldrh	r3, [r4]
+	ldrh	r2, [r2, #24]
+	cmp	r2, r3
 	bls	.L1700
-	strh	r2, [sp, #74]	@ movhi
+	strh	r3, [sp, #74]	@ movhi
 	add	r1, sp, #72
-	strh	r10, [sp, #72]	@ movhi
+	strh	r8, [sp, #72]	@ movhi
 	mov	r0, r5
-	strh	r10, [sp, #76]	@ movhi
-	strd	r10, r6, [sp, #80]
-	ldr	r2, [r5, #1996]
-	blx	r2
+	strh	r8, [sp, #76]	@ movhi
+	strd	r8, r6, [sp, #80]
+	ldr	r3, [r5, #1996]
+	blx	r3
 	cmp	r0, #1
 	bne	.L1657
-	ldr	r2, [r5, #1984]
+	ldr	r3, [r5, #1984]
 	add	r1, sp, #72
 	mov	r0, r5
-	blx	r2
+	blx	r3
 	str	r4, [r5, #44]
-	mov	r8, r0
+	mov	r10, r0
 	mov	r0, r6
 	bl	get_block_used_count_from_oob
 	mov	fp, r0
@@ -12945,7 +12942,7 @@ first_scan_all_blocks:
 	ldr	r0, .L1707+12
 	bl	NAND_Print
 .L1700:
-	mov	r0, r10
+	mov	r0, r8
 	b	.L1653
 .L1654:
 	mov	r0, #-1
@@ -12973,14 +12970,14 @@ first_scan_all_blocks:
 	bl	is_nouse_page
 	cmp	r0, #1
 	bne	.L1661
-	ldrh	r2, [r5, #18]
+	ldrh	r3, [r5, #18]
 	mov	r1, r4
 	mov	r0, r5
-	adds	r2, r2, #1
-	strh	r2, [r5, #18]	@ movhi
-	strh	r10, [r4, #2]	@ movhi
-	strh	r10, [r4, #6]	@ movhi
-	strh	r10, [r4, #4]	@ movhi
+	adds	r3, r3, #1
+	strh	r3, [r5, #18]	@ movhi
+	strh	r8, [r4, #2]	@ movhi
+	strh	r8, [r4, #6]	@ movhi
+	strh	r8, [r4, #4]	@ movhi
 	bl	put_phy_block_to_free_list
 	b	.L1660
 .L1661:
@@ -12993,17 +12990,17 @@ first_scan_all_blocks:
 	cmp	r0, #1
 	bne	.L1663
 .L1662:
-	cmp	r8, #0
+	cmp	r10, #0
 	beq	.L1664
-	cmp	r8, #10
+	cmp	r10, #10
 	bne	.L1663
 .L1664:
 	ldrh	r3, [r5, #18]
-	mov	r10, #1
+	mov	r8, #1
 	mov	r0, r6
 	adds	r3, r3, #1
 	strh	r3, [r5, #18]	@ movhi
-	strh	r10, [r4, #2]	@ movhi
+	strh	r8, [r4, #2]	@ movhi
 	bl	get_erase_count_from_oob
 	movs	r3, #0
 	strh	r0, [r4, #6]	@ movhi
@@ -13014,13 +13011,13 @@ first_scan_all_blocks:
 	strd	r3, r3, [r4, #28]
 	mov	r0, r5
 	bl	add_block_count_list
-	cmp	r8, #10
+	cmp	r10, #10
 	bne	.L1660
 	ldr	r3, [r5, #1972]
 	ldrh	r3, [r3, #4]
 	cmp	r3, #0
 	beq	.L1660
-	mov	r2, r10
+	mov	r2, r8
 	mov	r0, r5
 	bl	add_prio_gc
 	ldr	r0, .L1707+16
@@ -13096,9 +13093,9 @@ first_scan_all_blocks:
 	uxth	r2, r7
 	adds	r3, r2, #1
 	strh	r3, [r4, #6]	@ movhi
-	cmp	r8, #0
+	cmp	r10, #0
 	beq	.L1667
-	cmp	r8, #10
+	cmp	r10, #10
 	bne	.L1668
 .L1667:
 	ldrb	r3, [sp, #56]	@ zero_extendqisi2
@@ -13146,7 +13143,7 @@ first_scan_all_blocks:
 	ldr	r3, [r5, #1984]
 	blx	r3
 	ldrh	r8, [r4]
-	mov	r10, r0
+	mov	fp, r0
 	cbz	r0, .L1670
 	cmp	r0, #10
 	bne	.L1671
@@ -13154,36 +13151,36 @@ first_scan_all_blocks:
 	mov	r0, r6
 	bl	is_phy_mapping_page
 	cmp	r0, #1
-	mov	fp, r0
+	mov	r10, r0
 	bne	.L1672
 	mov	r1, r8
 	ldr	r0, .L1707+40
 	bl	NAND_Print
 	mov	r0, r6
 	bl	get_block_used_count_from_oob
-	ldrh	r2, [r5, #18]
+	ldrh	r3, [r5, #18]
 	mov	r8, r0
 	mov	r0, r6
-	adds	r2, r2, #1
-	strh	r2, [r5, #18]	@ movhi
-	strh	fp, [r4, #2]	@ movhi
+	adds	r3, r3, #1
+	strh	r3, [r5, #18]	@ movhi
+	strh	r10, [r4, #2]	@ movhi
 	bl	get_erase_count_from_oob
-	movs	r2, #0
+	movs	r3, #0
 	strh	r0, [r4, #6]	@ movhi
 	mov	r7, r0
-	strh	r2, [r4, #4]	@ movhi
+	strh	r3, [r4, #4]	@ movhi
 	str	r8, [r4, #8]
 	mov	r1, r4
-	strd	r2, r2, [r4, #28]
+	strd	r3, r3, [r4, #28]
 	mov	r0, r5
 	bl	add_block_count_list
-	cmp	r10, #10
+	cmp	fp, #10
 	bne	.L1660
 	ldr	r3, [r5, #1972]
 	ldrh	r3, [r3, #4]
 	cmp	r3, #0
 	beq	.L1660
-	mov	r2, fp
+	mov	r2, r10
 	mov	r0, r5
 	bl	add_prio_gc
 	ldr	r0, .L1707+44
@@ -13205,6 +13202,7 @@ first_scan_all_blocks:
 .L1707:
 	.word	.LANCHOR76+9
 	.word	.LANCHOR102
+	.word	.LC211
 	.word	.LC212
 	.word	.LC213
 	.word	.LC214
@@ -13216,7 +13214,6 @@ first_scan_all_blocks:
 	.word	.LC220
 	.word	.LC221
 	.word	.LC222
-	.word	.LC223
 .L1671:
 	mov	r1, r8
 	ldr	r0, .L1709
@@ -13259,13 +13256,17 @@ first_scan_all_blocks:
 	bl	torture_block_and_mark
 	b	.L1702
 .L1657:
-	movs	r2, #255
-	strh	r10, [r4, #6]	@ movhi
-	strh	r2, [r4, #2]	@ movhi
+	ldrh	r1, [r4]
+	ldr	r0, .L1709+8
+	bl	NAND_Print
+	movs	r3, #255
+	strh	r8, [r4, #6]	@ movhi
+	strh	r3, [r4, #2]	@ movhi
 	b	.L1698
 .L1710:
 	.align	2
 .L1709:
+	.word	.LC223
 	.word	.LC224
 	.word	.LC225
 	.size	first_scan_all_blocks, .-first_scan_all_blocks
@@ -20452,6 +20453,8 @@ build_zone_list:
 .L2805:
 	mov	r0, r4
 	bl	power_on_gc
+	mov	r0, r4
+	bl	print_nftl_zone
 	ldr	r0, .L2807+12
 	bl	NAND_Print
 	mov	r0, r4
@@ -23632,36 +23635,38 @@ com:
 .LC151:
 	.ascii	"[NE]erase_block block fail %d!\012\000"
 	.section	.rodata.first_scan_all_blocks.str1.1,"aMS",%progbits,1
-.LC212:
+.LC211:
 	.ascii	"[ND]fsab\012\000"
-.LC213:
+.LC212:
 	.ascii	"[NI]ftl end block! %d!\012\000"
-.LC214:
+.LC213:
 	.ascii	"[ND]READ_RECLAIM!\012\000"
-.LC215:
+.LC214:
 	.ascii	"[NI]start page , do nothing\012\000"
-.LC216:
+.LC215:
 	.ascii	"[ND]fill block %d\012\000"
-.LC217:
+.LC216:
 	.ascii	"[NI]b@%d p@0 unknow spare data:%x,%x,%x,%x,%x,%x,%x"
 	.ascii	",%x,%x,%x,%x,%x,%x,%x,%x,%x.\012\000"
-.LC218:
+.LC217:
 	.ascii	"[NE]nftl bad block: %d\012\000"
-.LC219:
+.LC218:
 	.ascii	"[NE]nftl b@%d p@0 ecc error\012\000"
-.LC220:
+.LC219:
 	.ascii	"[NE]b@%d last page ok !\012\000"
-.LC221:
+.LC220:
 	.ascii	"[NI]READ_RECLAIM!\012\000"
-.LC222:
+.LC221:
 	.ascii	"[NE]last page blank ! %d!\012\000"
-.LC223:
+.LC222:
 	.ascii	"[NE]last page unkown ! %d!\012\000"
-.LC224:
+.LC223:
 	.ascii	"[NE]b@%d first page last page ecc error\012\000"
-.LC225:
+.LC224:
 	.ascii	"[NE]b@%d last page spare data %x,%x,%x,%x,%x,%x,%x,"
 	.ascii	"%x,%x,%x,%x,%x,%x,%x,%x,%x\012\000"
+.LC225:
+	.ascii	"[NI]nftl bad block: %d\012\000"
 	.section	.rodata.flush_write_cache_to_nand.str1.1,"aMS",%progbits,1
 .LC242:
 	.ascii	"[NE]flush write cache to nand no cache!\012\000"
@@ -23976,13 +23981,10 @@ com:
 	.ascii	"[NE]mtd size changed !\012\000"
 	.section	.rodata.malloc_logic_page_map.str1.1,"aMS",%progbits,1
 .LC201:
-	.ascii	"[NE]malloc logic page map: total_pages@%u len@%u\012"
-	.ascii	"\000"
-.LC202:
 	.ascii	"[NE]%s:malloc fail for logic_page_map %d\012\000"
-.LC203:
+.LC202:
 	.ascii	"[NE]%s: malloc fail for logic_page_map %d\012\000"
-.LC204:
+.LC203:
 	.ascii	"[NE]zone_param_init malloc_logic_page_map error %d\012"
 	.ascii	"\000"
 	.section	.rodata.micron_intel_set_feature.str1.1,"aMS",%progbits,1
@@ -24387,7 +24389,7 @@ nand_crc16_table:
 	.ascii	"%d:%d \000"
 	.section	.rodata.nftl_initialize.str1.1,"aMS",%progbits,1
 .LC478:
-	.ascii	"002\000"
+	.ascii	"005\000"
 .LC479:
 	.ascii	"0\000"
 .LC480:
@@ -24395,9 +24397,9 @@ nand_crc16_table:
 .LC481:
 	.ascii	"sunxi nftl version %s.%s.%s  %s-%s\012\000"
 .LC482:
-	.ascii	"15:11\000"
+	.ascii	"13:56\000"
 .LC483:
-	.ascii	"2021.08.05\000"
+	.ascii	"2022.09.09\000"
 .LC484:
 	.ascii	"[NE]%s:malloc fail for nftl_cfg\012\000"
 .LC485:
@@ -24412,7 +24414,7 @@ nand_crc16_table:
 .LC10:
 	.ascii	"awa1543 nftl_logic_size:%u\012\000"
 	.section	.rodata.nftl_sector_cache_init.str1.1,"aMS",%progbits,1
-.LC211:
+.LC210:
 	.ascii	"[NE]%s:malloc fail for cache_buf!\012\000"
 	.section	.rodata.nftl_start.str1.1,"aMS",%progbits,1
 .LC468:
@@ -25031,19 +25033,19 @@ para1:
 .LC428:
 	.ascii	"[NE]write_phy_data_to_current_block error1\012\000"
 	.section	.rodata.zone_param_init.str1.1,"aMS",%progbits,1
-.LC205:
+.LC204:
 	.ascii	"[NE]%s:malloc fail for temp_page_buf\012\000"
-.LC206:
+.LC205:
 	.ascii	"[NE]%s:malloc fail for logic_page_buf\012\000"
-.LC207:
+.LC206:
 	.ascii	"[NE]zone_param_init error2\012\000"
-.LC208:
+.LC207:
 	.ascii	"[NE]%s:malloc fail for current_block.user_info.buf\012"
 	.ascii	"\000"
-.LC209:
+.LC208:
 	.ascii	"[NE]%s:malloc fail for assist_block.user_info.buf\012"
 	.ascii	"\000"
-.LC210:
+.LC209:
 	.ascii	"[NE]%s:malloc fail for zone_phy_page_map_for_gc.buf"
 	.ascii	"\012\000"
 	.ident	"GCC: (Linaro GCC 7.2-2017.11) 7.2.1 20171011"

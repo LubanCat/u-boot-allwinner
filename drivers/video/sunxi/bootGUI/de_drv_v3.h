@@ -32,6 +32,7 @@ static inline int _switch_device(int sel, int type, int mode)
 
 	switch (type) {
 	case DISP_OUTPUT_TYPE_HDMI:
+	case DISP_OUTPUT_TYPE_EDP:
 	case DISP_OUTPUT_TYPE_TV:
 	case DISP_OUTPUT_TYPE_LCD:
 	case DISP_OUTPUT_TYPE_VGA:
@@ -57,6 +58,7 @@ static inline int _switch_device_config(int sel, struct disp_device_config *conf
 
 	switch (config->type) {
 	case DISP_OUTPUT_TYPE_HDMI:
+	case DISP_OUTPUT_TYPE_EDP:
 	case DISP_OUTPUT_TYPE_TV:
 	case DISP_OUTPUT_TYPE_VGA:
 #ifdef ENABLE_HDMI_CLK_PREPARE
@@ -138,7 +140,10 @@ static inline void _get_screen_size(int sel, unsigned int *width, unsigned int *
 
 static inline void _get_fb_format_config(int fmt_cfg, int *bpp)
 {
-	if (8 == fmt_cfg) {
+	if (10 == fmt_cfg) {
+		/* DISP_FORMAT_RGB_565; */
+		*bpp = 16;
+	} else if (8 == fmt_cfg) {
 		/* DISP_FORMAT_RGB_888; */
 		*bpp = 24;
 	} else {
@@ -221,6 +226,10 @@ static inline void _set_layer_geometry(void *layer_config,
 		layer->info.alpha_mode = 0x1;
 		layer->info.alpha_value = 0xFF;
 		layer->info.fb.format = DISP_FORMAT_RGB_888;
+	}  else if (16 == bpp) {
+		layer->info.alpha_mode = 0x1;
+		layer->info.alpha_value = 0xFF;
+		layer->info.fb.format = DISP_FORMAT_RGB_565;
 	} else {
 		printf("%s: no support the bpp[%d]\n", __func__, bpp);
 		layer->info.alpha_mode = 0x0;

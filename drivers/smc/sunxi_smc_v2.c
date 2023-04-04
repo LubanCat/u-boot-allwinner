@@ -15,6 +15,7 @@
 #include <securestorage.h>
 #include <efuse_map.h>
 #include <memalign.h>
+#include <sunxi_keybox.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -34,6 +35,7 @@ DECLARE_GLOBAL_DATA_PTR;
 
 #define PSCI_CPU_OFF                0x84000002
 #define PSCI_CPU_ON_AARCH32         0x84000003
+#define PSCI_SYSTEM_OFF             0x84000008
 
 #define SUNXI_CPU_ON_AARCH32        0x84000010
 #define SUNXI_CPU_OFF_AARCH32       0x84000011
@@ -174,6 +176,11 @@ int arm_svc_fake_poweroff(ulong dtb_base)
 int arm_svc_poweroff(void)
 {
 	return sunxi_smc_call(ARM_SVC_UBOOT_POWER_OFF, 0, 0, 0, 0);
+}
+
+int arm_svc_poweroff_charge(void)
+{
+	return sunxi_smc_call(PSCI_SYSTEM_OFF, 0, 0, 0, 0);
 }
 
 u32 arm_svc_arisc_read_pmu(ulong addr)
@@ -362,6 +369,10 @@ int smc_tee_ssk_encrypt(char *out_buf, char *in_buf, int len, int *out_len)
 	int align_len = 0;
 
 	align_len = ALIGN(len, CACHE_LINE_SIZE);
+	if (align_len > SUNXI_SECURE_STORTAGE_BLOCK_SIZE - SUNXI_SECURE_STORTAGE_INFO_HEAD_LEN) {
+		return -1;
+	}
+
 	arm_smccc_smc(OPTEE_SMC_CRYPT, TEESMC_PROBE_SHM_BASE,
 		0, 0, 0, 0, 0, 0, &param);
 	if (param.a0 != 0) {
@@ -381,8 +392,13 @@ int smc_tee_ssk_encrypt(char *out_buf, char *in_buf, int len, int *out_len)
 			  CACHE_LINE_SIZE));
 
 	memset(&param, 0, sizeof(param));
+#ifdef CONFIG_SECURE_STORAGE_KEY_HUK
+	arm_smccc_smc(OPTEE_SMC_CRYPT, TEESMC_HUK_ENCRYPT,
+		(uint32_t)tee_addr, align_len, 0, 0, 0, 0, &param);
+#else
 	arm_smccc_smc(OPTEE_SMC_CRYPT, TEESMC_SSK_ENCRYPT,
 		(uint32_t)tee_addr, align_len, 0, 0, 0, 0, &param);
+#endif
 	if (param.a0 != 0) {
 		printf("smc tee encrypt with ssk failed with: %ld", param.a0);
 
@@ -398,6 +414,9 @@ int smc_tee_ssk_decrypt(char *out_buf, char *in_buf, int len)
 	struct arm_smccc_res param = { 0 };
 	struct smc_tee_ssk_addr_group *tee_addr;
 
+	if (len > SUNXI_SECURE_STORTAGE_BLOCK_SIZE - SUNXI_SECURE_STORTAGE_INFO_HEAD_LEN) {
+		return -1;
+	}
 	arm_smccc_smc(OPTEE_SMC_CRYPT, TEESMC_PROBE_SHM_BASE,
 		0, 0, 0, 0, 0, 0, &param);
 	if (param.a0 != 0) {
@@ -416,8 +435,13 @@ int smc_tee_ssk_decrypt(char *out_buf, char *in_buf, int len)
 		    ALIGN(sizeof(struct smc_tee_ssk_addr_group),
 			  CACHE_LINE_SIZE));
 
+#ifdef CONFIG_SECURE_STORAGE_KEY_HUK
+	arm_smccc_smc(OPTEE_SMC_CRYPT, TEESMC_HUK_DECRYPT,
+		(uint32_t)tee_addr, len, 0, 0, 0, 0, &param);
+#else
 	arm_smccc_smc(OPTEE_SMC_CRYPT, TEESMC_SSK_DECRYPT,
 		(uint32_t)tee_addr, len, 0, 0, 0, 0, &param);
+#endif
 	if (param.a0 != 0) {
 		printf("smc tee decrypt with ssk failed with: %ld", param.a0);
 
@@ -436,6 +460,9 @@ int smc_tee_rssk_encrypt(char *out_buf, char *in_buf, int len, int *out_len)
 
 	align_len = ALIGN(len, CACHE_LINE_SIZE);
 
+	if (align_len > SUNXI_SECURE_STORTAGE_BLOCK_SIZE - SUNXI_SECURE_STORTAGE_INFO_HEAD_LEN) {
+		return -1;
+	}
 	arm_smccc_smc(OPTEE_SMC_CRYPT, TEESMC_PROBE_SHM_BASE,
 		0, 0, 0, 0, 0, 0, &param);
 	if (param.a0 != 0) {
@@ -506,6 +533,9 @@ int smc_aes_algorithm(char *out_buf, char *in_buf, int data_len,
 	uint8_t *aes_key = NULL;
 	struct arm_smccc_res param = { 0 };
 
+	if (len > SUNXI_HDCP_BUFFER_LEN) {
+		return -1;
+	}
 	arm_smccc_smc(OPTEE_SMC_CRYPT, TEESMC_PROBE_SHM_BASE,
 		0, 0, 0, 0, 0, 0, &param);
 	if (param.a0 != 0) {
@@ -547,7 +577,6 @@ int smc_aes_algorithm(char *out_buf, char *in_buf, int data_len,
 	return 0;
 }
 
-
 int smc_tee_keybox_store(const char *name, char *in_buf, int len)
 {
 	sunxi_secure_storage_info_t *key_box;
@@ -560,6 +589,9 @@ int smc_tee_keybox_store(const char *name, char *in_buf, int len)
 		return -1;
 	}
 
+	if (len > SUNXI_SECURE_STORTAGE_BLOCK_SIZE) {
+		return -1;
+	}
 	key_box = (sunxi_secure_storage_info_t *)param.a1;
 	memcpy(key_box, in_buf, len);
 #if 0 /*debug info*/
@@ -574,6 +606,11 @@ int smc_tee_keybox_store(const char *name, char *in_buf, int len)
 		pr_err("name of key %s not match, key data corrupted\n", name);
 		return -1;
 	}
+
+#ifdef CONFIG_SECURE_STORAGE_KEY_HUK
+	key_box->encrypted = (key_box->encrypted & KEYBOX_ENC_MASK)
+				| (KEYBOX_ENC_PARAM_CBC_192_HUK << KEYBOX_ENC_PARAM_OFFSET);
+#endif
 
 	flush_cache((ulong)key_box, sizeof(sunxi_secure_storage_info_t));
 
@@ -661,5 +698,40 @@ int smc_tee_inform_fdt(uint64_t base, uint32_t size)
 		pr_err("%s failed with: %lx\n", __func__, param.a0);
 		return param.a0;
 	}
+	return 0;
+}
+
+int smc_tee_rkp_op(int sub_cmd, void *input, size_t input_size, void *output)
+{
+	struct arm_smccc_res param = { 0 };
+	uint8_t *buffer;
+
+	arm_smccc_smc(OPTEE_SMC_CRYPT, TEESMC_PROBE_SHM_BASE, 0, 0, 0, 0, 0, 0,
+		      &param);
+	if (param.a0 != 0) {
+		printf("smc tee probe share memory base failed\n ");
+		return -1;
+	}
+
+	buffer = (uint8_t *)param.a1;
+	memcpy(buffer, input, input_size);
+
+	flush_cache((ulong)buffer, ALIGN(input_size, CACHE_LINE_SIZE));
+
+	memset(&param, 0, sizeof(param));
+	arm_smccc_smc(OPTEE_SMC_SUNXI_RKP, sub_cmd, (unsigned long)buffer, 0, 0,
+		      0, 0, 0, &param);
+
+	if (param.a0 > 0x80000000) {
+		printf("%s failed with: %ld\n", __func__, param.a0);
+
+		return param.a0;
+	} else {
+		if (param.a0 && output) {
+			memcpy(output, buffer, param.a0);
+		}
+		return 0;
+	}
+
 	return 0;
 }

@@ -1263,6 +1263,20 @@ static void set_env_mtdparts_spinand(void)
 			"%uk@%u(%s)ro,", mtd_part.bytes / SZ_1K,
 			mtd_part.offset, mtd_part.name);
 #endif
+#if IS_ENABLED(CONFIG_RAW_KERNEL)
+	unsigned int blk_bytes = info->block_size(chip);
+	/* kernel */
+	snprintf((char *)&mtd_part.name, PART_NAME_MAX_SIZE, "kernel");
+	mtd_part.offset = offset;
+	if (CONFIG_KERNEL_SIZE_BYTE)
+		mtd_part.bytes = ALIGN(CONFIG_KERNEL_SIZE_BYTE, blk_bytes);
+	else
+		mtd_part.bytes = blk_bytes;
+	offset += mtd_part.bytes;
+	wlen += snprintf(ubinfo->mtdparts + wlen, 512 - wlen,
+			"%uk@%u(%s)ro,", mtd_part.bytes / SZ_1K,
+			mtd_part.offset, mtd_part.name);
+#endif
 	/* user data */
 	wlen += snprintf(ubinfo->mtdparts + wlen, 512 - wlen, "-(sys)");
 
@@ -1611,6 +1625,20 @@ static void set_env_mtdparts_rawnand(void)
 	snprintf((char *)&mtd_part.name, PART_NAME_MAX_SIZE, "pstore");
 	mtd_part.offset = offset;
 	mtd_part.bytes = AW_SPINAND_RESERVED_FOR_PSTORE_KB * SZ_1K;
+	offset += mtd_part.bytes;
+	wlen += snprintf(ubinfo->mtdparts + wlen, 512 - wlen,
+			"%uk@%u(%s)ro,", mtd_part.bytes / SZ_1K,
+			mtd_part.offset, mtd_part.name);
+#endif
+#if IS_ENABLED(CONFIG_RAW_KERNEL)
+	unsigned int blk_bytes = phy_blk_bytes * 2;
+	/* kernel */
+	snprintf((char *)&mtd_part.name, PART_NAME_MAX_SIZE, "kernel");
+	mtd_part.offset = offset;
+	if (CONFIG_KERNEL_SIZE_BYTE)
+		mtd_part.bytes = ALIGN(CONFIG_KERNEL_SIZE_BYTE, blk_bytes);
+	else
+		mtd_part.bytes = blk_bytes;
 	offset += mtd_part.bytes;
 	wlen += snprintf(ubinfo->mtdparts + wlen, 512 - wlen,
 			"%uk@%u(%s)ro,", mtd_part.bytes / SZ_1K,

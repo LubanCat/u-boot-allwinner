@@ -126,6 +126,15 @@
 			spi0_pins_c: spi0@2 {
 			};
 
+			spi1_pins_a: spi1@0 {
+			};
+
+			spi1_pins_b: spi1@1 {
+			};
+
+			spi1_pins_c: spi1@2 {
+			};
+
 			twi6: s_twi@0x07081400 {
 			};
 
@@ -241,6 +250,15 @@
 			pwm7_pin_b: pwm7@1 {
 			};
 
+			pwm3_pin_a: pwm3@0 {
+			};
+
+			pwm3_pin_b: pwm3@1 {
+			};
+
+			twi0: twi0@250200 {
+			};
+
 		};
 
 		pwm: pwm@2000c00 {
@@ -331,6 +349,14 @@
 			//clocks = <&ccu CLK_PLL_PERIPH0>, <&ccu CLK_SPI0>, <&ccu CLK_BUS_SPI0>;
 			//clock-names = "pll", "mod", "bus";
 			//resets = <&ccu RST_BUS_SPI0>;
+		};
+
+		spi1: spi1@4026000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "allwinner,sun20i-spi";
+			device_type = "spi1";
+			reg = <0x0 0x04026000 0x0 0x300>;
 		};
 
 		disp: disp@0x5000000 {

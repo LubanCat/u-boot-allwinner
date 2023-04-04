@@ -30,6 +30,10 @@
 #include "../edp/drv_edp.h"
 #endif
 
+#if defined(SUPPORT_EDP) && defined(CONFIG_EDP2_DISP2_SUNXI)
+#include "../edp2/drv_edp2.h"
+#endif
+
 #ifdef CONFIG_ION_SUNXI
 #define FB_RESERVED_MEM
 #endif
@@ -41,6 +45,16 @@ typedef enum
 	DISPLAY_DEEP_SLEEP = 2,
 	DISPLAY_BLANK = 4,
 }disp_standby_flags;
+
+enum disp_de_to_tcon_lcd_index {
+	DE_TO_TCON_NOT_DEFINE = -1,
+	TO_TCON0 = 0,
+	TO_TCON1 = 1,
+	TO_TCON2 = 2,
+	TO_TCON3 = 3,
+	TO_TCON4 = 4,
+	TO_TCON5 = 5,
+};
 
 struct info_mm
 {
@@ -70,7 +84,7 @@ struct standby_cb_list
 	struct list_head list;
 };
 
-typedef struct
+typedef struct disp_init_para
 {
 	bool                  b_init;
 	enum disp_init_mode        disp_mode;//0:single screen0(fb0); 1:single screen1(fb0); 2:single screen2(fb0)
@@ -78,7 +92,7 @@ typedef struct
 	//for screen0/1/2
 	enum disp_output_type      output_type[DISP_SCREEN_NUM];
 	unsigned int          output_mode[DISP_SCREEN_NUM];
-
+	enum disp_de_to_tcon_lcd_index	to_lcd_index[8];
 	//for fb0/1/2
 	unsigned int          buffer_num[DISP_SCREEN_NUM];
 	enum disp_pixel_format     format[DISP_SCREEN_NUM];
@@ -88,7 +102,7 @@ typedef struct
 	unsigned int chn_cfg_mode;
 }disp_init_para;
 
-typedef struct
+typedef struct disp_drv_info
 {
 	struct device           *dev;
 	uintptr_t               reg_base[DISP_MOD_NUM];

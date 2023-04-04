@@ -128,6 +128,8 @@ static int aw_spinand_chip_init_last(struct aw_spinand_chip *chip)
 				info->model(chip), val);
 		chip->tx_bit = val;
 	}
+
+#ifndef FPGA_PLATFORM
 #ifdef CONFIG_AW_SPINAND_NONSTANDARD_SPI_DRIVER
 	ret = fdt_getprop_u32(working_fdt, fdt_off, "spi-max-frequency", &val);
 	if (ret < 0) {
@@ -136,6 +138,7 @@ static int aw_spinand_chip_init_last(struct aw_spinand_chip *chip)
 	}
 #ifndef CONFIG_SPI_SAMP_DL_EN
 	spic0_change_mode(val / 1000 / 1000);
+#endif
 #endif
 #endif
 

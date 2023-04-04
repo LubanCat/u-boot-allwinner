@@ -7,7 +7,11 @@
 #define _SUNXI_DMA_H
 
 #define SUNXI_DMA_CHANNAL_BASE (SUNXI_DMA_BASE + 0x100)
-#define DMA_AUTO_GATE_REG (SUNXI_DMA_BASE + 0x28)
+#define DMA_AUTO_GATE_REG      (SUNXI_DMA_BASE + 0x28)
+
+#define SUNXI_DSP_DMA_CHANNAL_BASE (SUNXI_DSP_DMA_BASE + 0x100)
+#define DSP_DMA_AUTO_GATE_REG      (SUNXI_DSP_DMA_BASE + 0x28)
+
 
 #define SUNXI_DMA_CHANANL_SIZE (0x40)
 #define SUNXI_DMA_LINK_NULL (0xfffff800)
@@ -32,9 +36,8 @@
       defined(CONFIG_MACH_SUN8IW11)
 #define DMAC_CFG_TYPE_SPI0 (24)
 #define DMAC_CFG_SRC_TYPE_NAND (5)
-#elif defined(CONFIG_MACH_SUN50IW11) ||\
-	defined(CONFIG_MACH_SUN50IW12) ||\
-       	defined(CONFIG_MACH_SUN55IW3)
+#elif defined(CONFIG_MACH_SUN50IW11) || defined(CONFIG_MACH_SUN50IW12) ||      \
+	defined(CONFIG_MACH_SUN60IW1) || defined(CONFIG_MACH_SUN55IW3)
 
 #define DMAC_CFG_TYPE_SPI0 (22)
 #define DMAC_CFG_SRC_TYPE_NAND (10)
@@ -89,11 +92,12 @@ typedef struct {
 #if defined(CONFIG_MACH_SUN50IW3) || defined(CONFIG_MACH_SUN8IW18) ||          \
 	defined(CONFIG_MACH_SUN50IW9) || defined(CONFIG_MACH_SUN8IW16) ||      \
 	defined(CONFIG_MACH_SUN8IW19) || defined(CONFIG_MACH_SUN50IW10) ||     \
-	defined(CONFIG_MACH_SUN8IW15) || defined(CONFIG_MACH_SUN8IW7) ||	\
-	defined(CONFIG_MACH_SUN50IW11) || defined(CONFIG_MACH_SUN50IW12) ||	\
-	defined(CONFIG_MACH_SUN20IW1) || defined(CONFIG_MACH_SUN8IW20) ||	\
-	defined(CONFIG_MACH_SUN8IW21) || defined(CONFIG_MACH_SUN50IW5) ||  \
-        defined(CONFIG_MACH_SUN55IW3)
+	defined(CONFIG_MACH_SUN8IW15) || defined(CONFIG_MACH_SUN8IW7) ||       \
+	defined(CONFIG_MACH_SUN50IW11) || defined(CONFIG_MACH_SUN50IW12) ||    \
+	defined(CONFIG_MACH_SUN20IW1) || defined(CONFIG_MACH_SUN8IW20) ||      \
+	defined(CONFIG_MACH_SUN8IW21) || defined(CONFIG_MACH_SUN50IW5) ||      \
+	defined(CONFIG_MACH_SUN55IW3) || defined(CONFIG_MACH_SUN50IW2) ||      \
+	defined(CONFIG_MACH_SUN60IW1)
 typedef struct {
 	unsigned int src_drq_type : 6;
 	unsigned int src_burst_length : 2;
@@ -146,10 +150,17 @@ typedef struct {
 	unsigned int cur_dst_addr;
 	unsigned int left_bytes;
 	unsigned int parameters;
+#if defined(CONFIG_MACH_SUN55IW3)
+	unsigned int reserved0[2];
+#endif
 	unsigned int mode;
 	unsigned int fdesc_addr;
 	unsigned int pkg_num;
-	unsigned int res[5];
+#if defined(CONFIG_MACH_SUN55IW3)
+	unsigned int reserved1[3];
+#else
+	unsigned int reserved1[5];
+#endif
 } sunxi_dma_channal_reg;
 
 typedef struct {

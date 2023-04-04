@@ -179,6 +179,13 @@ config FTMAC100
 	help
 	  This MAC is present in Andestech SoCs.
 
+config MVGBE
+	bool "Marvell Orion5x/Kirkwood network interface support"
+	depends on KIRKWOOD || ORION5X
+	help
+	  This driver supports the network interface units in the
+	  Marvell Orion5x and Kirkwood SoCs
+
 config MVNETA
 	bool "Marvell Armada XP/385/3700 network interface support"
 	depends on ARMADA_XP || ARMADA_38X || ARMADA_3700
@@ -285,22 +292,19 @@ config SUN7I_GMAC_FORCE_TXERR
 	  doesn't have such signal, setting PA17 as GMAC function
 	  makes the pin output low, which enables data transmission.
 
-config SUN4I_EMAC
-	bool "Allwinner Sun4i Ethernet MAC support"
-	depends on DM_ETH
+config SUNXI_EMAC
+	bool "Allwinner SUNXI EMAC support"
 	select PHYLIB
+	default n
 	help
-	  This driver supports the Allwinner based SUN4I Ethernet MAC.
+	  This driver supports the Allwinner based Ethernet MAC.
 
-config SUN8I_EMAC
-        bool "Allwinner Sun8i Ethernet MAC support"
-        depends on DM_ETH
-        select PHYLIB
-	select PHY_GIGE
-        help
-          This driver supports the  Allwinner based SUN8I/SUN50I Ethernet MAC.
-	  It can be found in H3/A64/A83T based SoCs and compatible with both
-	  External and Internal PHYs.
+config SUNXI_GMAC
+	bool "Allwinner SUNXI GMAC support"
+	select PHYLIB
+	default n
+	help
+	  This driver supports the Allwinner GMAC.
 
 config SUNXI_GETH
 	bool "Allwinner SUNXI GMAC support"
@@ -308,6 +312,13 @@ config SUNXI_GETH
 	default n
 	help
 	  This driver supports the Allwinner Gigabit Ethernet MAC.
+
+config SUNXI_EPHY_AC300
+	bool "Use ac300 ephy"
+	depends on SUNXI_GETH
+	default n
+	help
+	  Some Allwinnertech SOC support ac300 ephy, Say "Y" to use it.
 
 config SH_ETHER
 	bool "Renesas SH Ethernet MAC"
@@ -368,6 +379,16 @@ config MPC8XX_FEC
 	help
 	  This driver implements support for the Fast Ethernet Controller
 	  on MPC8XX
+
+config SNI_AVE
+	bool "Socionext AVE Ethernet support"
+	depends on DM_ETH && ARCH_UNIPHIER
+	select PHYLIB
+	select SYSCON
+	select REGMAP
+	help
+	  This driver implements support for the Socionext AVE Ethernet
+	  controller, as found on the Socionext UniPhier family.
 
 config ETHER_ON_FEC1
 	bool "FEC1"

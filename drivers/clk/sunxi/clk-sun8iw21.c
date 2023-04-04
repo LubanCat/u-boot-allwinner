@@ -42,15 +42,15 @@ int cpus_clk_maxreg = CPUS_CLK_MAX_REG;
 
 /*					ns  nw  ks  kw  ms  mw  ps  pw  d1s d1w d2s d2w {frac   out mode}   en-s    sdmss   sdmsw   sdmpat          sdmval*/
 SUNXI_CLK_FACTORS(pll_cpu,		8,  8,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,    0,    0,  0,      31,     0,      0,      0,              0);
-SUNXI_CLK_FACTORS(pll_ddr0,		8,  8,  0,  0,  0,  0,  0,  0,  1,  1,  0,  1,    0,    0,  0,      31,     24,     1,      PLL_DDR0PAT,    0xd1303333);
-SUNXI_CLK_FACTORS(pll_periph0x2,	8,  8,  0,  0,  1,  1,  0,  0,  16, 3,  0,  0,    0,    0,  0,      31,     24,     1,      PLL_PERI0PAT0,  0xd1303333);
-SUNXI_CLK_FACTORS(pll_periph0800m,	8,  8,  0,  0,  1,  1,  0,  0,  20, 3,  0,  0,    0,    0,  0,      31,     24,     1,      PLL_PERI0PAT0,  0xd1303333);
-SUNXI_CLK_FACTORS(pll_periph0480m,	8,  8,  0,  0,  1,  1,  0,  0,  2,  3,  0,  0,    0,    0,  0,      31,     24,     1,      PLL_PERI0PAT0,  0xd1303333);
-SUNXI_CLK_FACTORS(pll_video0x4,		8,  8,  0,  0,  0,  0,  0,  0,  1,  1,  0,  0,    0,    0,  0,      31,     24,     1,      PLL_VIDEO0PAT0, 0xd1303333);
-SUNXI_CLK_FACTORS(pll_csix4,		8,  8,  0,  0,  0,  0,  0,  0,  1,  1,  0,  0,    0,    0,  0,      31,     24,     1,      PLL_CSIPAT0,    0xd1303333);
+SUNXI_CLK_FACTORS(pll_ddr0,		8,  8,  0,  0,  0,  0,  0,  0,  1,  1,  0,  1,    0,    0,  0,      31,     24,     0,      PLL_DDR0PAT,    0xd1303333);
+SUNXI_CLK_FACTORS(pll_periph0x2,	8,  8,  0,  0,  1,  1,  0,  0,  16, 3,  0,  0,    0,    0,  0,      31,     24,     0,      PLL_PERI0PAT0,  0xd1303333);
+SUNXI_CLK_FACTORS(pll_periph0800m,	8,  8,  0,  0,  1,  1,  0,  0,  20, 3,  0,  0,    0,    0,  0,      31,     24,     0,      PLL_PERI0PAT0,  0xd1303333);
+SUNXI_CLK_FACTORS(pll_periph0480m,	8,  8,  0,  0,  1,  1,  0,  0,  2,  3,  0,  0,    0,    0,  0,      31,     24,     0,      PLL_PERI0PAT0,  0xd1303333);
+SUNXI_CLK_FACTORS(pll_video0x4,		8,  8,  0,  0,  0,  0,  0,  0,  1,  1,  0,  0,    0,    0,  0,      31,     24,     0,      PLL_VIDEO0PAT0, 0xd1303333);
+SUNXI_CLK_FACTORS(pll_csix4,		8,  8,  0,  0,  0,  0,  0,  0,  1,  1,  0,  0,    0,    0,  0,      31,     24,     0,      PLL_CSIPAT0,    0xd1303333);
 SUNXI_CLK_FACTORS(pll_audio_div2,	8,  8,  0,  0,  0,  0,  0,  0,  1,  1,  16, 3,    0,    0,  0,      31,     24,     1,      PLL_AUDIOPAT0,  0xd1303333);
 SUNXI_CLK_FACTORS(pll_audio_div5,	8,  8,  0,  0,  0,  0,  0,  0,  1,  1,  20, 3,    0,    0,  0,      31,     24,     1,      PLL_AUDIOPAT0,  0xd1303333);
-SUNXI_CLK_FACTORS(pll_npux4,		8,  8,  0,  0,  1,  1,  0,  0,  0,  0,  0,  0,    0,    0,  0,      31,     24,     1,      PLL_NPUPAT0,    0xd1303333);
+SUNXI_CLK_FACTORS(pll_npux4,		8,  8,  0,  0,  1,  1,  0,  0,  0,  0,  0,  0,    0,    0,  0,      31,     24,     0,      PLL_NPUPAT0,    0xd1303333);
 
 static int get_factors_pll_cpu(u32 rate, u32 parent_rate,
 		struct clk_factors_value *factor)

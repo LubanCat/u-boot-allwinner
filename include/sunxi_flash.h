@@ -25,6 +25,8 @@
 #define __SUNXI_FLASH_H__
 #include <common.h>
 #include <sunxi_nand.h>
+#include <spare_head.h>
+#include <sunxi_flashmap.h>
 
 /*normal*/
 int sunxi_flash_init(void);
@@ -75,9 +77,11 @@ int sunxi_sprite_secstorage_fast_write(int item, unsigned char *buf,
 				  unsigned int len);
 int sunxi_sprite_download_spl(unsigned char *buf, int len, unsigned int ext);
 int sunxi_sprite_download_toc(unsigned char *buf, int len, unsigned int ext);
+int sunxi_sprite_upload_toc(void *buf, unsigned int len);
 
 int sunxi_flash_probe(void);
 int sunxi_flash_init_ext(void);
+int get_board_flash_type_exist(SUNXI_BOOT_STORAGE boardflash);
 
 int sunxi_flash_boot_init(int storage_type, int workmode);
 int save_fdt_to_flash(void *fdt_buf, size_t fdt_size);

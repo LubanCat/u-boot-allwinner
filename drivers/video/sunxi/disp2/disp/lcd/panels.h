@@ -225,6 +225,10 @@ extern __lcd_panel_t st7789v_cpu_panel;
 extern __lcd_panel_t st7701s_panel;
 #endif
 
+#ifdef CONFIG_LCD_SUPPORT_ST7701S_G5
+extern __lcd_panel_t st7701s_g5_panel;
+#endif
+
 #ifdef CONFIG_LCD_SUPPORT_WTL096601G03
 extern __lcd_panel_t wtl096601g03_panel;
 #endif
@@ -253,12 +257,20 @@ extern __lcd_panel_t zs080ni4003e7h3h_a_panel;
 extern __lcd_panel_t K080_IM2HYL802R_800X1280_mipi_panel;
 #endif
 
+#ifdef CONFIG_LCD_SUPPORT_FX070_DHM18BOEL2_1024X600
+extern __lcd_panel_t FX070_DHM18BOEL2_1024X600_mipi_panel;
+#endif
+
 #ifdef CONFIG_LCD_SUPPORT_K101_IM2BYL02_L_800X1280
 extern __lcd_panel_t K101_IM2BYL02_L_800X1280_mipi_panel;
 #endif
 
 #ifdef CONFIG_LCD_SUPPORT_JD9366AB_3
 extern __lcd_panel_t jd9366ab_3_panel;
+#endif
+
+#ifdef CONFIG_LCD_SUPPORT_JD9161Z_MIPI
+extern __lcd_panel_t jd9161z_panel;
 #endif
 
 #ifdef CONFIG_LCD_SUPPORT_TFT08006
@@ -269,7 +281,42 @@ extern __lcd_panel_t tft08006_panel;
 extern __lcd_panel_t t050k589_panel;
 #endif
 
+#ifdef CONFIG_LCD_SUPPORT_B080UAN01_MIPI1200X1920
+extern __lcd_panel_t b080uan01_panel;
+#endif
+
 #ifdef CONFIG_LCD_SUPPORT_K101_MM2QA01_A
 extern __lcd_panel_t K101_MM2QA01_A_mipi_panel;
 #endif
+
+#ifdef CONFIG_LCD_SUPPORT_ICN6202
+extern __lcd_panel_t icn6202_panel;
+#endif
+
+#ifdef CONFIG_LCD_SUPPORT_NT35510_MIPI
+extern __lcd_panel_t nt35510_panel;
+#endif
+
+/************** sk lcd panel config *****************/
+#ifdef CONFIG_LCD_SUPPORT_FT8021_TV097WXM_LH0
+extern __lcd_panel_t FT8021_TV097WXM_LH0_mipi_panel;
+#endif
+
+#ifdef CONFIG_LCD_SUPPORT_JD9365DA_SAT080BO31I21Y03_26114M018I
+extern __lcd_panel_t JD9365DA_SAT080BO31I21Y03_26114M018IB_mipi_panel;
+#endif
+
+#ifdef CONFIG_LCD_SUPPORT_JD9365DA_SAT080AT31I21Y03_26114M019IB
+extern __lcd_panel_t JD9365DA_SAT080AT31I21Y03_26114M019IB_mipi_panel;
+#endif
+
+#ifdef CONFIG_LCD_SUPPORT_JD9365DA_SQ101A_B4EI313_39R501
+extern __lcd_panel_t SQ101A_B4EI313_39R501_mipi_panel;
+#endif
+
+#ifdef CONFIG_LCD_SUPPORT_KD080D24
+extern __lcd_panel_t kd080d24_panel;
+#endif
+
+extern __lcd_panel_t SQ101D_Q5DI404_84H501_mipi_panel;
 #endif

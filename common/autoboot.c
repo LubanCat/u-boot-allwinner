@@ -16,6 +16,7 @@
 #ifdef CONFIG_ARCH_SUNXI
 #include <sunxi_board.h>
 #endif
+#include <bootcount.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -312,18 +313,8 @@ const char *bootdelay_process(void)
 {
 	char *s;
 	int bootdelay;
-#ifdef CONFIG_BOOTCOUNT_LIMIT
-	unsigned long bootcount = 0;
-	unsigned long bootlimit = 0;
-#endif /* CONFIG_BOOTCOUNT_LIMIT */
 
-#ifdef CONFIG_BOOTCOUNT_LIMIT
-	bootcount = bootcount_load();
-	bootcount++;
-	bootcount_store(bootcount);
-	env_set_ulong("bootcount", bootcount);
-	bootlimit = env_get_ulong("bootlimit", 10, 0);
-#endif /* CONFIG_BOOTCOUNT_LIMIT */
+	bootcount_inc();
 
 	s = env_get("bootdelay");
 	bootdelay = s ? (int)simple_strtol(s, NULL, 10) : CONFIG_BOOTDELAY;
@@ -346,18 +337,7 @@ const char *bootdelay_process(void)
 	} else
 #endif /* CONFIG_POST */
 #ifdef CONFIG_BOOTCOUNT_LIMIT
-	if (bootlimit && (bootcount > bootlimit)) {
-		printf("Warning: Bootlimit (%u) exceeded. Using altbootcmd.\n",
-		       (unsigned)bootlimit);
-#ifdef CONFIG_SUNXI_SWITCH_SYSTEM
-		if (!sunxi_damage_switch_system()) {
-			printf("Damage switching succeeded, now reset the system!\n");
-			reset_cpu(0);
-		} else {
-			s = NULL;
-			return s;
-		}
-#endif
+	if (bootcount_error()) {
 		s = env_get("altbootcmd");
 	} else
 #endif /* CONFIG_BOOTCOUNT_LIMIT */
