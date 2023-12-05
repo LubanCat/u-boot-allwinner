@@ -323,76 +323,7 @@ static void switch_to_el1(void)
 #include <linux/arm-smccc.h>
 #include <sunxi_board.h>
 
-int check_dtbo_idx(void);
-void *sunxi_support_ufdt(void *dtb_base, u32 dtb_len);
-
-
-#ifdef CONFIG_ARCH_SUNXI
 /* Subcommand: GO */
-static void boot_jump_linux(bootm_headers_t *images, int flag)
-{
-	unsigned long machid = gd->bd->bi_arch_number;
-	void (*kernel_entry)(int zero, int arch, uint params);
-	char *s;
-	unsigned long r2;
-	int fake = (flag & BOOTM_STATE_OS_FAKE_GO);
-	u32 ARM_SVC_RUNNSOS = 0x8000ff04;
-
-	kernel_entry = (void (*)(int, int, uint))images->ep;
-
-	s = env_get("machid");
-	if (s) {
-		if (strict_strtoul(s, 16, &machid) < 0) {
-			debug("strict_strtoul failed!\n");
-			return;
-		}
-		printf("Using machid 0x%lx from environment\n", machid);
-	}
-
-	debug("## Transferring control to Linux (at address %08lx)" \
-		"...\n", (ulong) kernel_entry);
-	bootstage_mark(BOOTSTAGE_ID_RUN_OS);
-
-	if (IMAGE_ENABLE_OF_LIBFDT && images->ft_len) {
-		r2 = env_get_hex("load_dtb_addr", CONFIG_SUNXI_FDT_ADDR);
-#ifdef CONFIG_SUNXI_ANDROID_OVERLAY
-		if (check_dtbo_idx() == 0) {
-			if (sunxi_support_ufdt((void *)images->ft_addr, fdt_totalsize(images->ft_addr)) == NULL) {
-				pr_err("sunxi android dto merge fail\n");
-			}
-		}
-#endif
-		sunxi_mem_info("fdt", (void *)r2, images->ft_len);
-		memcpy((void *)r2, images->ft_addr, images->ft_len);
-	} else
-		r2 = gd->bd->bi_boot_params;
-	debug("## Linux machid: %08lx, FDT addr: %08lx\n", machid, r2);
-#ifdef CONFIG_SUNXI_INITRD_ROUTINE
-	int ramdisk_sum = sunxi_generate_checksum((void *)env_get_hex("ramdisk_start", 0), env_get_hex("ramdisk_size", 0), 8, STAMP_VALUE);
-	if (ramdisk_sum != env_get_hex("ramdisk_sum", 0x5a5a)) {
-		pr_err("ramdisk checksum bad!!!\n");
-		do_reset(NULL, 0, 0, NULL);
-	}
-#endif
-	announce_and_cleanup(fake);
-
-	if (!fake) {
-
-#ifdef CONFIG_ARISC_DEASSERT_BEFORE_KERNEL
-		u32 ARM_SVC_ARISC_STARTUP = 0x8000ff10;
-
-		/* load and de-assert cpus before kernel*/
-		sunxi_smc_call_atf(ARM_SVC_ARISC_STARTUP, (ulong)r2, 0, 0);
-#endif
-		/*we could run 32bit os on 64bit platform, which have monitor*/
-		if (sunxi_probe_secure_monitor() && (sunxi_get_force_32bit_os() == 0))
-			sunxi_smc_call_atf(ARM_SVC_RUNNSOS,(ulong)kernel_entry, (ulong)r2,  1);
-		else
-			kernel_entry(0, machid, r2);
-	}
-
-}
-#else
 static void boot_jump_linux(bootm_headers_t *images, int flag)
 {
 #ifdef CONFIG_ARM64
@@ -439,6 +370,7 @@ static void boot_jump_linux(bootm_headers_t *images, int flag)
 	void (*kernel_entry)(int zero, int arch, uint params);
 	unsigned long r2;
 	int fake = (flag & BOOTM_STATE_OS_FAKE_GO);
+	u32 ARM_SVC_RUNNSOS = 0x8000ff04;
 
 	kernel_entry = (void (*)(int, int, uint))images->ep;
 #ifdef CONFIG_CPU_V7M
@@ -457,28 +389,23 @@ static void boot_jump_linux(bootm_headers_t *images, int flag)
 	debug("## Transferring control to Linux (at address %08lx)" \
 		"...\n", (ulong) kernel_entry);
 	bootstage_mark(BOOTSTAGE_ID_RUN_OS);
-	announce_and_cleanup(fake);
 
 	if (IMAGE_ENABLE_OF_LIBFDT && images->ft_len)
 		r2 = (unsigned long)images->ft_addr;
 	else
 		r2 = gd->bd->bi_boot_params;
 
+	printf("## Linux machid: %08lx, FDT addr: %08lx\n", machid, r2);
+	announce_and_cleanup(fake);
+	
 	if (!fake) {
-#ifdef CONFIG_ARMV7_NONSEC
-		if (armv7_boot_nonsec()) {
-			armv7_init_nonsec();
-			secure_ram_addr(_do_nonsec_entry)(kernel_entry,
-							  0, machid, r2);
-		} else
-#endif
-		kernel_entry(0, machid, r2);
+		if (sunxi_probe_secure_monitor())
+			sunxi_smc_call_atf(ARM_SVC_RUNNSOS,(ulong)kernel_entry, (ulong)r2,  1);
+		else
+			kernel_entry(0, machid, r2);
 	}
 #endif
 }
-#endif
-
-
 
 /* Main Entry point for arm bootm implementation
  *

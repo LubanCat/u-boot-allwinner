@@ -593,7 +593,7 @@ static int initr_sunxi_plat(void)
 	initr_env();
 #endif
 
-		sunxi_probe_partition_map();
+		// sunxi_probe_partition_map();
 	}
 
 #ifdef CONFIG_SUNXI_ROTPK_BURN_ENABLE_BY_TOOL

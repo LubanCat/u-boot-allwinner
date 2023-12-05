@@ -266,32 +266,32 @@ endif
 endif
 
 #########################################################################
-RISCV_PATH=riscv64-linux-x86_64-20200528
-riscv_toolchain_check=$(shell if [ ! -d ../tools/toolchain/$(RISCV_PATH) ]; then echo yes; else echo no; fi;)
-ifeq (x$(riscv_toolchain_check), xyes)
-$(info Prepare riscv toolchain ...);
-$(shell mkdir -p ../tools/toolchain/$(RISCV_PATH) || exit 1)
-$(shell tar --strip-components=1 -xf ../tools/toolchain/$(RISCV_PATH).tar.xz -C ../tools/toolchain/$(RISCV_PATH) || exit 1)
-endif
-arm_toolchain_check=$(shell if [ ! -d ../tools/toolchain/gcc-linaro-7.2.1-2017.11-x86_64_arm-linux-gnueabi ]; then echo yes; else echo no; fi;)
-ifeq (x$(arm_toolchain_check), xyes)
-$(info Prepare arm toolchain ...);
-$(shell mkdir -p ../tools/toolchain/gcc-linaro-7.2.1-2017.11-x86_64_arm-linux-gnueabi || exit 1)
-$(shell tar --strip-components=1 -xf ../tools/toolchain/gcc-linaro-7.2.1-2017.11-x86_64_arm-linux-gnueabi.tar.xz -C ../tools/toolchain/gcc-linaro-7.2.1-2017.11-x86_64_arm-linux-gnueabi || exit 1)
-endif
+#RISCV_PATH=riscv64-linux-x86_64-20200528
+#riscv_toolchain_check=$(shell if [ ! -d ../tools/toolchain/$(RISCV_PATH) ]; then echo yes; else echo no; fi;)
+#ifeq (x$(riscv_toolchain_check), xyes)
+#$(info Prepare riscv toolchain ...);
+#$(shell mkdir -p ../tools/toolchain/$(RISCV_PATH) || exit 1)
+#$(shell tar --strip-components=1 -xf ../tools/toolchain/$(RISCV_PATH).tar.xz -C ../tools/toolchain/$(RISCV_PATH) || exit 1)
+#endif
+#arm_toolchain_check=$(shell if [ ! -d ../tools/toolchain/gcc-linaro-7.2.1-2017.11-x86_64_arm-linux-gnueabi ]; then echo yes; else echo no; fi;)
+#ifeq (x$(arm_toolchain_check), xyes)
+#$(info Prepare arm toolchain ...);
+#$(shell mkdir -p ../tools/toolchain/gcc-linaro-7.2.1-2017.11-x86_64_arm-linux-gnueabi || exit 1)
+#$(shell tar --strip-components=1 -xf ../tools/toolchain/gcc-linaro-7.2.1-2017.11-x86_64_arm-linux-gnueabi.tar.xz -C ../tools/toolchain/gcc-linaro-7.2.1-2017.11-x86_64_arm-linux-gnueabi || exit 1)
+#endif
 
 
 ifeq (x$(CONFIG_RISCV), xy)
-CROSS_COMPILE := $(srctree)/../tools/toolchain/$(RISCV_PATH)/bin/riscv64-unknown-linux-gnu-
+#CROSS_COMPILE := $(srctree)/../tools/toolchain/$(RISCV_PATH)/bin/riscv64-unknown-linux-gnu-
 DTS_PATH := $(PWD)/arch/riscv/dts
 endif
 
 ifeq (x$(CONFIG_ARM), xy)
-CROSS_COMPILE := $(srctree)/../tools/toolchain/gcc-linaro-7.2.1-2017.11-x86_64_arm-linux-gnueabi/bin/arm-linux-gnueabi-
+#CROSS_COMPILE := $(srctree)/../tools/toolchain/gcc-linaro-7.2.1-2017.11-x86_64_arm-linux-gnueabi/bin/arm-linux-gnueabi-
 DTS_PATH := $(PWD)/arch/arm/dts
 endif
 
-CROSS_COMPILE ?= $(srctree)/../tools/toolchain/gcc-linaro-7.2.1-2017.11-x86_64_arm-linux-gnueabi/bin/arm-linux-gnueabi-
+#CROSS_COMPILE ?= $(srctree)/../tools/toolchain/gcc-linaro-7.2.1-2017.11-x86_64_arm-linux-gnueabi/bin/arm-linux-gnueabi-
 DTS_PATH ?= $(PWD)/arch/arm/dts
 
 #######################################################################
@@ -547,10 +547,10 @@ config: scripts_basic outputmakefile FORCE
 
 %config: scripts_basic outputmakefile FORCE
 	$(Q)$(MAKE) $(build)=scripts/kconfig $@
-ifneq ($(findstring defconfig, $(MAKECMDGOALS)),)
-	$(shell md5sum "configs/$(MAKECMDGOALS)" | awk '{printf $$1}' > .tmp_defcofig.o.md5sum)
-	$(Q)md5sum ".config" | awk '{printf $$1}' > .tmp_config_from_defconfig.o.md5sum
-endif
+#ifneq ($(findstring defconfig, $(MAKECMDGOALS)),)
+#	$(shell md5sum "configs/$(MAKECMDGOALS)" | awk '{printf $$1}' > .tmp_defcofig.o.md5sum)
+#	$(Q)md5sum ".config" | awk '{printf $$1}' > .tmp_config_from_defconfig.o.md5sum
+#endif
 
 else
 # ===========================================================================
@@ -1603,16 +1603,16 @@ define filechk_version.h
 	echo \#define LD_VERSION_STRING \"$$(LC_ALL=C $(LD) --version | head -n 1)\"; )
 endef
 
-DIRTY:=$(shell echo `git describe --dirty|grep -o dirty$$`)
-DEF_DOT_CONFIG_HASH=$(shell echo `cat .tmp_config_from_defconfig.o.md5sum`)
-CUR_DOT_CONFIG_HASH=$(shell echo `md5sum .config| awk '{printf $$1}'`)
-CONFIG_DIRTY:=$(shell if [ $(DEF_DOT_CONFIG_HASH) = $(CUR_DOT_CONFIG_HASH) ]; \
-	then echo ""; \
-	else echo "-config-dirty"; \
-	fi)
-ifeq ($(DIRTY)$(CONFIG_DIRTY),)
-	export SOURCE_DATE_EPOCH=$(shell echo `git log -1 --pretty=%ct`)
-endif
+#DIRTY:=$(shell echo `git describe --dirty|grep -o dirty$$`)
+#DEF_DOT_CONFIG_HASH=$(shell echo `cat .tmp_config_from_defconfig.o.md5sum`)
+#CUR_DOT_CONFIG_HASH=$(shell echo `md5sum .config| awk '{printf $$1}'`)
+#CONFIG_DIRTY:=$(shell if [ $(DEF_DOT_CONFIG_HASH) = $(CUR_DOT_CONFIG_HASH) ]; \
+#	then echo ""; \
+#	else echo "-config-dirty"; \
+#	fi)
+#ifeq ($(DIRTY)$(CONFIG_DIRTY),)
+#	export SOURCE_DATE_EPOCH=$(shell echo `git log -1 --pretty=%ct`)
+#endif
 
 
 # The SOURCE_DATE_EPOCH mechanism requires a date that behaves like GNU date.

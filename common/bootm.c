@@ -287,14 +287,10 @@ int use_android_image_dtb(void)
  *     0, if all existing images were loaded correctly
  *     1, if an image is found but corrupted, or invalid
  */
-int sunxi_update_fdt_para_for_kernel(void);
-
 int bootm_find_images(int flag, int argc, char * const argv[])
 {
-	 __attribute__((unused)) int ret;
+	int ret;
 
-#if !defined(CONFIG_SUNXI_INITRD_ROUTINE)
-	/* ramdisk manually processed, pass*/
 	/* find ramdisk */
 	ret = boot_get_ramdisk(argc, argv, &images, IH_INITRD_ARCH,
 			       &images.rd_start, &images.rd_end);
@@ -302,24 +298,15 @@ int bootm_find_images(int flag, int argc, char * const argv[])
 		puts("Ramdisk image is corrupt or invalid\n");
 		return 1;
 	}
-#endif
 
 
 #if IMAGE_ENABLE_OF_LIBFDT
 #ifdef CONFIG_ARCH_SUNXI
-#if defined(CONFIG_OF_SEPARATE) && !defined(CONFIG_SUNXI_NECESSARY_REPLACE_FDT)
-/* If CONFIG_SUNXI_REPLACE_FDT_FROM_PARTITION is defined,
- * the dtb in the partition will be used and will not be executed here.
- *
- * If CONFIG_SUNXI_REPLACE_FDT_FROM_PARTITION is not defined,
- * Will use dtb in the Android image.
- * */
-#ifndef CONFIG_SUNXI_REPLACE_FDT_FROM_PARTITION
+#ifdef CONFIG_OF_SEPARATE
 	if (use_android_image_dtb()) {
 		puts("Use android image dtb fail!\n");
 		return 1;
 	}
-#endif
 #endif
 	images.ft_addr = (char *)gd->fdt_blob;
 	images.ft_len  = gd->fdt_size;
@@ -329,13 +316,8 @@ int bootm_find_images(int flag, int argc, char * const argv[])
 	     use fdt in place
 	  */
 	env_set("fdt_high", "0xffffffff");
-#if defined(CONFIG_OF_SEPARATE) && !defined(CONFIG_SUNXI_NECESSARY_REPLACE_FDT)
-/* If CONFIG_SUNXI_REPLACE_FDT_FROM_PARTITION is defined,
- * this function will be called earlier,
- * so there is no need to call this function again. */
-#ifndef CONFIG_SUNXI_REPLACE_FDT_FROM_PARTITION
+#ifdef CONFIG_OF_SEPARATE
 	sunxi_update_fdt_para_for_kernel();
-#endif
 #endif
 #else
 	/* find flattened device tree */

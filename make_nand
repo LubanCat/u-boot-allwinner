@@ -22,11 +22,11 @@ export platform
 SRCTREE		:= $(CURDIR)
 TOPDIR		:= $(SRCTREE)
 
-ifeq ("$(platform)", "CONFIG_MACH_SUN20IW1")
-CROSS_COMPILE := $(TOPDIR)/../tools/toolchain/riscv64-linux-x86_64-20200528/bin/riscv64-unknown-linux-gnu-
-else
+#ifeq ("$(platform)", "CONFIG_MACH_SUN20IW1")
+#CROSS_COMPILE := $(TOPDIR)/../tools/toolchain/riscv64-linux-x86_64-20200528/bin/riscv64-unknown-linux-gnu-
+#else
 CROSS_COMPILE := $(TOPDIR)/../tools/toolchain/gcc-linaro-7.2.1-2017.11-x86_64_arm-linux-gnueabi/bin/arm-linux-gnueabi-
-endif
+#endif
 
 DRIVER_DIR	:= $(TOPDIR)/drivers/sunxi_flash/nand
 export TOPDIR
@@ -43,16 +43,16 @@ OBJDUMP         = $(CROSS_COMPILE)objdump
 
 export AS LD CC CPP AR NM LDR STRIP OBJCOPY OBJDUMP
 
-ifeq ("$(platform)", "CONFIG_MACH_SUN20IW1")
+#ifeq ("$(platform)", "CONFIG_MACH_SUN20IW1")
 
-CFLGAS = -nostdinc -isystem -D__KERNEL__ -D__UBOOT__ -Wall -Wstrict-prototypes -Wno-format-security -fno-builtin -ffreestanding -Wno-packed-bitfield-compat -fshort-wchar -Os -fno-stack-protector -fno-delete-null-pointer-checks -g -fstack-usage -Wno-format-nonliteral -Werror=date-time -ffixed-gp -fpic -fno-common -gdwarf-2 -ffunction-sections -fdata-sections -pipe -march=rv64imacxthead -mabi=lp64 -mcmodel=medlow
+#CFLGAS = -nostdinc -isystem -D__KERNEL__ -D__UBOOT__ -Wall -Wstrict-prototypes -Wno-format-security -fno-builtin -ffreestanding -Wno-packed-bitfield-compat -fshort-wchar -Os -fno-stack-protector -fno-delete-null-pointer-checks -g -fstack-usage -Wno-format-nonliteral -Werror=date-time -ffixed-gp -fpic -fno-common -gdwarf-2 -ffunction-sections -fdata-sections -pipe -march=rv64imacxthead -mabi=lp64 -mcmodel=medlow
 
-INCLUDE = -I$(shell dirname `$(CC)  -print-libgcc-file-name`)/include \
-		  -I$(SRCTREE)/include \
-		  -I$(SRCTREE)/arch/riscv/include \
-		  -I$(TOPDIR)/../tools/toolchain/riscv64-linux-x86_64-20200528/lib/gcc/riscv64-unknown-linux-gnu/8.1.0/include
+#INCLUDE = -I$(shell dirname `$(CC)  -print-libgcc-file-name`)/include \
+#		  -I$(SRCTREE)/include \
+#		  -I$(SRCTREE)/arch/riscv/include \
+#		  -I$(TOPDIR)/../tools/toolchain/riscv64-linux-x86_64-20200528/lib/gcc/riscv64-unknown-linux-gnu/8.1.0/include
 
-else
+#else
 
 CFLGAS = -nostdinc -isystem \
   -D__KERNEL__ -D__UBOOT__ \
@@ -72,7 +72,7 @@ INCLUDE = -I$(shell dirname `$(CC)  -print-libgcc-file-name`)/include \
 		  -I$(SRCTREE)/include \
 		  -I$(SRCTREE)/arch/arm/include
 
-endif
+#endif
 
 .PHONY:clean clean_libcomm1 clean_libcomm0
 

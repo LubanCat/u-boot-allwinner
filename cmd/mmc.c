@@ -949,7 +949,7 @@ static int do_mmcops(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		return CMD_RET_SUCCESS;
 
 	if (curr_device < 0) {
-		if (get_mmc_num() > 0) {
+		if (get_mmc_num() >= 0) {
 			curr_device = 0;
 		} else {
 			puts("No MMC device available\n");
@@ -1029,7 +1029,7 @@ int do_card0_probe(cmd_tbl_t *cmdtp, int flag,
 	board_mmc_set_num(0);
 	board_mmc_pre_init(0);
 
-//	sunxi_mmc_init(0);
+	sunxi_mmc_init(0);
 	mmc_boot = find_mmc_device(0);
 	if (!mmc_boot) {
 		printf("fail to find card0\n");
