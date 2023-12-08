@@ -98,3 +98,10 @@ GTAGS
 prelink-riscv
 *.dtb
 tools/sunxi_proftool
+
+#lbc build files
+*.fex
+*.dtbo
+boot_package.cfg
+busybox
+update_uboot
