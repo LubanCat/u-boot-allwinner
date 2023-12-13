@@ -1088,13 +1088,13 @@ TARGET_BIN_NAME := u-boot$(TARGET_BIN_DECORATOR)-$(CONFIG_SYS_CONFIG_NAME).bin
 
 u-boot-$(CONFIG_SYS_CONFIG_NAME).bin:   u-boot.bin
 	@cp -v $<    $@
-ifeq ($(TARGET_BUILD_VARIANT),tina)
-	@cp -v $@ $(objtree)/../../../$(TARGET_BIN_DIR)/$(TARGET_BIN_NAME)
-else
-#LICHEE_BUSSINESS could be empty and result in "//", bui it will be treated as "/", it's fine
-	@-cp -v $@ $(LICHEE_CHIP_CONFIG_DIR)/$(LICHEE_BUSSINESS)/bin/$(TARGET_BIN_NAME)
-	@-cp -v $@ $(LICHEE_PLAT_OUT)/$(TARGET_BIN_NAME)
-endif
+# ifeq ($(TARGET_BUILD_VARIANT),tina)
+# 	@cp -v $@ $(objtree)/../../../$(TARGET_BIN_DIR)/$(TARGET_BIN_NAME)
+# else
+# #LICHEE_BUSSINESS could be empty and result in "//", bui it will be treated as "/", it's fine
+# 	@-cp -v $@ $(LICHEE_CHIP_CONFIG_DIR)/$(LICHEE_BUSSINESS)/bin/$(TARGET_BIN_NAME)
+# 	@-cp -v $@ $(LICHEE_PLAT_OUT)/$(TARGET_BIN_NAME)
+# endif
 
 %.imx: %.bin
 	$(Q)$(MAKE) $(build)=arch/arm/mach-imx $@
